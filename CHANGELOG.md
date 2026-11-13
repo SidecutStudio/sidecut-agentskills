@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.1] - 2026-11-13
+
+### Fixed
+
+- The checker runs the repo checks on a plugin repo that kept an older name, when its `package.json` is named after the plugin. Before, such a repo skipped them all.
+
 ## [0.5.0] - 2026-11-13
 
 ### Added

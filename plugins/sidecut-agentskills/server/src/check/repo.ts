@@ -443,13 +443,23 @@ export function checkRepo(root: string, report: Report): void {
   } catch {
     // A missing or broken manifest is reported by the plugin checks.
   }
-  if (!only || repository !== `https://github.com/SidecutStudio/${only}`) {
+  // A repo that kept an older name still ships its plugin when its package is named after the plugin.
+  let packageName = '';
+  try {
+    packageName = String(
+      (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { name?: string }).name,
+    );
+  } catch {
+    // A missing or broken package.json is reported by the package checks.
+  }
+  const repoName = /^https:\/\/github\.com\/SidecutStudio\/([\w.-]+)$/.exec(repository)?.[1] ?? '';
+  if (!only || !repoName || (repoName !== only && packageName !== only)) {
     for (const id of plugins) checkPlugin(join(pluginsDir, id), root, report, null);
     return;
   }
   const id = only;
   const pluginDir = join(pluginsDir, id);
-  const { version } = checkPlugin(pluginDir, root, report, id);
+  const { version } = checkPlugin(pluginDir, root, report, repoName);
   checkTopLevel(root, report);
   checkFixedFiles(root, id, report);
   const scripts = checkPackage(root, id, version, report);
