@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1] - 2026-11-13
+
+### Changed
+
+- A plugin repo may have a `docs/` folder for longer documentation, such as a specification.
+
 ## [0.6.0] - 2026-11-13
 
 ### Added

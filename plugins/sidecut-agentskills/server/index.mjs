@@ -23205,7 +23205,7 @@ var REQUIRED_ENTRIES = [
   "tests",
   "tsconfig.json"
 ];
-var OPTIONAL_ENTRIES = [".git", "node_modules", "bunfig.toml"];
+var OPTIONAL_ENTRIES = [".git", "node_modules", "bunfig.toml", "docs"];
 var CHECK_STEPS = [
   "biome check .",
   "tsc --noEmit",
