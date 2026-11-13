@@ -59,12 +59,17 @@ function licence(pkg: string, dir: string): string {
 // Codex loads subagents only from a project's .codex/agents/, so the plugin ships each one as a
 // profile its skills copy there: the name as <prefix>_<role>, the description, and the body.
 function codexProfile(markdown: string, prefix: string, role: string): string {
-  const [, head = '', body = ''] = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(markdown) ?? [];
-  const description = /^description: "(.*)"$/m.exec(head)?.[1] ?? '';
+  const [, head = '', body = ''] =
+    /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(markdown.replaceAll('\r\n', '\n')) ?? [];
+  const description = /^description: (?:"(.*)"|(.+))$/m.exec(head)?.slice(1).find(Boolean);
+  if (!description || !body.trim()) {
+    throw new Error(`agents/${role}.md needs frontmatter with a description, then a body.`);
+  }
   const note =
     "Codex runs you with the parent session's permissions, so any limit above is an instruction, not a sandbox.";
   return [
-    `name = ${JSON.stringify(`${prefix}_${role}`)}`,
+    // Codex agent names are snake_case, so a hyphen in the prefix becomes an underscore.
+    `name = ${JSON.stringify(`${prefix.replaceAll('-', '_')}_${role}`)}`,
     `description = ${JSON.stringify(description)}`,
     `developer_instructions = ${JSON.stringify(`${body.trim()}\n\n${note}\n`)}`,
     '',
@@ -99,6 +104,7 @@ function generated(): string[] {
   const roles = existsSync(agents) ? readdirSync(agents).filter((f) => f.endsWith('.md')) : [];
   if (roles.length > 0) mkdirSync(join(output, 'codex', 'agents'), { recursive: true });
   const prefix = id.replace(/^sidecut-/, '');
+  const wanted = new Set<string>();
   for (const file of roles.sort()) {
     const role = file.replace(/\.md$/, '');
     const profile = join('codex', 'agents', `${prefix}-${role}.toml`);
@@ -107,6 +113,15 @@ function generated(): string[] {
       codexProfile(readFileSync(join(agents, file), 'utf8'), prefix, role),
     );
     files.push(profile);
+    wanted.add(`${prefix}-${role}.toml`);
+  }
+  // A profile whose subagent is gone goes too.
+  const profiles = join(plugin, 'codex', 'agents');
+  if (!check && existsSync(profiles)) {
+    for (const file of readdirSync(profiles).filter((f) => !wanted.has(f))) {
+      rmSync(join(profiles, file));
+    }
+    if (readdirSync(profiles).length === 0) rmSync(join(plugin, 'codex'), { recursive: true });
   }
   return files;
 }

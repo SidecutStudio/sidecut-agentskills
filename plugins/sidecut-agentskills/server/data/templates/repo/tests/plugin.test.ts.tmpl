@@ -76,6 +76,7 @@ test("the usage log records this plugin's skill in Claude Code", () => {
 test("the usage log records this plugin's skill when Codex reads its SKILL.md", () => {
   const entry = JSON.parse(runSkillLog(on, codex(`sed -n 1,200p '${skillFile}'`)) || '{}');
   expect([entry.skill, entry.host]).toEqual([skill, 'codex']);
+  expect(runSkillLog(on, codex(`sed -n '1,80p;120,140p' '${skillFile}'`))).not.toBe('');
 });
 
 test('DO_NOT_TRACK and CI turn the usage log off', () => {
@@ -87,4 +88,5 @@ test('the usage log ignores other plugins, unknown skills and commands that only
   expect(runSkillLog(on, claude(`other-plugin:${skill}`))).toBe('');
   expect(runSkillLog(on, claude(`${manifest.name}:no-such-skill`))).toBe('');
   expect(runSkillLog(on, codex(`grep name '${skillFile}'`))).toBe('');
+  expect(runSkillLog(on, codex(`grep name '${skillFile}' | head`))).toBe('');
 });

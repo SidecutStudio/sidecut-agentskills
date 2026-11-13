@@ -206,7 +206,7 @@ Router skill, in this order: `# Start`, one paragraph, `## Pick a skill` (a tabl
 | --- | --- | --- |
 | Frontmatter | `name` (the file name), `description` in the skill shape, `tools` as the narrowest list that works, `model: inherit` | review |
 | Body | `# <Role>`, one paragraph, `## Steps`, `## Return` | review |
-| Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `bun run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>`, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
+| Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `bun run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>` with the prefix's hyphens as underscores, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
 | Limits | A subagent's tool limits are enforced in Claude Code only; in Codex it runs with the parent session's permissions, and its profile says so | yes |
 
 ## Evals

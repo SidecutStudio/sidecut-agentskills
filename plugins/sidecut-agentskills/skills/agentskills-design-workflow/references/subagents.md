@@ -41,7 +41,7 @@ A list of problems, most serious first, or "No problems found."
 
 Codex loads subagents only from a project's `.codex/agents/` or the user's `~/.codex/agents/`, never from a plugin. So the plugin ships a Codex profile of each one:
 
-1. `bun run build` writes `codex/agents/<prefix>-<role>.toml` from `agents/<role>.md`. Its `name` is `<prefix>_<role>`, and its instructions are the file's body. `bun run check` fails when a profile is stale or missing.
+1. `bun run build` writes `codex/agents/<prefix>-<role>.toml` from `agents/<role>.md`. Its `name` is `<prefix>_<role>`, with any hyphen in the prefix written as an underscore, and its instructions are the file's body. `bun run check` fails when a profile is stale or missing.
 2. The skill that hands work to the subagent says, before the first hand-off: in Codex, if the project's `.codex/agents/<prefix>-<role>.toml` is missing, copy it from the plugin's `codex/agents/`.
 3. Never overwrite a profile that's already in the project, and never write to `~/.codex/`. When the project's copy differs, show the user the difference and let them decide.
 

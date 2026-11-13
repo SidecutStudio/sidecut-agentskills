@@ -37,7 +37,7 @@ In Codex, the usage log is a plugin hook, and Codex runs plugin hooks only after
 
 ## Privacy
 
-The plugin keeps a usage log only when you set `SIDECUT_SKILL_LOG=1`, and never when `DO_NOT_TRACK=1` is set or it runs in CI. Each time one of its skills runs in Claude Code, it adds one line to `~/.sidecut/skill-log.jsonl` with the fields `time`, `plugin`, `skill` and `host`. Nothing is sent anywhere.
+The plugin keeps a usage log only when you set `SIDECUT_SKILL_LOG=1`, and never when `DO_NOT_TRACK=1` is set or it runs in CI. Each time one of its skills runs in Claude Code or Codex, it adds one line to `~/.sidecut/skill-log.jsonl` with the fields `time`, `plugin`, `skill` and `host`. Nothing is sent anywhere.
 
 ## Develop
 

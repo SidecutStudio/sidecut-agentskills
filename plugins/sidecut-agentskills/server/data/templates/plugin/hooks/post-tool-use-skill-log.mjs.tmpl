@@ -37,10 +37,35 @@ function skillOf(input, plugin) {
     .replace(/^\S*\b(?:ba|z)?sh -l?c\s+/, '')
     .replace(/^['"]|['"]$/g, '')
     .trim();
-  if (!READERS.test(command.replace(/^.*(?:&&|;|\|)\s*/, ''))) return undefined;
   // The plugin's folder, then an optional version folder, then skills/<skill>/SKILL.md.
   const path = new RegExp(`/${plugin}/(?:[^/\\s'"]+/)?skills/([a-z0-9-]+)/SKILL\\.md`);
-  return path.exec(command)?.[1];
+  // A command in the chain that starts with a file reader and reads the skill's own file.
+  for (const part of commandsOf(command)) {
+    if (READERS.test(part)) {
+      const skill = path.exec(part)?.[1];
+      if (skill) return skill;
+    }
+  }
+  return undefined;
+}
+
+// Splits a shell line at `;`, `|`, `&&` and `||` outside quotes, so `grep x SKILL.md | head` stays
+// one grep and `sed -n '1p;5p' SKILL.md` stays one sed.
+function commandsOf(line) {
+  const parts = [''];
+  let quote = '';
+  for (const char of line) {
+    if (quote) {
+      if (char === quote) quote = '';
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === ';' || char === '|' || char === '&') {
+      parts.push('');
+      continue;
+    }
+    parts[parts.length - 1] += char;
+  }
+  return parts.map((part) => part.trim()).filter(Boolean);
 }
 
 function record() {
