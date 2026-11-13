@@ -15,11 +15,13 @@ Picks the one skill in this plugin that fits the request and hands over to it. E
 | --- | --- |
 | A new plugin or a new plugin repo | `agentskills-create-plugin` |
 | A new skill, or a skill that triggers badly, runs long or needs evals | `agentskills-write-skill` |
-| A new or changed MCP tool, or a remote MCP server wired in | `agentskills-build-mcp-server` |
+| A new or changed MCP tool, a view drawn in the chat, or a remote MCP server wired in | `agentskills-build-mcp-server` |
 | Something that happens on its own: a hook, a subagent or a CI job | `agentskills-design-workflow` |
 | A check of a plugin against the house style, changing nothing | `agentskills-review-plugin` |
 | An older plugin brought into the house style without losing anything | `agentskills-rebuild-plugin` |
 | A new version released to the Sidecut marketplace | `agentskills-publish-plugin` |
+
+When the request doesn't say what the result is for, ask before handing over; the answer often changes what gets built.
 
 When a request spans several, start with the one whose result the others need: `agentskills-create-plugin` before `agentskills-write-skill`, and `agentskills-review-plugin` before `agentskills-rebuild-plugin`.
 

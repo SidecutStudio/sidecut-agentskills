@@ -238,7 +238,10 @@ function checkFrontmatter(
 function supportFiles(dir: string): string[] {
   return Object.keys(SUPPORT_FOLDERS).flatMap((folder) =>
     existsSync(join(dir, folder))
-      ? readdirSync(join(dir, folder)).map((f) => `${folder}/${f}`)
+      ? readdirSync(join(dir, folder))
+          // Only files: a folder nested in a support folder is reported by checkLayout.
+          .filter((f) => statSync(join(dir, folder, f)).isFile())
+          .map((f) => `${folder}/${f}`)
       : [],
   );
 }

@@ -22361,7 +22361,7 @@ function checkFrontmatter(name, lines, file, report, tools, plugin) {
   };
 }
 function supportFiles(dir) {
-  return Object.keys(SUPPORT_FOLDERS).flatMap((folder) => existsSync4(join4(dir, folder)) ? readdirSync2(join4(dir, folder)).map((f) => `${folder}/${f}`) : []);
+  return Object.keys(SUPPORT_FOLDERS).flatMap((folder) => existsSync4(join4(dir, folder)) ? readdirSync2(join4(dir, folder)).filter((f) => statSync2(join4(dir, folder, f)).isFile()).map((f) => `${folder}/${f}`) : []);
 }
 function checkLayout(dir, root, report) {
   for (const path of listFiles(dir)) {

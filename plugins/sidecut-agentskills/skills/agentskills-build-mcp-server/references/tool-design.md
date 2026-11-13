@@ -27,8 +27,11 @@ At most two sentences: what the tool returns, then when to use it. Name what mak
 
 - Give every input a `.describe()` saying its format, such as "Absolute path to the repo root".
 - Accept absolute paths only, and refuse relative ones with an error.
+- A tool that works on the user's project takes the project's path. Codex starts the server in the plugin's folder, so the working directory isn't the project there.
+- Keep required inputs few, and give each a safe default where one exists. Answer a missing input with an error that names it.
 - Declare an `outputSchema` and return `structuredContent`, so a test can check fields instead of parsing text.
-- Use camelCase field names that stay stable between versions. Report a value you couldn't get as `null`, never a guess.
+- Use camelCase field names that stay stable between versions. A tool that wraps a program's existing JSON keeps that program's field names, so both give the same data the same names.
+- Report a value you couldn't get as `null`, never a guess.
 
 ## Hints
 
