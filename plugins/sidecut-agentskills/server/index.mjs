@@ -21518,7 +21518,7 @@ import { join as join6 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
 
@@ -21546,6 +21546,12 @@ var dataRoot = existsSync(join(here, "data")) ? join(here, "data") : join(here, 
 var templatesRoot = join(dataRoot, "templates");
 var PLUGIN_ID = /^sidecut-[a-z0-9]+(-[a-z0-9]+)*$/;
 var SKILL_NAME = /^[a-z]+(-[a-z]+){1,2}$/;
+function skillPrefixOf(pluginId) {
+  return pluginId.replace(/^sidecut-/, "");
+}
+function isSkillName(name, prefix) {
+  return name === prefix || name.startsWith(`${prefix}-`) && SKILL_NAME.test(name.slice(prefix.length + 1));
+}
 var HEX_COLOR = /^#[0-9A-F]{6}$/;
 var DEFAULT_CHECKER = "github:SidecutStudio/sidecut-agentskills";
 function checkPluginInput(input) {
@@ -21584,12 +21590,12 @@ function checkPluginInput(input) {
   }
   return problems;
 }
-function checkSkillInput(input) {
+function checkSkillInput(input, prefix) {
   const problems = [];
-  if (!SKILL_NAME.test(input.name)) {
+  if (input.name === prefix || !isSkillName(input.name, prefix)) {
     problems.push({
       code: "NAME_SKILL",
-      message: `Skill name "${input.name}" must be a verb then an object, 2 or 3 words in kebab-case.`
+      message: `Skill name "${input.name}" must be ${prefix}- then a verb and an object, 2 or 3 words in kebab-case.`
     });
   }
   if (!/^[A-Z][a-z]+s /.test(input.does) || !input.does.endsWith(".") || input.does.split(". ").length > 1) {
@@ -21628,8 +21634,10 @@ var ACRONYMS = new Set([
 function displayNameOf(id) {
   return id.split("-").map((word) => ACRONYMS.has(word) ? word.toUpperCase() : (word[0] ?? "").toUpperCase() + word.slice(1)).join(" ");
 }
-function skillTitleOf(name) {
-  return name.split("-").map((word, i) => {
+function skillTitleOf(name, prefix) {
+  if (name === prefix)
+    return displayNameOf(`sidecut-${prefix}`);
+  return name.slice(name.startsWith(`${prefix}-`) ? prefix.length + 1 : 0).split("-").map((word, i) => {
     if (ACRONYMS.has(word))
       return word.toUpperCase();
     return i === 0 ? (word[0] ?? "").toUpperCase() + word.slice(1) : word;
@@ -21665,7 +21673,7 @@ function renderTree(templateDir, vars) {
   const base = join(templatesRoot, templateDir);
   const files = new Map;
   for (const path of listFiles(base)) {
-    files.set(relative(base, path).replace(/\.tmpl$/, ""), render(readFileSync(path, "utf8"), vars));
+    files.set(render(relative(base, path), vars).replace(/\.tmpl$/, ""), render(readFileSync(path, "utf8"), vars));
   }
   return files;
 }
@@ -21750,7 +21758,8 @@ function scaffoldPlugin(input, out) {
   return writeAll(out, files);
 }
 function addSkill(pluginDir, input) {
-  const problems = checkSkillInput(input);
+  const prefix = skillPrefixOf(basename(pluginDir));
+  const problems = checkSkillInput(input, prefix);
   if (problems.length > 0)
     throw new Error(problems.map((p) => `${p.code}: ${p.message}`).join(`
 `));
@@ -21759,7 +21768,7 @@ function addSkill(pluginDir, input) {
     throw new Error(`Skill ${input.name} already exists.`);
   const vars = {
     skill: input.name,
-    skillTitle: skillTitleOf(input.name),
+    skillTitle: skillTitleOf(input.name, prefix),
     skillDoes: input.does,
     skillPrompt: defaultPromptOf(input.does)
   };
@@ -22359,7 +22368,9 @@ function checkSections(dir, name, root, report, tools, skills, plugin) {
   if (doc.lines.length > 200) {
     report.add("SKILL_LENGTH", file, 201, `SKILL.md has ${doc.lines.length} lines.`, "Move detail into references/ to stay at 200 or fewer.");
   }
-  const title = name === "start" ? "Start" : skillTitleOf(name);
+  const prefix = skillPrefixOf(plugin);
+  const router = name === prefix;
+  const title = skillTitleOf(name, prefix);
   const h1 = doc.headings.find((h) => h.level === 1);
   if (h1 && h1.text !== title) {
     report.add("SKILL_TITLE", file, h1.line, `H1 is "${h1.text}".`, `Make it "# ${title}".`);
@@ -22370,11 +22381,11 @@ function checkSections(dir, name, root, report, tools, skills, plugin) {
   } else if (sentences(prose(intro.text)).length > 3) {
     report.add("SKILL_INTRO", file, intro.line, "The opening paragraph is longer than 3 sentences.", "Keep it to 1 to 3 sentences.");
   }
-  const order = name === "start" ? ROUTER_SECTIONS : TASK_SECTIONS;
+  const order = router ? ROUTER_SECTIONS : TASK_SECTIONS;
   const found = sections(doc);
   const names = found.map((h) => h.text);
   const support = supportFiles(dir);
-  const required = name === "start" ? ROUTER_SECTIONS : ["Steps", "Done when", ...support.length > 0 ? ["References"] : []];
+  const required = router ? ROUTER_SECTIONS : ["Steps", "Done when", ...support.length > 0 ? ["References"] : []];
   for (const h of found) {
     if (!order.includes(h.text)) {
       report.add("SKILL_SECTION_UNKNOWN", file, h.line, `Section "${h.text}" isn't part of the layout.`, `Use only: ${order.join(", ")}.`);
@@ -22474,12 +22485,13 @@ function checkSkills(pluginDir, root, report, tools, plugin) {
   }
   const names = readdirSync2(skillsDir).filter((n) => statSync2(join4(skillsDir, n)).isDirectory()).sort();
   const skills = new Set(names);
+  const prefix = skillPrefixOf(plugin);
   const infos = [];
   for (const name of names) {
     const dir = join4(skillsDir, name);
     const file = relative4(root, join4(dir, "SKILL.md"));
-    if (name !== "start" && !SKILL_NAME.test(name)) {
-      report.add("NAME_SKILL", relative4(root, dir), undefined, `Skill "${name}" is not a 2 or 3 word verb-object name.`, "Rename it, for example `write-skill`.");
+    if (!isSkillName(name, prefix)) {
+      report.add("NAME_SKILL", relative4(root, dir), undefined, `Skill "${name}" is not ${prefix}- then a 2 or 3 word verb-object name.`, `Rename it, for example \`${prefix}-write-skill\`, or \`${prefix}\` for the router.`);
     }
     if (!existsSync4(join4(dir, "SKILL.md"))) {
       report.add("SKILL_MISSING", file, undefined, "Skill folder has no SKILL.md.", "Add SKILL.md or remove the folder.");
@@ -22490,14 +22502,14 @@ function checkSkills(pluginDir, root, report, tools, plugin) {
     const info = checkFrontmatter(name, doc.frontmatter, file, report);
     checkSections(dir, name, root, report, tools, skills, plugin);
     if (info) {
-      checkOpenAiYaml(dir, info, name === "start" ? "Start" : skillTitleOf(name), root, report);
+      checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), root, report);
       infos.push(info);
     }
   }
-  const hasRouter = skills.has("start");
-  const needsRouter = names.filter((n) => n !== "start").length >= 4;
+  const hasRouter = skills.has(prefix);
+  const needsRouter = names.filter((n) => n !== prefix).length >= 4;
   if (hasRouter !== needsRouter) {
-    report.add("SKILL_ROUTER", relative4(root, skillsDir), undefined, needsRouter ? "Plugin has 4 or more skills but no `start` router." : "Plugin has a `start` router but fewer than 4 other skills.", needsRouter ? "Add `skills/start`." : "Remove `skills/start`.");
+    report.add("SKILL_ROUTER", relative4(root, skillsDir), undefined, needsRouter ? `Plugin has 4 or more skills but no \`${prefix}\` router.` : `Plugin has a \`${prefix}\` router but fewer than 4 other skills.`, needsRouter ? `Add \`skills/${prefix}\`.` : `Remove \`skills/${prefix}\`.`);
   }
   return infos;
 }
@@ -22993,7 +23005,13 @@ function checkTopLevel(root, report) {
   }
 }
 function checkFixedFiles(root, id, report) {
-  const templates = renderTree("repo", { id, displayName: "", version: "", checkerSource: "" });
+  const templates = renderTree("repo", {
+    id,
+    key: id.replace(/^sidecut-/, ""),
+    displayName: "",
+    version: "",
+    checkerSource: ""
+  });
   if (existsSync6(join6(root, "CLAUDE.md")) && readFileSync5(join6(root, "CLAUDE.md"), "utf8") !== `@AGENTS.md
 `) {
     report.add("REPO_CLAUDE_MD", "CLAUDE.md", 1, "CLAUDE.md is not the single line `@AGENTS.md`.", "Make it `@AGENTS.md`; put guidance in AGENTS.md.");
@@ -23293,7 +23311,7 @@ server.registerTool("add_skill", {
   description: "Writes a skill skeleton with SKILL.md and agents/openai.yaml into a plugin folder and returns the files it wrote. Use it to start a new skill, then replace every TODO.",
   inputSchema: object({
     plugin: string2().describe("Absolute path to plugins/<plugin-id>"),
-    name: string2().describe("Verb then object in kebab-case, such as write-skill"),
+    name: string2().describe("Verb then object in kebab-case, such as agentskills-write-skill"),
     does: string2().describe("One sentence starting with a third-person verb")
   }),
   annotations: writes

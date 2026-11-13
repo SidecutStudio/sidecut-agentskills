@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rebuild plugin"
+  short_description: "Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost."
+  default_prompt: "Use $agentskills-rebuild-plugin to rebuild an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost."

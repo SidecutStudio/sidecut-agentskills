@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write skill"
+  short_description: "Writes one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style."
+  default_prompt: "Use $agentskills-write-skill to write one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style."

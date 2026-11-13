@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sidecut Agentskills"
+  short_description: "Routes a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill."
+  default_prompt: "Use $agentskills to route a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill."

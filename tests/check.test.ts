@@ -21,7 +21,7 @@ import {
 
 const ID = 'sidecut-demo';
 const P = `plugins/${ID}`;
-const SKILL = `${P}/skills/check-status`;
+const SKILL = `${P}/skills/demo-check-status`;
 const SERVER = `${P}/server/src/index.ts`;
 const repoRoot = join(import.meta.dir, '..');
 let base = '';
@@ -163,7 +163,7 @@ const cases: [string, (repo: Repo) => void][] = [
   ],
   [
     'SKILL_NAME_FIELD',
-    (r) => r.edit(skillMd, (t) => t.replace('name: check-status', 'name: check-state')),
+    (r) => r.edit(skillMd, (t) => t.replace('name: demo-check-status', 'name: demo-check-state')),
   ],
   [
     'SKILL_DESCRIPTION_QUOTES',
@@ -288,28 +288,28 @@ const cases: [string, (repo: Repo) => void][] = [
   ],
   [
     'NAME_SKILL',
-    (r) => cpSync(join(r.root, SKILL), join(r.root, `${P}/skills/status`), { recursive: true }),
+    (r) => cpSync(join(r.root, SKILL), join(r.root, `${P}/skills/check-status`), { recursive: true }),
   ],
   [
     'SKILL_MISSING',
-    (r) => r.write(`${P}/skills/write-notes/references/notes.md`, '# Notes\n\nRead this when.\n'),
+    (r) => r.write(`${P}/skills/demo-write-notes/references/notes.md`, '# Notes\n\nRead this when.\n'),
   ],
   [
     'SKILL_ROUTER',
-    (r) => cpSync(join(r.root, SKILL), join(r.root, `${P}/skills/start`), { recursive: true }),
+    (r) => cpSync(join(r.root, SKILL), join(r.root, `${P}/skills/demo`), { recursive: true }),
   ],
 
   [
     'EVAL_NAME',
     (r) =>
       cpSync(
-        join(r.root, `${P}/evals/check-status-trigger`),
+        join(r.root, `${P}/evals/demo-check-status-trigger`),
         join(r.root, `${P}/evals/status-trigger`),
         { recursive: true },
       ),
   ],
-  ['EVAL_PROMPT', (r) => r.rm(`${P}/evals/check-status-trigger/prompt.md`)],
-  ['EVAL_GRADERS', (r) => r.rm(`${P}/evals/check-status-trigger/graders`)],
+  ['EVAL_PROMPT', (r) => r.rm(`${P}/evals/demo-check-status-trigger/prompt.md`)],
+  ['EVAL_GRADERS', (r) => r.rm(`${P}/evals/demo-check-status-trigger/graders`)],
   ['EVAL_MISSING', (r) => r.rm(`${P}/evals`)],
   ['SERVER_CWD', (r) => r.append(SERVER, 'console.error(process.cwd());\n')],
   ['SERVER_BUNDLE_STALE', (r) => r.append(SERVER, 'console.error("changed");\n')],
@@ -444,7 +444,7 @@ const cases: [string, (repo: Repo) => void][] = [
   ['README_SECTIONS', (r) => r.edit(`${P}/README.md`, (t) => t.replace('## Use\n', '## Usage\n'))],
   [
     'README_SKILLS',
-    (r) => r.edit(`${P}/README.md`, (t) => t.replace('| `check-status` |', '| `check-state` |')),
+    (r) => r.edit(`${P}/README.md`, (t) => t.replace('| `demo-check-status` |', '| `demo-check-state` |')),
   ],
   [
     'README_LICENSE',

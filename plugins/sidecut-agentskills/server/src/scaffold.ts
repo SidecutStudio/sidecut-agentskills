@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
 import { sentences } from './check/report.ts';
@@ -27,7 +27,18 @@ export type SkillInput = { name: string; does: string };
 export type Problem = { code: string; message: string };
 
 export const PLUGIN_ID = /^sidecut-[a-z0-9]+(-[a-z0-9]+)*$/;
+/** The verb-object part of a skill name, after the plugin prefix: 2 or 3 words. */
 export const SKILL_NAME = /^[a-z]+(-[a-z]+){1,2}$/;
+
+/** The prefix every skill name starts with: the plugin id without `sidecut-`. It alone names the router. */
+export function skillPrefixOf(pluginId: string): string {
+  return pluginId.replace(/^sidecut-/, '');
+}
+
+/** Whether a skill name is the router or `<prefix>-<verb>-<object>`. */
+export function isSkillName(name: string, prefix: string): boolean {
+  return name === prefix || (name.startsWith(`${prefix}-`) && SKILL_NAME.test(name.slice(prefix.length + 1)));
+}
 const HEX_COLOR = /^#[0-9A-F]{6}$/;
 const DEFAULT_CHECKER = 'github:SidecutStudio/sidecut-agentskills';
 
@@ -69,12 +80,12 @@ export function checkPluginInput(input: PluginInput): Problem[] {
   return problems;
 }
 
-export function checkSkillInput(input: SkillInput): Problem[] {
+export function checkSkillInput(input: SkillInput, prefix: string): Problem[] {
   const problems: Problem[] = [];
-  if (!SKILL_NAME.test(input.name)) {
+  if (input.name === prefix || !isSkillName(input.name, prefix)) {
     problems.push({
       code: 'NAME_SKILL',
-      message: `Skill name "${input.name}" must be a verb then an object, 2 or 3 words in kebab-case.`,
+      message: `Skill name "${input.name}" must be ${prefix}- then a verb and an object, 2 or 3 words in kebab-case.`,
     });
   }
   if (
@@ -128,9 +139,14 @@ export function displayNameOf(id: string): string {
     .join(' ');
 }
 
-/** The SKILL.md H1: the name with hyphens as spaces, first word capitalized, acronyms upper case. */
-export function skillTitleOf(name: string): string {
+/**
+ * The SKILL.md H1: the name without its plugin prefix, hyphens as spaces, first word capitalized,
+ * acronyms upper case. The router's title is the plugin's display name.
+ */
+export function skillTitleOf(name: string, prefix: string): string {
+  if (name === prefix) return displayNameOf(`sidecut-${prefix}`);
   return name
+    .slice(name.startsWith(`${prefix}-`) ? prefix.length + 1 : 0)
     .split('-')
     .map((word, i) => {
       if (ACRONYMS.has(word)) return word.toUpperCase();
@@ -173,7 +189,7 @@ export function renderTree(templateDir: string, vars: Record<string, string>): M
   const files = new Map<string, string>();
   for (const path of listFiles(base)) {
     files.set(
-      relative(base, path).replace(/\.tmpl$/, ''),
+      render(relative(base, path), vars).replace(/\.tmpl$/, ''),
       render(readFileSync(path, 'utf8'), vars),
     );
   }
@@ -266,14 +282,15 @@ export function scaffoldPlugin(input: PluginInput, out: string): string[] {
 
 /** Adds a skill skeleton to an existing plugin folder. Returns the files written, relative to the plugin. */
 export function addSkill(pluginDir: string, input: SkillInput): string[] {
-  const problems = checkSkillInput(input);
+  const prefix = skillPrefixOf(basename(pluginDir));
+  const problems = checkSkillInput(input, prefix);
   if (problems.length > 0)
     throw new Error(problems.map((p) => `${p.code}: ${p.message}`).join('\n'));
   const skillDir = join('skills', input.name);
   if (existsSync(join(pluginDir, skillDir))) throw new Error(`Skill ${input.name} already exists.`);
   const vars = {
     skill: input.name,
-    skillTitle: skillTitleOf(input.name),
+    skillTitle: skillTitleOf(input.name, prefix),
     skillDoes: input.does,
     skillPrompt: defaultPromptOf(input.does),
   };

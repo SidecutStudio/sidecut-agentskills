@@ -6,14 +6,14 @@ Creates, checks and publishes Sidecut plugins, skills and MCP servers that all f
 
 | Skill | Does |
 | --- | --- |
-| `build-mcp-server` | Builds the MCP side of a Sidecut plugin: the tools in its bundled server, or a connection to a hosted server. |
-| `create-plugin` | Creates a new Sidecut plugin repo from the template, with Claude Code and Codex manifests, a bundled MCP server and a first skill. |
-| `design-workflow` | Designs what a Sidecut plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it. |
-| `publish-plugin` | Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. |
-| `rebuild-plugin` | Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost. |
-| `review-plugin` | Reviews a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything. |
-| `start` | Routes a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill. |
-| `write-skill` | Writes one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style. |
+| `agentskills` | Routes a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill. |
+| `agentskills-build-mcp-server` | Builds the MCP side of a Sidecut plugin: the tools in its bundled server, or a connection to a hosted server. |
+| `agentskills-create-plugin` | Creates a new Sidecut plugin repo from the template, with Claude Code and Codex manifests, a bundled MCP server and a first skill. |
+| `agentskills-design-workflow` | Designs what a Sidecut plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it. |
+| `agentskills-publish-plugin` | Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. |
+| `agentskills-rebuild-plugin` | Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost. |
+| `agentskills-review-plugin` | Reviews a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything. |
+| `agentskills-write-skill` | Writes one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style. |
 
 Its MCP server provides the tools behind them: `get_house_style` and `get_patterns` return the rules and the reasons for them, `check_plugin` checks a repo against them, and `scaffold_plugin` and `add_skill` write new plugins and skills from the template.
 

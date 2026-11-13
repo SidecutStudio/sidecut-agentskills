@@ -78,7 +78,13 @@ function checkTopLevel(root: string, report: Report): void {
 }
 
 function checkFixedFiles(root: string, id: string, report: Report): void {
-  const templates = renderTree('repo', { id, displayName: '', version: '', checkerSource: '' });
+  const templates = renderTree('repo', {
+    id,
+    key: id.replace(/^sidecut-/, ''),
+    displayName: '',
+    version: '',
+    checkerSource: '',
+  });
   if (
     existsSync(join(root, 'CLAUDE.md')) &&
     readFileSync(join(root, 'CLAUDE.md'), 'utf8') !== '@AGENTS.md\n'

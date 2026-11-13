@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review plugin"
+  short_description: "Reviews a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything."
+  default_prompt: "Use $agentskills-review-plugin to review a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything."

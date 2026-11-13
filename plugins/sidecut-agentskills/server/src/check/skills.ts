@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { defaultPromptOf, listFiles, SKILL_NAME, skillTitleOf } from '../scaffold.ts';
+import { defaultPromptOf, isSkillName, listFiles, skillPrefixOf, skillTitleOf } from '../scaffold.ts';
 import {
   checkMarkdown,
   paragraphAfter,
@@ -261,7 +261,9 @@ function checkSections(
       'Move detail into references/ to stay at 200 or fewer.',
     );
   }
-  const title = name === 'start' ? 'Start' : skillTitleOf(name);
+  const prefix = skillPrefixOf(plugin);
+  const router = name === prefix;
+  const title = skillTitleOf(name, prefix);
   const h1 = doc.headings.find((h) => h.level === 1);
   if (h1 && h1.text !== title) {
     report.add('SKILL_TITLE', file, h1.line, `H1 is "${h1.text}".`, `Make it "# ${title}".`);
@@ -284,12 +286,12 @@ function checkSections(
       'Keep it to 1 to 3 sentences.',
     );
   }
-  const order = name === 'start' ? ROUTER_SECTIONS : TASK_SECTIONS;
+  const order = router ? ROUTER_SECTIONS : TASK_SECTIONS;
   const found = sections(doc);
   const names = found.map((h) => h.text);
   const support = supportFiles(dir);
   const required =
-    name === 'start'
+    router
       ? ROUTER_SECTIONS
       : ['Steps', 'Done when', ...(support.length > 0 ? ['References'] : [])];
   for (const h of found) {
@@ -506,17 +508,18 @@ export function checkSkills(
     .filter((n) => statSync(join(skillsDir, n)).isDirectory())
     .sort();
   const skills = new Set(names);
+  const prefix = skillPrefixOf(plugin);
   const infos: SkillInfo[] = [];
   for (const name of names) {
     const dir = join(skillsDir, name);
     const file = relative(root, join(dir, 'SKILL.md'));
-    if (name !== 'start' && !SKILL_NAME.test(name)) {
+    if (!isSkillName(name, prefix)) {
       report.add(
         'NAME_SKILL',
         relative(root, dir),
         undefined,
-        `Skill "${name}" is not a 2 or 3 word verb-object name.`,
-        'Rename it, for example `write-skill`.',
+        `Skill "${name}" is not ${prefix}- then a 2 or 3 word verb-object name.`,
+        `Rename it, for example \`${prefix}-write-skill\`, or \`${prefix}\` for the router.`,
       );
     }
     if (!existsSync(join(dir, 'SKILL.md'))) {
@@ -534,21 +537,21 @@ export function checkSkills(
     const info = checkFrontmatter(name, doc.frontmatter, file, report);
     checkSections(dir, name, root, report, tools, skills, plugin);
     if (info) {
-      checkOpenAiYaml(dir, info, name === 'start' ? 'Start' : skillTitleOf(name), root, report);
+      checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), root, report);
       infos.push(info);
     }
   }
-  const hasRouter = skills.has('start');
-  const needsRouter = names.filter((n) => n !== 'start').length >= 4;
+  const hasRouter = skills.has(prefix);
+  const needsRouter = names.filter((n) => n !== prefix).length >= 4;
   if (hasRouter !== needsRouter) {
     report.add(
       'SKILL_ROUTER',
       relative(root, skillsDir),
       undefined,
       needsRouter
-        ? 'Plugin has 4 or more skills but no `start` router.'
-        : 'Plugin has a `start` router but fewer than 4 other skills.',
-      needsRouter ? 'Add `skills/start`.' : 'Remove `skills/start`.',
+        ? `Plugin has 4 or more skills but no \`${prefix}\` router.`
+        : `Plugin has a \`${prefix}\` router but fewer than 4 other skills.`,
+      needsRouter ? `Add \`skills/${prefix}\`.` : `Remove \`skills/${prefix}\`.`,
     );
   }
   return infos;

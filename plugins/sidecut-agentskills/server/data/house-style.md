@@ -9,8 +9,8 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 | Repo | `sidecut-<name>`, lowercase kebab-case | yes |
 | Plugin id | `sidecut-<name>`, lowercase kebab-case, at most 64 characters; the same as the repo name when the repo exists to ship it | yes |
 | Plugin display name | The id with hyphens as spaces, each word capitalized and acronyms in capitals: `sidecut-agentskills` is `Sidecut Agentskills`, `sidecut-ci` is `Sidecut CI`. The acronyms are ai, api, aws, cdn, ci, cli, css, dns, gpu, html, http, json, llm, mcp, pdf, pr, sdk, sql, ssh, ui, url, ux and yaml | yes |
-| Skill | Verb then object, 2 or 3 words, singular object, kebab-case, no plugin or product prefix: `write-skill`, `build-mcp-server` | yes |
-| Router skill | `start`, present only in plugins with 4 or more skills | yes |
+| Skill | The plugin prefix, then a verb and a singular object of 2 or 3 words, kebab-case: `agentskills-write-skill`, `ci-diagnose-jobs`. The prefix is the plugin id without `sidecut-`. Skills from every installed plugin share one list of names, and Codex prompts and Claude Desktop show the bare name, so the prefix keeps it unique | yes |
+| Router skill | The prefix alone, `agentskills`, present only in plugins with 4 or more other skills | yes |
 | Subagent | A role noun, one word: `reviewer`, `verifier` | yes |
 | MCP server key | The plugin id without the `sidecut-` prefix | yes |
 | MCP tool | Verb then object in snake_case: `get_pr_checks`, `scaffold_plugin` | yes |
@@ -164,7 +164,7 @@ A skill is either a task skill or the router. Knowledge that isn't a procedure g
 
 Task skill, in this order:
 
-1. `# <Title>`: the name with hyphens as spaces, first word capitalized, acronyms upper case. `build-mcp-server` is `# Build MCP server`.
+1. `# <Title>`: the name without its prefix, hyphens as spaces, first word capitalized, acronyms upper case. `agentskills-build-mcp-server` is `# Build MCP server`; the router's title is the plugin's display name.
 2. One paragraph of 1 to 3 sentences saying what the skill produces. No heading.
 3. `## Before you start` (optional): what to check once before doing anything, including cost. A skill that spends money asks before spending.
 4. `## Steps` (required): a numbered list, or `### 1. <Step>` subsections when a step needs more than 3 lines.
@@ -180,7 +180,7 @@ Router skill, in this order: `# Start`, one paragraph, `## Pick a skill` (a tabl
 | Section names and order | Exactly as above | yes |
 | Other H2 sections | None | yes |
 | "When to use" sections, role lines, footers | None | yes |
-| Cross-skill pointers | Inline in Steps or in the description's Not for, written as the skill name in backticks: `write-skill` | review |
+| Cross-skill pointers | Inline in Steps or in the description's Not for, written as the skill name in backticks: `agentskills-write-skill` | review |
 | Pointers to skills or tools that don't exist in the plugin | None: a backticked `<plugin>:<skill>` names a real skill and a backticked `snake_case` name is a tool on the plugin's server | yes |
 
 ## Reference and example files

@@ -23,7 +23,7 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 
 | Pattern | Seen in | Verdict | Why |
 | --- | --- | --- | --- |
-| Product prefix on every skill (`firecrawl-scrape`, `apify-actorization`) | Apify, Expo, Firecrawl | Skip | Hosts already show `plugin:skill`, so the prefix appears twice |
+| Product prefix on every skill (`firecrawl-scrape`, `apify-actorization`) | Apify, Expo, Firecrawl | Adopt | Skills from every plugin share one list of names, so a bare `review-plugin` can clash (anthropics/claude-code#88838); Codex prompts and Claude Desktop show the bare name |
 | Mixed name shapes: nouns, verbs, adjectives (`ultimate-scraper`) | Apify, Vercel | Skip | Pick one shape: verb then object |
 | Only `name` and `description` plus host fields | Apify, Firecrawl | Adopt | Short frontmatter stays readable and checkable |
 | Per-skill `version` and `license` | Expo | Skip | Three skills lacked them and one said "MIT License"; the plugin version covers it |
