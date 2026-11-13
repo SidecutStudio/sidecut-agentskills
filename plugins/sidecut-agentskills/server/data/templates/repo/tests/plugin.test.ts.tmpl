@@ -77,6 +77,8 @@ test("the usage log records this plugin's skill when Codex reads its SKILL.md", 
   const entry = JSON.parse(runSkillLog(on, codex(`sed -n 1,200p '${skillFile}'`)) || '{}');
   expect([entry.skill, entry.host]).toEqual([skill, 'codex']);
   expect(runSkillLog(on, codex(`sed -n '1,80p;120,140p' '${skillFile}'`))).not.toBe('');
+  expect(runSkillLog(on, codex(`echo don\\'t; cat '${skillFile}'`))).not.toBe('');
+  expect(runSkillLog(on, codex(`cd /tmp\ncat '${skillFile}'`))).not.toBe('');
 });
 
 test('DO_NOT_TRACK and CI turn the usage log off', () => {

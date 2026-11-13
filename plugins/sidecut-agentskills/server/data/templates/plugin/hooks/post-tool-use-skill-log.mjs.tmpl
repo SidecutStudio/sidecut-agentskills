@@ -49,17 +49,23 @@ function skillOf(input, plugin) {
   return undefined;
 }
 
-// Splits a shell line at `;`, `|`, `&&` and `||` outside quotes, so `grep x SKILL.md | head` stays
-// one grep and `sed -n '1p;5p' SKILL.md` stays one sed.
+// Splits a shell line at newlines, `;`, `|`, `&&` and `||` outside quotes, so
+// `grep x SKILL.md | head` stays one grep and `sed -n '1p;5p' SKILL.md` stays one sed. A backslash
+// outside single quotes keeps the next character as it is, as the shell does.
 function commandsOf(line) {
   const parts = [''];
   let quote = '';
+  let escaped = false;
   for (const char of line) {
-    if (quote) {
+    if (escaped) {
+      escaped = false;
+    } else if (char === '\\' && quote !== "'") {
+      escaped = true;
+    } else if (quote) {
       if (char === quote) quote = '';
     } else if (char === "'" || char === '"') {
       quote = char;
-    } else if (char === ';' || char === '|' || char === '&') {
+    } else if (char === ';' || char === '|' || char === '&' || char === '\n') {
       parts.push('');
       continue;
     }

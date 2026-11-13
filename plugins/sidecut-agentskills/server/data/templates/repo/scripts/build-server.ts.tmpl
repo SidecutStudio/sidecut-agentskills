@@ -58,10 +58,19 @@ function licence(pkg: string, dir: string): string {
 
 // Codex loads subagents only from a project's .codex/agents/, so the plugin ships each one as a
 // profile its skills copy there: the name as <prefix>_<role>, the description, and the body.
+// The description as YAML reads it on one line: double-quoted with JSON-style escapes, single-quoted
+// with '' for a quote, or plain. A folded or literal block (> or |) isn't supported.
+function descriptionOf(head: string): string | undefined {
+  const value = /^description:[ \t]*(.*)$/m.exec(head)?.[1]?.trim() ?? '';
+  if (value.startsWith('"')) return JSON.parse(value) as string;
+  if (value.startsWith("'")) return value.slice(1, -1).replaceAll("''", "'");
+  return /^[>|]/.test(value) ? undefined : value || undefined;
+}
+
 function codexProfile(markdown: string, prefix: string, role: string): string {
   const [, head = '', body = ''] =
     /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(markdown.replaceAll('\r\n', '\n')) ?? [];
-  const description = /^description: (?:"(.*)"|(.+))$/m.exec(head)?.slice(1).find(Boolean);
+  const description = descriptionOf(head);
   if (!description || !body.trim()) {
     throw new Error(`agents/${role}.md needs frontmatter with a description, then a body.`);
   }
@@ -115,13 +124,15 @@ function generated(): string[] {
     files.push(profile);
     wanted.add(`${prefix}-${role}.toml`);
   }
-  // A profile whose subagent is gone goes too.
+  // A profile whose subagent is gone goes too, and so do the folders it leaves empty.
   const profiles = join(plugin, 'codex', 'agents');
   if (!check && existsSync(profiles)) {
-    for (const file of readdirSync(profiles).filter((f) => !wanted.has(f))) {
-      rmSync(join(profiles, file));
+    for (const file of readdirSync(profiles)) {
+      if (file.endsWith('.toml') && !wanted.has(file)) rmSync(join(profiles, file));
     }
-    if (readdirSync(profiles).length === 0) rmSync(join(plugin, 'codex'), { recursive: true });
+    for (const dir of [profiles, join(plugin, 'codex')]) {
+      if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
+    }
   }
   return files;
 }
@@ -131,7 +142,9 @@ try {
   if (check) {
     const profiles = join(plugin, 'codex', 'agents');
     const committed = existsSync(profiles)
-      ? readdirSync(profiles).map((f) => join('codex', 'agents', f))
+      ? readdirSync(profiles)
+          .filter((f) => f.endsWith('.toml'))
+          .map((f) => join('codex', 'agents', f))
       : [];
     for (const file of new Set([...files, ...committed])) {
       const wanted = existsSync(join(output, file)) ? readFileSync(join(output, file)) : null;
