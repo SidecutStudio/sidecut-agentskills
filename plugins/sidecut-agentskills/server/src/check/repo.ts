@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderTree } from '../scaffold.ts';
+import { renderTree, templatesRoot } from '../scaffold.ts';
 import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { checkPlugin } from './plugin.ts';
 import type { Report } from './report.ts';
@@ -19,12 +19,14 @@ const REQUIRED_ENTRIES = [
   'lefthook.yml',
   'package.json',
   'plugins',
+  'scripts',
   'solo-workflow.toml',
   'tests',
   'tsconfig.json',
 ];
-const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml', 'scripts'];
-const CHECK_SCRIPT = 'biome check . && tsc --noEmit && bun run style && bun test';
+const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml'];
+const CHECK_SCRIPT =
+  'biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check';
 const AGENTS_SECTIONS = ['Commands', 'Layout', 'Rules'];
 
 function ignoredBy(patterns: string[], name: string): boolean {
@@ -168,6 +170,27 @@ function checkPackage(
       'There is no `style` script.',
       'Add `"style": "sidecut-check"`.',
     );
+  if (scripts.build !== 'bun scripts/build-server.ts')
+    report.add(
+      'REPO_BUILD_SCRIPT',
+      'package.json',
+      undefined,
+      '`build` is not `bun scripts/build-server.ts`.',
+      'Set it, so the bundle and its licences are built the same way everywhere.',
+    );
+  const buildScript = join(root, 'scripts', 'build-server.ts');
+  const canonical = readFileSync(
+    join(templatesRoot, 'repo', 'scripts', 'build-server.ts.tmpl'),
+    'utf8',
+  );
+  if (!existsSync(buildScript) || readFileSync(buildScript, 'utf8') !== canonical)
+    report.add(
+      'REPO_BUILD_SCRIPT',
+      'scripts/build-server.ts',
+      undefined,
+      'scripts/build-server.ts is missing or differs from the Sidecut copy.',
+      'Copy it again from the sidecut-agentskills template.',
+    );
   for (const [name, spec] of Object.entries({
     ...(pkg.dependencies as object),
     ...(pkg.devDependencies as object),
@@ -279,7 +302,7 @@ function checkCi(root: string, report: Report): void {
           file,
           i + 1,
           'Job runs on hosted macOS or Windows.',
-          'Use the sidecut-ops runner picker or self-hosted labels.',
+          'Use `ubuntu-24.04` in a public repo, or the sidecut-ops runner picker in a private one.',
         );
       }
       if (/bun-version:/.test(line))
@@ -296,8 +319,9 @@ function checkCi(root: string, report: Report): void {
     ? readFileSync(join(dir, 'check.yml'), 'utf8')
     : '';
   // A public repo runs every job on GitHub-hosted Linux and never reaches the self-hosted runners.
-  const runsOn = [...check.matchAll(/^\s*runs-on:\s*(.+)$/gm)].map((m) => m[1]?.trim());
-  const hostedOnly = runsOn.length > 0 && runsOn.every((r) => r === 'ubuntu-24.04');
+  // Every job has to say where it runs; a job that calls another workflow can't count as hosted.
+  const jobs = jobsOf(check);
+  const hostedOnly = jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
   if (check && !check.includes('/pick-runner@') && !hostedOnly) {
     report.add(
       'CI_PICKER',
@@ -307,6 +331,37 @@ function checkCi(root: string, report: Report): void {
       'Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.',
     );
   }
+}
+
+/**
+ * Each job in a workflow and its `runs-on` value, read from the indentation of the `jobs:` block.
+ * Only a `runs-on` directly under the job counts, so one inside a called workflow's `with:` doesn't.
+ */
+export function jobsOf(workflow: string): { name: string; runsOn: string | undefined }[] {
+  const lines = workflow.split('\n').map((line) => line.replace(/(^|\s+)#.*$/, ''));
+  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  if (start < 0) return [];
+  const jobs: { name: string; runsOn: string | undefined }[] = [];
+  let jobIndent = -1;
+  let keyIndent = -1;
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '') continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) break;
+    if (jobIndent < 0) jobIndent = indent;
+    const key = /^\s*(["']?)([A-Za-z0-9_-]+)\1:\s*(.*)$/.exec(line);
+    if (indent === jobIndent) {
+      jobs.push({ name: key?.[2] ?? line.trim(), runsOn: undefined });
+      keyIndent = -1;
+    } else if (indent > jobIndent) {
+      if (keyIndent < 0) keyIndent = indent;
+      const job = jobs.at(-1);
+      if (indent === keyIndent && key?.[2] === 'runs-on' && job) {
+        job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, '');
+      }
+    }
+  }
+  return jobs;
 }
 
 function checkSolo(root: string, report: Report): void {

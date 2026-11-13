@@ -21521,6 +21521,26 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
+
+// plugins/sidecut-agentskills/server/src/check/report.ts
+class Report {
+  problems = [];
+  add(code, file, line, message, fix) {
+    this.problems.push({ code, file, line, message, fix });
+  }
+  format() {
+    return this.problems.map((p) => `${p.code} ${p.file}${p.line ? `:${p.line}` : ""} ${p.message} Fix: ${p.fix}`).join(`
+`);
+  }
+}
+function sentences(text) {
+  return text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+}
+function sameJson(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// plugins/sidecut-agentskills/server/src/scaffold.ts
 var here = dirname(fileURLToPath(import.meta.url));
 var dataRoot = existsSync(join(here, "data")) ? join(here, "data") : join(here, "..", "data");
 var templatesRoot = join(dataRoot, "templates");
@@ -21540,6 +21560,13 @@ function checkPluginInput(input) {
     problems.push({
       code: "MANIFEST_DESCRIPTION",
       message: "The description must be one sentence of at most 120 characters ending with a full stop."
+    });
+  }
+  const long = sentences(input.longDescription).length;
+  if (long < 2 || long > 3) {
+    problems.push({
+      code: "MANIFEST_INTERFACE",
+      message: "The long description must be 2 or 3 sentences."
     });
   }
   const badKeyword = input.keywords.some((k) => k !== k.toLowerCase() || k === input.id);
@@ -21573,13 +21600,37 @@ function checkSkillInput(input) {
   }
   return problems;
 }
+var ACRONYMS = new Set([
+  "ai",
+  "api",
+  "aws",
+  "cdn",
+  "ci",
+  "cli",
+  "css",
+  "dns",
+  "gpu",
+  "html",
+  "http",
+  "json",
+  "llm",
+  "mcp",
+  "pdf",
+  "pr",
+  "sdk",
+  "sql",
+  "ssh",
+  "ui",
+  "url",
+  "ux",
+  "yaml"
+]);
 function displayNameOf(id) {
-  return id.split("-").map((word) => (word[0] ?? "").toUpperCase() + word.slice(1)).join(" ");
+  return id.split("-").map((word) => ACRONYMS.has(word) ? word.toUpperCase() : (word[0] ?? "").toUpperCase() + word.slice(1)).join(" ");
 }
 function skillTitleOf(name) {
-  const acronyms = new Set(["mcp", "cli", "ci", "pr", "url", "api"]);
   return name.split("-").map((word, i) => {
-    if (acronyms.has(word))
+    if (ACRONYMS.has(word))
       return word.toUpperCase();
     return i === 0 ? (word[0] ?? "").toUpperCase() + word.slice(1) : word;
   }).join(" ");
@@ -21721,26 +21772,6 @@ function addSkill(pluginDir, input) {
 // plugins/sidecut-agentskills/server/src/check/markdown.ts
 import { existsSync as existsSync2 } from "node:fs";
 import { dirname as dirname2, join as join2, relative as relative2 } from "node:path";
-
-// plugins/sidecut-agentskills/server/src/check/report.ts
-class Report {
-  problems = [];
-  add(code, file, line, message, fix) {
-    this.problems.push({ code, file, line, message, fix });
-  }
-  format() {
-    return this.problems.map((p) => `${p.code} ${p.file}${p.line ? `:${p.line}` : ""} ${p.message} Fix: ${p.fix}`).join(`
-`);
-  }
-}
-function sentences(text) {
-  return text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
-}
-function sameJson(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-// plugins/sidecut-agentskills/server/src/check/markdown.ts
 var FENCE_TAGS = new Set(["bash", "ts", "js", "json", "yaml", "toml", "text", "markdown"]);
 var BANNED = [
   "ultimate",
@@ -22133,7 +22164,14 @@ function checkServer(pluginDir, root, report) {
   const out = mkdtempSync(join3(tmpdir(), "sidecut-check-"));
   try {
     const built = join3(out, "index.mjs");
-    const result = spawnSync("bun", ["build", source, "--target=node", "--format=esm", `--outfile=${built}`], {
+    const result = spawnSync("bun", [
+      "build",
+      source,
+      "--target=node",
+      "--format=esm",
+      `--outfile=${built}`,
+      `--metafile=${join3(out, "meta.json")}`
+    ], {
       cwd: root,
       encoding: "utf8"
     });
@@ -22142,6 +22180,19 @@ function checkServer(pluginDir, root, report) {
 `)[0]}`, "Run `bun install`, then fix the build error.");
     } else if (!readFileSync2(built).equals(readFileSync2(bundle))) {
       report.add("SERVER_BUNDLE_STALE", relative3(root, bundle), undefined, "The committed bundle doesn't match the source.", "Run `bun run build` and commit server/index.mjs.");
+    }
+    if (result.status === 0) {
+      const inputs = Object.keys(JSON.parse(readFileSync2(join3(out, "meta.json"), "utf8")).inputs);
+      const packages = [
+        ...new Set(inputs.flatMap((p) => [...p.matchAll(/node_modules\/((?:@[^/]+\/)?[^/]+)\//g)].at(-1)?.[1] ?? []))
+      ];
+      const notices = join3(pluginDir, "server", "THIRD_PARTY_LICENSES.txt");
+      const text = existsSync3(notices) ? readFileSync2(notices, "utf8") : "";
+      const missing = packages.filter((pkg) => !text.split(`
+`).includes(pkg));
+      if (missing.length > 0) {
+        report.add("SERVER_LICENSES", relative3(root, notices), undefined, `The bundle inlines ${missing.join(", ")} without its licence notice.`, "Run `bun run build`, which writes server/THIRD_PARTY_LICENSES.txt.");
+      }
     }
   } finally {
     rmSync(out, { recursive: true, force: true });
@@ -22896,12 +22947,13 @@ var REQUIRED_ENTRIES = [
   "lefthook.yml",
   "package.json",
   "plugins",
+  "scripts",
   "solo-workflow.toml",
   "tests",
   "tsconfig.json"
 ];
-var OPTIONAL_ENTRIES = [".git", "node_modules", "bunfig.toml", "scripts"];
-var CHECK_SCRIPT = "biome check . && tsc --noEmit && bun run style && bun test";
+var OPTIONAL_ENTRIES = [".git", "node_modules", "bunfig.toml"];
+var CHECK_SCRIPT = "biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check";
 var AGENTS_SECTIONS = ["Commands", "Layout", "Rules"];
 function ignoredBy(patterns, name) {
   return patterns.some((p) => {
@@ -22964,6 +23016,12 @@ function checkPackage(root, id, version, report) {
   }
   if (!scripts.style)
     report.add("REPO_STYLE_SCRIPT", "package.json", undefined, "There is no `style` script.", 'Add `"style": "sidecut-check"`.');
+  if (scripts.build !== "bun scripts/build-server.ts")
+    report.add("REPO_BUILD_SCRIPT", "package.json", undefined, "`build` is not `bun scripts/build-server.ts`.", "Set it, so the bundle and its licences are built the same way everywhere.");
+  const buildScript = join6(root, "scripts", "build-server.ts");
+  const canonical = readFileSync5(join6(templatesRoot, "repo", "scripts", "build-server.ts.tmpl"), "utf8");
+  if (!existsSync6(buildScript) || readFileSync5(buildScript, "utf8") !== canonical)
+    report.add("REPO_BUILD_SCRIPT", "scripts/build-server.ts", undefined, "scripts/build-server.ts is missing or differs from the Sidecut copy.", "Copy it again from the sidecut-agentskills template.");
   for (const [name, spec] of Object.entries({
     ...pkg.dependencies,
     ...pkg.devDependencies
@@ -23023,18 +23081,50 @@ function checkCi(root, report) {
         report.add("CI_PIN", file, i + 1, `${uses} is not pinned by full SHA.`, "Pin the action to a 40-character commit SHA.");
       }
       if (/runs-on:.*(macos|windows)/i.test(line)) {
-        report.add("CI_RUNNER", file, i + 1, "Job runs on hosted macOS or Windows.", "Use the sidecut-ops runner picker or self-hosted labels.");
+        report.add("CI_RUNNER", file, i + 1, "Job runs on hosted macOS or Windows.", "Use `ubuntu-24.04` in a public repo, or the sidecut-ops runner picker in a private one.");
       }
       if (/bun-version:/.test(line))
         report.add("CI_BUN", file, i + 1, "Bun version set in the workflow.", "Use `bun-version-file: package.json`.");
     });
   }
   const check = existsSync6(join6(dir, "check.yml")) ? readFileSync5(join6(dir, "check.yml"), "utf8") : "";
-  const runsOn = [...check.matchAll(/^\s*runs-on:\s*(.+)$/gm)].map((m) => m[1]?.trim());
-  const hostedOnly = runsOn.length > 0 && runsOn.every((r) => r === "ubuntu-24.04");
+  const jobs = jobsOf(check);
+  const hostedOnly = jobs.length > 0 && jobs.every((job) => job.runsOn === "ubuntu-24.04");
   if (check && !check.includes("/pick-runner@") && !hostedOnly) {
     report.add("CI_PICKER", ".github/workflows/check.yml", undefined, "check.yml neither uses the runner picker nor runs every job on ubuntu-24.04.", "Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.");
   }
+}
+function jobsOf(workflow) {
+  const lines = workflow.split(`
+`).map((line) => line.replace(/(^|\s+)#.*$/, ""));
+  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  if (start < 0)
+    return [];
+  const jobs = [];
+  let jobIndent = -1;
+  let keyIndent = -1;
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === "")
+      continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0)
+      break;
+    if (jobIndent < 0)
+      jobIndent = indent;
+    const key = /^\s*(["']?)([A-Za-z0-9_-]+)\1:\s*(.*)$/.exec(line);
+    if (indent === jobIndent) {
+      jobs.push({ name: key?.[2] ?? line.trim(), runsOn: undefined });
+      keyIndent = -1;
+    } else if (indent > jobIndent) {
+      if (keyIndent < 0)
+        keyIndent = indent;
+      const job = jobs.at(-1);
+      if (indent === keyIndent && key?.[2] === "runs-on" && job) {
+        job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, "");
+      }
+    }
+  }
+  return jobs;
 }
 function checkSolo(root, report) {
   const path = join6(root, "solo-workflow.toml");

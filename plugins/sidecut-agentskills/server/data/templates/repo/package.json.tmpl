@@ -5,8 +5,8 @@
   "type": "module",
   "packageManager": "bun@1.4.4",
   "scripts": {
-    "build": "bun build plugins/{{id}}/server/src/index.ts --target=node --format=esm --outfile=plugins/{{id}}/server/index.mjs",
-    "check": "biome check . && tsc --noEmit && bun run style && bun test",
+    "build": "bun scripts/build-server.ts",
+    "check": "biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check",
     "fix": "biome check --write .",
     "style": "sidecut-check",
     "test": "bun test"

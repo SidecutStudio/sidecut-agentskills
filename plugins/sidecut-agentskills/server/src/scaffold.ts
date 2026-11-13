@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
+import { sentences } from './check/report.ts';
 
 // The data folder sits next to the bundled server/index.mjs, or one level up from server/src/.
 const here = dirname(fileURLToPath(import.meta.url));
@@ -45,6 +46,13 @@ export function checkPluginInput(input: PluginInput): Problem[] {
         'The description must be one sentence of at most 120 characters ending with a full stop.',
     });
   }
+  const long = sentences(input.longDescription).length;
+  if (long < 2 || long > 3) {
+    problems.push({
+      code: 'MANIFEST_INTERFACE',
+      message: 'The long description must be 2 or 3 sentences.',
+    });
+  }
   const badKeyword = input.keywords.some((k) => k !== k.toLowerCase() || k === input.id);
   if (input.keywords.length < 3 || input.keywords.length > 8 || badKeyword) {
     problems.push({
@@ -83,21 +91,49 @@ export function checkSkillInput(input: SkillInput): Problem[] {
   return problems;
 }
 
-/** The plugin id with hyphens as spaces, each word capitalized. */
+/** Words written in capitals wherever a name becomes a title. */
+const ACRONYMS = new Set([
+  'ai',
+  'api',
+  'aws',
+  'cdn',
+  'ci',
+  'cli',
+  'css',
+  'dns',
+  'gpu',
+  'html',
+  'http',
+  'json',
+  'llm',
+  'mcp',
+  'pdf',
+  'pr',
+  'sdk',
+  'sql',
+  'ssh',
+  'ui',
+  'url',
+  'ux',
+  'yaml',
+]);
+
+/** The plugin id with hyphens as spaces, each word capitalized and acronyms in capitals. */
 export function displayNameOf(id: string): string {
   return id
     .split('-')
-    .map((word) => (word[0] ?? '').toUpperCase() + word.slice(1))
+    .map((word) =>
+      ACRONYMS.has(word) ? word.toUpperCase() : (word[0] ?? '').toUpperCase() + word.slice(1),
+    )
     .join(' ');
 }
 
 /** The SKILL.md H1: the name with hyphens as spaces, first word capitalized, acronyms upper case. */
 export function skillTitleOf(name: string): string {
-  const acronyms = new Set(['mcp', 'cli', 'ci', 'pr', 'url', 'api']);
   return name
     .split('-')
     .map((word, i) => {
-      if (acronyms.has(word)) return word.toUpperCase();
+      if (ACRONYMS.has(word)) return word.toUpperCase();
       return i === 0 ? (word[0] ?? '').toUpperCase() + word.slice(1) : word;
     })
     .join(' ');

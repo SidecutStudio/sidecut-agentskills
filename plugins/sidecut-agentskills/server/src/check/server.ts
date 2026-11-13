@@ -86,7 +86,14 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
     const built = join(out, 'index.mjs');
     const result = spawnSync(
       'bun',
-      ['build', source, '--target=node', '--format=esm', `--outfile=${built}`],
+      [
+        'build',
+        source,
+        '--target=node',
+        '--format=esm',
+        `--outfile=${built}`,
+        `--metafile=${join(out, 'meta.json')}`,
+      ],
       {
         cwd: root,
         encoding: 'utf8',
@@ -108,6 +115,32 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
         "The committed bundle doesn't match the source.",
         'Run `bun run build` and commit server/index.mjs.',
       );
+    }
+    if (result.status === 0) {
+      // Every package the bundle inlines ships its licence notice next to the bundle.
+      const inputs = Object.keys(
+        JSON.parse(readFileSync(join(out, 'meta.json'), 'utf8')).inputs as object,
+      );
+      const packages = [
+        ...new Set(
+          // The last node_modules folder in a path, so nested and isolated-store copies count as themselves.
+          inputs.flatMap(
+            (p) => [...p.matchAll(/node_modules\/((?:@[^/]+\/)?[^/]+)\//g)].at(-1)?.[1] ?? [],
+          ),
+        ),
+      ];
+      const notices = join(pluginDir, 'server', 'THIRD_PARTY_LICENSES.txt');
+      const text = existsSync(notices) ? readFileSync(notices, 'utf8') : '';
+      const missing = packages.filter((pkg) => !text.split('\n').includes(pkg));
+      if (missing.length > 0) {
+        report.add(
+          'SERVER_LICENSES',
+          relative(root, notices),
+          undefined,
+          `The bundle inlines ${missing.join(', ')} without its licence notice.`,
+          'Run `bun run build`, which writes server/THIRD_PARTY_LICENSES.txt.',
+        );
+      }
     }
   } finally {
     rmSync(out, { recursive: true, force: true });

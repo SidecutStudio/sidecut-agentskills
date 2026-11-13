@@ -6,8 +6,8 @@ This repo ships the {{displayName}} plugin for Claude Code and Codex. It follows
 
 | Command | Does |
 | --- | --- |
-| `bun run build` | Bundles the MCP server into `plugins/{{id}}/server/index.mjs` |
-| `bun run check` | Runs everything CI runs: Biome, types, the house-style checker and tests |
+| `bun run build` | Bundles the MCP server into `plugins/{{id}}/server/index.mjs` and writes its bundled licences |
+| `bun run check` | Runs everything CI runs: Biome, types, the house-style checker, tests and the stale-bundle check |
 | `bun run fix` | Formats and fixes what Biome can |
 | `bun run style` | Checks the repo against the Sidecut house style |
 | `bun run test` | Runs the tests |
@@ -16,6 +16,7 @@ This repo ships the {{displayName}} plugin for Claude Code and Codex. It follows
 
 ```text
 plugins/{{id}}/   the plugin; the only folder that gets installed
+scripts/               build-server.ts, the same in every Sidecut plugin repo
 tests/                 tests for the plugin and its MCP server
 .github/workflows/     CI, using sidecut-ops' runner picker
 ```

@@ -8,7 +8,7 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 | --- | --- | --- |
 | Repo | `sidecut-<name>`, lowercase kebab-case | yes |
 | Plugin id | `sidecut-<name>`, lowercase kebab-case, at most 64 characters; the same as the repo name when the repo exists to ship it | yes |
-| Plugin display name | The id with hyphens as spaces, each word capitalized: `sidecut-agentskills` is `Sidecut Agentskills` | yes |
+| Plugin display name | The id with hyphens as spaces, each word capitalized and acronyms in capitals: `sidecut-agentskills` is `Sidecut Agentskills`, `sidecut-ci` is `Sidecut CI`. The acronyms are ai, api, aws, cdn, ci, cli, css, dns, gpu, html, http, json, llm, mcp, pdf, pr, sdk, sql, ssh, ui, url, ux and yaml | yes |
 | Skill | Verb then object, 2 or 3 words, singular object, kebab-case, no plugin or product prefix: `write-skill`, `build-mcp-server` | yes |
 | Router skill | `start`, present only in plugins with 4 or more skills | yes |
 | Subagent | A role noun, one word: `reviewer`, `verifier` | yes |
@@ -21,7 +21,7 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 
 ## Repo layout
 
-A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. That repo has exactly these top-level entries, plus `node_modules/` when installed and `bunfig.toml` and `scripts/` when used. A repo that ships a plugin next to other work, such as `sidecut-ops`, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down.
+A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. That repo has exactly these top-level entries, plus `node_modules/` when installed and `bunfig.toml` when used. A repo that ships a plugin next to other work, such as `sidecut-ops`, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down.
 
 ```text
 .github/workflows/check.yml
@@ -37,6 +37,7 @@ bun.lock
 lefthook.yml
 package.json
 plugins/<plugin-id>/
+scripts/build-server.ts
 solo-workflow.toml
 tests/
 tsconfig.json
@@ -70,6 +71,7 @@ plugins/<plugin-id>/
   hooks/hooks.json            only with hooks
   hooks/<event>-<what>.mjs
   server/index.mjs            bundled MCP server, generated
+  server/THIRD_PARTY_LICENSES.txt  licence notices of the packages the bundle inlines, generated
   server/src/                 MCP server source
   server/data/                files the server reads at run time, only when needed
   skills/<skill>/
@@ -111,6 +113,7 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads the Agent Plugi
 | Remote server | `"type": "http"` in `.mcp.json` and `"type": "streamable-http"` in `mcp.json`, plus `"url"`; nothing else; auth handled by the host | yes |
 | Finding its own files | The server resolves paths from `import.meta.url`, never from the working directory, which is the user's project in Claude Code | yes |
 | Source and build | TypeScript in `server/src/`, bundled to `server/index.mjs` with every dependency inlined, built file committed; CI rebuilds and fails on any difference | yes |
+| Build script | `bun run build` is `bun scripts/build-server.ts`, the same file in every plugin repo; it also writes `server/THIRD_PARTY_LICENSES.txt` with the licence of every package the bundle inlines | yes |
 | Transport | stdio for local servers; a remote server is hosted elsewhere and only configured here | review |
 | Tool annotations | Every tool sets `title`, `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` explicitly | yes |
 | Tool description | At most 2 sentences: what it returns, then when to use it; no "Use this tool to" | yes |
@@ -310,11 +313,12 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| `bun run check` | Exactly `biome check . && tsc --noEmit && bun run style && bun test` | yes |
+| `bun run check` | Exactly `biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check`; the last step fails when the bundle or its licence notices are stale | yes |
 | `bun run style` | `sidecut-check`, from the `sidecut-agentskills` dev dependency pinned to a tag; it includes the bundle drift check | yes |
 | Checker output | One line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
 | CI | `check.yml` copied from sidecut-ops' runner-picker pattern; actions pinned by full SHA; Bun from `packageManager`; no hosted macOS or Windows | yes |
 | Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses the self-hosted runners or sidecut-ops' private actions | yes |
+| Private repo CI | Keeps the runner picker, whose budget guard stops hosted jobs near the monthly credit; the checker can't tell a private repo from a public one, so a hosted-only private repo is caught in review | review |
 | Merge gate | `required_checks` in `solo-workflow.toml` includes `check` | yes |
