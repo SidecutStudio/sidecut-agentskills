@@ -1,6 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { defaultPromptOf, isSkillName, listFiles, skillPrefixOf, skillTitleOf } from '../scaffold.ts';
+import {
+  defaultPromptOf,
+  isSkillName,
+  listFiles,
+  skillPrefixOf,
+  skillTitleOf,
+} from '../scaffold.ts';
 import {
   checkMarkdown,
   paragraphAfter,
@@ -11,18 +17,28 @@ import {
 } from './markdown.ts';
 import { type Report, sentences } from './report.ts';
 
-export type SkillInfo = { name: string; description: string; firstSentence: string };
+export type SkillInfo = {
+  name: string;
+  description: string;
+  firstSentence: string;
+  /** Claude Code never starts it on its own, so Codex mustn't either. */
+  manualOnly: boolean;
+};
 
 const FRONTMATTER_ORDER = [
   'name',
   'description',
+  'argument-hint',
   'allowed-tools',
   'user-invocable',
   'disable-model-invocation',
   'paths',
+  'model',
+  'effort',
   'context',
   'agent',
 ];
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const TASK_SECTIONS = [
   'Before you start',
   'Steps',
@@ -64,6 +80,8 @@ function checkFrontmatter(
   lines: string[] | null,
   file: string,
   report: Report,
+  tools: Set<string> | null,
+  plugin: string,
 ): SkillInfo | null {
   if (!lines) {
     report.add(
@@ -141,6 +159,22 @@ function checkFrontmatter(
   }
   if (fm.keys.includes('allowed-tools')) {
     const start = (fm.lines.get('allowed-tools') ?? 0) - 1;
+    // This plugin's MCP tools are named mcp__plugin_<plugin>_<server>__<tool> in Claude Code.
+    const own = `mcp__plugin_${plugin}_${plugin.replace(/^sidecut-/, '')}__`;
+    for (let i = start; /^ {2}- /.test(lines[i] ?? ''); i++) {
+      const entry = (lines[i] ?? '').slice(4).trim();
+      if (!entry.startsWith('mcp__')) continue;
+      const tool = entry.startsWith(own) ? entry.slice(own.length) : null;
+      if (!tool || (tools && !tools.has(tool))) {
+        report.add(
+          'SKILL_ALLOWED_MCP',
+          file,
+          i + 2,
+          `\`${entry}\` isn't one of this plugin's MCP tools.`,
+          `Name a tool the server has, as \`${own}<tool>\`.`,
+        );
+      }
+    }
     if (fm.values.get('allowed-tools') !== '' || !/^ {2}- \S/.test(lines[start] ?? '')) {
       report.add(
         'SKILL_ALLOWED_TOOLS',
@@ -172,7 +206,33 @@ function checkFrontmatter(
       'Remove it, or set it to `true`.',
     );
   }
-  return { name, description, firstSentence: sentences(description)[0] ?? '' };
+  const effort = fm.values.get('effort');
+  if (effort !== undefined && !EFFORTS.includes(effort)) {
+    report.add(
+      'SKILL_EFFORT',
+      file,
+      fm.lines.get('effort'),
+      `\`effort: ${effort}\` isn't a level.`,
+      `Use one of ${EFFORTS.join(', ')}.`,
+    );
+  }
+  const context = fm.values.get('context');
+  const forked = context === 'fork' && Boolean(fm.values.get('agent'));
+  if ((context !== undefined || fm.keys.includes('agent')) && !forked) {
+    report.add(
+      'SKILL_FORK',
+      file,
+      fm.lines.get('context') ?? fm.lines.get('agent'),
+      '`context` and `agent` are not set together.',
+      'Use `context: fork` with `agent: <subagent>`, or neither.',
+    );
+  }
+  return {
+    name,
+    description,
+    firstSentence: sentences(description)[0] ?? '',
+    manualOnly: fm.values.get('disable-model-invocation') === 'true',
+  };
 }
 
 function supportFiles(dir: string): string[] {
@@ -211,22 +271,30 @@ function checkLayout(dir: string, root: string, report: Report): void {
   }
 }
 
+/** The skill's agents/openai.yaml, exactly: how Codex lists it, and its invocation policy. */
+export function openAiYamlOf(info: SkillInfo, title: string, brandColor: string): string {
+  return [
+    'interface:',
+    `  display_name: "${title}"`,
+    `  short_description: "${info.firstSentence}"`,
+    `  brand_color: "${brandColor}"`,
+    `  default_prompt: "Use $${info.name} to ${defaultPromptOf(info.firstSentence)}"`,
+    ...(info.manualOnly ? ['policy:', '  allow_implicit_invocation: false'] : []),
+    '',
+  ].join('\n');
+}
+
 function checkOpenAiYaml(
   dir: string,
   info: SkillInfo,
   title: string,
+  brandColor: string,
   root: string,
   report: Report,
 ): void {
   const path = join(dir, 'agents', 'openai.yaml');
   if (!existsSync(path)) return;
-  const expected = [
-    'interface:',
-    `  display_name: "${title}"`,
-    `  short_description: "${info.firstSentence}"`,
-    `  default_prompt: "Use $${info.name} to ${defaultPromptOf(info.firstSentence)}"`,
-    '',
-  ].join('\n');
+  const expected = openAiYamlOf(info, title, brandColor);
   if (readFileSync(path, 'utf8') !== expected) {
     report.add(
       'SKILL_OPENAI_YAML',
@@ -290,10 +358,9 @@ function checkSections(
   const found = sections(doc);
   const names = found.map((h) => h.text);
   const support = supportFiles(dir);
-  const required =
-    router
-      ? ROUTER_SECTIONS
-      : ['Steps', 'Done when', ...(support.length > 0 ? ['References'] : [])];
+  const required = router
+    ? ROUTER_SECTIONS
+    : ['Steps', 'Done when', ...(support.length > 0 ? ['References'] : [])];
   for (const h of found) {
     if (!order.includes(h.text)) {
       report.add(
@@ -492,6 +559,7 @@ export function checkSkills(
   report: Report,
   tools: Set<string> | null,
   plugin: string,
+  brandColor: string,
 ): SkillInfo[] {
   const skillsDir = join(pluginDir, 'skills');
   if (!existsSync(skillsDir)) {
@@ -534,10 +602,10 @@ export function checkSkills(
     }
     checkLayout(dir, root, report);
     const doc = parseMarkdown(join(dir, 'SKILL.md'), readFileSync(join(dir, 'SKILL.md'), 'utf8'));
-    const info = checkFrontmatter(name, doc.frontmatter, file, report);
+    const info = checkFrontmatter(name, doc.frontmatter, file, report, tools, plugin);
     checkSections(dir, name, root, report, tools, skills, plugin);
     if (info) {
-      checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), root, report);
+      checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), brandColor, root, report);
       infos.push(info);
     }
   }

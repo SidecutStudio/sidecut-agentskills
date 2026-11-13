@@ -142,11 +142,11 @@ skills/<skill>/
 | Unfinished text | No `TODO` anywhere; the skill template's `TODO` markers fail the check until replaced | yes |
 | Links to other skills' files | None; name the skill instead | yes |
 | Scripts | Node ESM, built-in modules only, `--help` flag, exit 0 on success and 1 on failure, plain-text output | yes |
-| `agents/openai.yaml` | `interface:` with `display_name` (the SKILL.md H1), `short_description` (the description's first sentence) and `default_prompt` (`Use $<skill> to <first sentence with its verb in base form>`, so "Checks that" becomes "check that"), each value in double quotes | yes |
+| `agents/openai.yaml` | `interface:` with `display_name` (the SKILL.md H1), `short_description` (the description's first sentence), `brand_color` (the plugin's) and `default_prompt` (`Use $<skill> to <first sentence with its verb in base form>`, so "Checks that" becomes "check that"), each value in double quotes. A skill with `disable-model-invocation: true` adds `policy:` with `allow_implicit_invocation: false`, the Codex equivalent, which Codex reads only from this file | yes |
 
 ## Skill frontmatter
 
-Fields appear in this order and no others are used: `name`, `description`, `allowed-tools`, `user-invocable`, `disable-model-invocation`, `paths`, `context`, `agent`. Only `name` and `description` are required.
+Fields appear in this order and no others are used: `name`, `description`, `argument-hint`, `allowed-tools`, `user-invocable`, `disable-model-invocation`, `paths`, `model`, `effort`, `context`, `agent`. Only `name` and `description` are required; add the others where they change what the skill does. Codex reads only `name` and `description` from here and takes the rest from `agents/openai.yaml`.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
@@ -155,6 +155,11 @@ Fields appear in this order and no others are used: `name`, `description`, `allo
 | Description shape | `<Does what>. Use when <situations>. Not for <thing> (use <skill>).` The `(use <skill>)` part appears when a skill in the same plugin covers it. The first sentence starts with a third-person verb: Writes, Builds, Checks | yes |
 | First sentence | One main verb, so Codex's starter prompt reads correctly | review |
 | `allowed-tools` | A YAML list, narrowest patterns that work: `Bash(gh pr view *)` | yes |
+| Own MCP tools | Every read-only tool of the plugin's own server that the skill calls is listed, as `mcp__plugin_<plugin id>_<server key>__<tool>`; tools that write stay unlisted so Claude Code asks first. An entry naming a tool the server doesn't have fails | yes |
+| `argument-hint` | Only on a skill that takes an argument, in the form `[issue-number]` | review |
+| `disable-model-invocation` | `true` only for a skill that must never start without the user asking for it by name | review |
+| `effort` | One of `low`, `medium`, `high`, `xhigh`, `max`, only when the skill needs a different level from the session | yes |
+| `context` and `agent` | Together or not at all: `context: fork` runs the skill in the named subagent | yes |
 | Booleans | Only written when they differ from the default | yes |
 | Versions, licenses, metadata blocks | None | yes |
 

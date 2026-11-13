@@ -2,6 +2,8 @@
 name: agentskills-review-plugin
 description: "Reviews a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything. Use when the user asks for a plugin review, wants to know if a plugin is ready to publish, or another agent changed one. Not for fixing what it finds unless asked, or for reworking a whole plugin (use `agentskills-rebuild-plugin`)."
 allowed-tools:
+  - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
+  - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
   - Bash(bun run style)
   - Bash(claude plugin validate *)
 ---

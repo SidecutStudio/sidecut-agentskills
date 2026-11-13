@@ -185,6 +185,24 @@ const cases: [string, (repo: Repo) => void][] = [
     (r) => r.edit(skillMd, (t) => t.replace('\n---\n\n#', '\nallowed-tools: Bash(ls *)\n---\n\n#')),
   ],
   [
+    'SKILL_ALLOWED_MCP',
+    (r) =>
+      r.edit(skillMd, (t) =>
+        t.replace(
+          '\n---\n\n#',
+          '\nallowed-tools:\n  - mcp__plugin_sidecut-demo_demo__get_nothing\n---\n\n#',
+        ),
+      ),
+  ],
+  [
+    'SKILL_EFFORT',
+    (r) => r.edit(skillMd, (t) => t.replace('\n---\n\n#', '\neffort: huge\n---\n\n#')),
+  ],
+  [
+    'SKILL_FORK',
+    (r) => r.edit(skillMd, (t) => t.replace('\n---\n\n#', '\ncontext: fork\n---\n\n#')),
+  ],
+  [
     'SKILL_DEFAULT_FIELD',
     (r) => r.edit(skillMd, (t) => t.replace('\n---\n\n#', '\nuser-invocable: true\n---\n\n#')),
   ],
@@ -288,11 +306,13 @@ const cases: [string, (repo: Repo) => void][] = [
   ],
   [
     'NAME_SKILL',
-    (r) => cpSync(join(r.root, SKILL), join(r.root, `${P}/skills/check-status`), { recursive: true }),
+    (r) =>
+      cpSync(join(r.root, SKILL), join(r.root, `${P}/skills/check-status`), { recursive: true }),
   ],
   [
     'SKILL_MISSING',
-    (r) => r.write(`${P}/skills/demo-write-notes/references/notes.md`, '# Notes\n\nRead this when.\n'),
+    (r) =>
+      r.write(`${P}/skills/demo-write-notes/references/notes.md`, '# Notes\n\nRead this when.\n'),
   ],
   [
     'SKILL_ROUTER',
@@ -444,7 +464,10 @@ const cases: [string, (repo: Repo) => void][] = [
   ['README_SECTIONS', (r) => r.edit(`${P}/README.md`, (t) => t.replace('## Use\n', '## Usage\n'))],
   [
     'README_SKILLS',
-    (r) => r.edit(`${P}/README.md`, (t) => t.replace('| `demo-check-status` |', '| `demo-check-state` |')),
+    (r) =>
+      r.edit(`${P}/README.md`, (t) =>
+        t.replace('| `demo-check-status` |', '| `demo-check-state` |'),
+      ),
   ],
   [
     'README_LICENSE',
@@ -612,4 +635,20 @@ test('a comment at the start of a line, a quoted job name or a nested runs-on hi
 test('display names put common acronyms in capitals', () => {
   expect(displayNameOf('sidecut-ai-tools')).toBe('Sidecut AI Tools');
   expect(displayNameOf('sidecut-sql-ui')).toBe('Sidecut SQL UI');
+});
+
+test("a skill's own MCP tools and a manual-only policy pass on both hosts", () => {
+  const repo = copy();
+  repo.edit(skillMd, (t) =>
+    t.replace(
+      '\n---\n\n#',
+      '\nallowed-tools:\n  - mcp__plugin_sidecut-demo_demo__get_status\ndisable-model-invocation: true\n---\n\n#',
+    ),
+  );
+  expect(codes(repo.root)).toEqual(['SKILL_OPENAI_YAML']);
+  repo.edit(
+    `${SKILL}/agents/openai.yaml`,
+    (t) => `${t}policy:\n  allow_implicit_invocation: false\n`,
+  );
+  expect(codes(repo.root)).toEqual([]);
 });

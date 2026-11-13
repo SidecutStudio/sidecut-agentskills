@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { displayNameOf, listFiles, PLUGIN_ID, templatesRoot } from '../scaffold.ts';
+import { brandColorOf, displayNameOf, listFiles, PLUGIN_ID, templatesRoot } from '../scaffold.ts';
 import { checkMarkdown, paragraphAfter, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { type Report, sameJson, sentences } from './report.ts';
 import { checkServer } from './server.ts';
@@ -813,7 +813,7 @@ export function checkPlugin(
   checkLayout(pluginDir, root, report);
   const manifest = checkManifests(pluginDir, id, repoName, root, report);
   const tools = checkMcp(pluginDir, id, root, report);
-  const skills = checkSkills(pluginDir, root, report, tools, id);
+  const skills = checkSkills(pluginDir, root, report, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report);
   checkEvals(
     pluginDir,

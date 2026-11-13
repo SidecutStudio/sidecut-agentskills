@@ -37,7 +37,10 @@ export function skillPrefixOf(pluginId: string): string {
 
 /** Whether a skill name is the router or `<prefix>-<verb>-<object>`. */
 export function isSkillName(name: string, prefix: string): boolean {
-  return name === prefix || (name.startsWith(`${prefix}-`) && SKILL_NAME.test(name.slice(prefix.length + 1)));
+  return (
+    name === prefix ||
+    (name.startsWith(`${prefix}-`) && SKILL_NAME.test(name.slice(prefix.length + 1)))
+  );
 }
 const HEX_COLOR = /^#[0-9A-F]{6}$/;
 const DEFAULT_CHECKER = 'github:SidecutStudio/sidecut-agentskills';
@@ -280,6 +283,16 @@ export function scaffoldPlugin(input: PluginInput, out: string): string[] {
   return writeAll(out, files);
 }
 
+/** The plugin's brand color from its Codex listing, which every skill's openai.yaml repeats. */
+export function brandColorOf(pluginDir: string): string {
+  try {
+    const codex = JSON.parse(readFileSync(join(pluginDir, '.codex-plugin', 'plugin.json'), 'utf8'));
+    return String(codex.interface?.brandColor ?? '');
+  } catch {
+    return '';
+  }
+}
+
 /** Adds a skill skeleton to an existing plugin folder. Returns the files written, relative to the plugin. */
 export function addSkill(pluginDir: string, input: SkillInput): string[] {
   const prefix = skillPrefixOf(basename(pluginDir));
@@ -293,6 +306,7 @@ export function addSkill(pluginDir: string, input: SkillInput): string[] {
     skillTitle: skillTitleOf(input.name, prefix),
     skillDoes: input.does,
     skillPrompt: defaultPromptOf(input.does),
+    brandColor: brandColorOf(pluginDir),
   };
   const files = new Map<string, string>();
   for (const [path, text] of renderTree('skill', vars)) files.set(join(skillDir, path), text);

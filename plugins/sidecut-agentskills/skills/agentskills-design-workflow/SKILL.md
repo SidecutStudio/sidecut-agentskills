@@ -1,6 +1,8 @@
 ---
 name: agentskills-design-workflow
 description: "Designs what a Sidecut plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it. Use when the user wants something to happen automatically, work split across agents, or a plugin check added to CI. Not for a project's own agent rules or a repeated mistake in an app repo (use Solo Workflow's improve-workflow)."
+allowed-tools:
+  - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
 ---
 
 # Design workflow

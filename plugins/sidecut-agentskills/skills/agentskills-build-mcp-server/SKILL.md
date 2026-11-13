@@ -1,6 +1,9 @@
 ---
 name: agentskills-build-mcp-server
 description: "Builds the MCP side of a Sidecut plugin: the tools in its bundled server, or a connection to a hosted server. Use when the user wants a new tool, a tool renamed or fixed, agents picking the wrong tool, or a remote server connected. Not for adding a server to the user's own client settings or for hosting a remote server."
+allowed-tools:
+  - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
+  - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
 ---
 
 # Build MCP server

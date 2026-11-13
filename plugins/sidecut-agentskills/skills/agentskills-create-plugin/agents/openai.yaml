@@ -1,4 +1,5 @@
 interface:
   display_name: "Create plugin"
   short_description: "Creates a new Sidecut plugin repo from the template, with Claude Code and Codex manifests, a bundled MCP server and a first skill."
+  brand_color: "#2F6B5E"
   default_prompt: "Use $agentskills-create-plugin to create a new Sidecut plugin repo from the template, with Claude Code and Codex manifests, a bundled MCP server and a first skill."

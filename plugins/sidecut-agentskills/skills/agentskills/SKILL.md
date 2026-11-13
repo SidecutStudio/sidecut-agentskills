@@ -1,6 +1,8 @@
 ---
 name: agentskills
 description: "Routes a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill. Use when the user wants agent tooling made, fixed, checked or shipped but hasn't said which part. Not for using an installed plugin or configuring someone else's MCP server."
+allowed-tools:
+  - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
 ---
 
 # Sidecut Agentskills

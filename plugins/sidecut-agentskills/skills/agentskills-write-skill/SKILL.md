@@ -1,6 +1,9 @@
 ---
 name: agentskills-write-skill
 description: "Writes one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style. Use when the user wants a new skill, a skill that fires too often or not at all, a long SKILL.md cut down, or evals for a skill. Not for a whole new plugin (use `agentskills-create-plugin`) or MCP tools (use `agentskills-build-mcp-server`)."
+allowed-tools:
+  - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
+  - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
 ---
 
 # Write skill

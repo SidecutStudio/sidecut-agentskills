@@ -1,6 +1,8 @@
 ---
 name: agentskills-create-plugin
 description: "Creates a new Sidecut plugin repo from the template, with Claude Code and Codex manifests, a bundled MCP server and a first skill. Use when the user wants a new plugin, a new repo for agent tooling, or something new packaged for the Sidecut marketplace. Not for changing a plugin that already exists (use `agentskills-rebuild-plugin` or `agentskills-write-skill`)."
+allowed-tools:
+  - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
 ---
 
 # Create plugin

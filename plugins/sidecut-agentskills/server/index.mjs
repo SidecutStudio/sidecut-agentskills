@@ -21757,6 +21757,14 @@ function scaffoldPlugin(input, out) {
   files.set(`${pluginDir}/assets/icon.png`, solidIcon(vars.brandColor));
   return writeAll(out, files);
 }
+function brandColorOf(pluginDir) {
+  try {
+    const codex = JSON.parse(readFileSync(join(pluginDir, ".codex-plugin", "plugin.json"), "utf8"));
+    return String(codex.interface?.brandColor ?? "");
+  } catch {
+    return "";
+  }
+}
 function addSkill(pluginDir, input) {
   const prefix = skillPrefixOf(basename(pluginDir));
   const problems = checkSkillInput(input, prefix);
@@ -21770,7 +21778,8 @@ function addSkill(pluginDir, input) {
     skill: input.name,
     skillTitle: skillTitleOf(input.name, prefix),
     skillDoes: input.does,
-    skillPrompt: defaultPromptOf(input.does)
+    skillPrompt: defaultPromptOf(input.does),
+    brandColor: brandColorOf(pluginDir)
   };
   const files = new Map;
   for (const [path, text] of renderTree("skill", vars))
@@ -22240,13 +22249,17 @@ import { join as join4, relative as relative4 } from "node:path";
 var FRONTMATTER_ORDER = [
   "name",
   "description",
+  "argument-hint",
   "allowed-tools",
   "user-invocable",
   "disable-model-invocation",
   "paths",
+  "model",
+  "effort",
   "context",
   "agent"
 ];
+var EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 var TASK_SECTIONS = [
   "Before you start",
   "Steps",
@@ -22278,7 +22291,7 @@ function parseFrontmatter(lines) {
   });
   return { keys, values, lines: lineOf };
 }
-function checkFrontmatter(name, lines, file, report) {
+function checkFrontmatter(name, lines, file, report, tools, plugin) {
   if (!lines) {
     report.add("SKILL_FRONTMATTER", file, 1, "SKILL.md has no frontmatter.", "Start with `---`, `name` and `description`.");
     return null;
@@ -22311,6 +22324,16 @@ function checkFrontmatter(name, lines, file, report) {
   }
   if (fm.keys.includes("allowed-tools")) {
     const start = (fm.lines.get("allowed-tools") ?? 0) - 1;
+    const own = `mcp__plugin_${plugin}_${plugin.replace(/^sidecut-/, "")}__`;
+    for (let i = start;/^ {2}- /.test(lines[i] ?? ""); i++) {
+      const entry = (lines[i] ?? "").slice(4).trim();
+      if (!entry.startsWith("mcp__"))
+        continue;
+      const tool = entry.startsWith(own) ? entry.slice(own.length) : null;
+      if (!tool || tools && !tools.has(tool)) {
+        report.add("SKILL_ALLOWED_MCP", file, i + 2, `\`${entry}\` isn't one of this plugin's MCP tools.`, `Name a tool the server has, as \`${own}<tool>\`.`);
+      }
+    }
     if (fm.values.get("allowed-tools") !== "" || !/^ {2}- \S/.test(lines[start] ?? "")) {
       report.add("SKILL_ALLOWED_TOOLS", file, start + 1, "`allowed-tools` is not a YAML list.", "List each tool on its own `  - ` line.");
     }
@@ -22321,7 +22344,21 @@ function checkFrontmatter(name, lines, file, report) {
   if (fm.keys.includes("disable-model-invocation") && fm.values.get("disable-model-invocation") !== "true") {
     report.add("SKILL_DEFAULT_FIELD", file, fm.lines.get("disable-model-invocation"), "`disable-model-invocation` repeats its default.", "Remove it, or set it to `true`.");
   }
-  return { name, description, firstSentence: sentences(description)[0] ?? "" };
+  const effort = fm.values.get("effort");
+  if (effort !== undefined && !EFFORTS.includes(effort)) {
+    report.add("SKILL_EFFORT", file, fm.lines.get("effort"), `\`effort: ${effort}\` isn't a level.`, `Use one of ${EFFORTS.join(", ")}.`);
+  }
+  const context = fm.values.get("context");
+  const forked = context === "fork" && Boolean(fm.values.get("agent"));
+  if ((context !== undefined || fm.keys.includes("agent")) && !forked) {
+    report.add("SKILL_FORK", file, fm.lines.get("context") ?? fm.lines.get("agent"), "`context` and `agent` are not set together.", "Use `context: fork` with `agent: <subagent>`, or neither.");
+  }
+  return {
+    name,
+    description,
+    firstSentence: sentences(description)[0] ?? "",
+    manualOnly: fm.values.get("disable-model-invocation") === "true"
+  };
 }
 function supportFiles(dir) {
   return Object.keys(SUPPORT_FOLDERS).flatMap((folder) => existsSync4(join4(dir, folder)) ? readdirSync2(join4(dir, folder)).map((f) => `${folder}/${f}`) : []);
@@ -22342,18 +22379,23 @@ function checkLayout(dir, root, report) {
     report.add("SKILL_OPENAI_YAML", relative4(root, dir), undefined, "Skill has no agents/openai.yaml.", "Add it with display_name, short_description and default_prompt.");
   }
 }
-function checkOpenAiYaml(dir, info, title, root, report) {
-  const path = join4(dir, "agents", "openai.yaml");
-  if (!existsSync4(path))
-    return;
-  const expected = [
+function openAiYamlOf(info, title, brandColor) {
+  return [
     "interface:",
     `  display_name: "${title}"`,
     `  short_description: "${info.firstSentence}"`,
+    `  brand_color: "${brandColor}"`,
     `  default_prompt: "Use $${info.name} to ${defaultPromptOf(info.firstSentence)}"`,
+    ...info.manualOnly ? ["policy:", "  allow_implicit_invocation: false"] : [],
     ""
   ].join(`
 `);
+}
+function checkOpenAiYaml(dir, info, title, brandColor, root, report) {
+  const path = join4(dir, "agents", "openai.yaml");
+  if (!existsSync4(path))
+    return;
+  const expected = openAiYamlOf(info, title, brandColor);
   if (readFileSync3(path, "utf8") !== expected) {
     report.add("SKILL_OPENAI_YAML", relative4(root, path), 1, "openai.yaml doesn't match the skill.", `Make it exactly:
 ${expected}`);
@@ -22477,7 +22519,7 @@ function checkScript(path, root, report) {
     report.add("SCRIPT_NETWORK", file, undefined, "Script uses the network.", "Skill scripts work offline.");
   }
 }
-function checkSkills(pluginDir, root, report, tools, plugin) {
+function checkSkills(pluginDir, root, report, tools, plugin, brandColor) {
   const skillsDir = join4(pluginDir, "skills");
   if (!existsSync4(skillsDir)) {
     report.add("PLUGIN_NO_SKILLS", relative4(root, pluginDir), undefined, "Plugin has no skills folder.", "Add at least one skill.");
@@ -22499,10 +22541,10 @@ function checkSkills(pluginDir, root, report, tools, plugin) {
     }
     checkLayout(dir, root, report);
     const doc = parseMarkdown(join4(dir, "SKILL.md"), readFileSync3(join4(dir, "SKILL.md"), "utf8"));
-    const info = checkFrontmatter(name, doc.frontmatter, file, report);
+    const info = checkFrontmatter(name, doc.frontmatter, file, report, tools, plugin);
     checkSections(dir, name, root, report, tools, skills, plugin);
     if (info) {
-      checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), root, report);
+      checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), brandColor, root, report);
       infos.push(info);
     }
   }
@@ -22938,7 +22980,7 @@ function checkPlugin(pluginDir, root, report, repoName) {
   checkLayout2(pluginDir, root, report);
   const manifest = checkManifests(pluginDir, id, repoName, root, report);
   const tools = checkMcp(pluginDir, id, root, report);
-  const skills = checkSkills(pluginDir, root, report, tools, id);
+  const skills = checkSkills(pluginDir, root, report, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report);
   checkEvals(pluginDir, skills.map((s) => s.name), root, report);
   const version = typeof manifest?.version === "string" ? manifest.version : null;

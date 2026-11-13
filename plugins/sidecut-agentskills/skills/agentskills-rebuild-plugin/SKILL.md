@@ -1,6 +1,9 @@
 ---
 name: agentskills-rebuild-plugin
 description: "Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost. Use when the user wants an older plugin brought up to the template, cleaned of drift, or moved onto the Sidecut layout. Not for one change to a plugin that already passes `check_plugin` (use `agentskills-write-skill` or `agentskills-build-mcp-server`)."
+allowed-tools:
+  - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
+  - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
 ---
 
 # Rebuild plugin
