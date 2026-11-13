@@ -27,11 +27,18 @@ export function iconPng(svg: string): Buffer {
 }
 
 if (import.meta.main) {
+  const usage = 'Usage: sidecut-icon <lucide-icon-name> [--out <file>]';
   const args = process.argv.slice(2);
-  const name = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--out');
+  if (args.includes('--help')) {
+    console.log(usage);
+    process.exit(0);
+  }
   const outFlag = args.indexOf('--out');
-  if (!name || !/^[a-z0-9-]+$/.test(name)) {
-    console.error('Usage: sidecut-icon <lucide-icon-name> [--out <file>]');
+  const out = outFlag >= 0 ? args[outFlag + 1] : undefined;
+  const names = outFlag >= 0 ? args.filter((_, i) => i !== outFlag && i !== outFlag + 1) : args;
+  const name = names[0];
+  if (names.length !== 1 || !name || !/^[a-z0-9-]+$/.test(name) || (outFlag >= 0 && !out)) {
+    console.error(usage);
     process.exit(1);
   }
   const lucide = join(
@@ -43,9 +50,11 @@ if (import.meta.main) {
     console.error(`No Lucide icon is named ${name}. Pick one from https://lucide.dev/icons.`);
     process.exit(1);
   }
-  const id = JSON.parse(readFileSync('package.json', 'utf8')).name as string;
-  const out = outFlag >= 0 ? (args[outFlag + 1] ?? '') : join('plugins', id, 'assets', 'icon.png');
-  mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, iconPng(iconSvg(readFileSync(lucide, 'utf8'))));
-  console.log(`Wrote ${out}.`);
+  // Without --out, the icon goes in the plugin named by the package.json in this folder.
+  const target =
+    out ??
+    join('plugins', JSON.parse(readFileSync('package.json', 'utf8')).name, 'assets', 'icon.png');
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, iconPng(iconSvg(readFileSync(lucide, 'utf8'))));
+  console.log(`Wrote ${target}.`);
 }
