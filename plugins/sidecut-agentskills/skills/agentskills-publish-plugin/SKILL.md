@@ -1,6 +1,6 @@
 ---
 name: agentskills-publish-plugin
-description: "Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. Use when the user says ship, release or publish a plugin, or wants it to show up in Claude Code or Codex. Not for merging a change to the plugin's code (use Solo Workflow's finish)."
+description: "Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. Use when the user says ship, release or publish a plugin, or wants it to show up in Claude Code or Codex. Not for merging a change to the plugin's code (use `solo-workflow-finish-change`)."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
 ---

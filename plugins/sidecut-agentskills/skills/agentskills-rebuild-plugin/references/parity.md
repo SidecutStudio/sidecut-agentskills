@@ -24,7 +24,7 @@ Fields that change on every call, such as timestamps or counters, are compared b
 
 ## Calling the hooks
 
-Pipe each recorded input to the hook script as the JSON its host sends (`tool_input.command` and `cwd`), and keep whether it allows, denies or asks. Run the old and new scripts on the same inputs.
+Pipe each recorded input to the hook script as the JSON its host sends for that event and matcher: `tool_input.command` and `cwd` for a Bash guard, `tool_input.skill` for a Skill hook, and so on. Keep what it returns and what it writes: a guard's allow, deny or ask; a logging hook's record. Run the old and new scripts on the same inputs.
 
 ## Finding names in use
 
