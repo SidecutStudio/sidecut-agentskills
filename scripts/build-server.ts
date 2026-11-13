@@ -58,13 +58,23 @@ function licence(pkg: string, dir: string): string {
 
 // Codex loads subagents only from a project's .codex/agents/, so the plugin ships each one as a
 // profile its skills copy there: the name as <prefix>_<role>, the description, and the body.
-// The description as YAML reads it on one line: double-quoted with JSON-style escapes, single-quoted
-// with '' for a quote, or plain. A folded or literal block (> or |) isn't supported.
+// The description on one line, as YAML reads it: double-quoted with JSON-style escapes, single-quoted
+// with '' for a quote, or plain, each optionally followed by a # comment. Anything else, such as a
+// folded block (>), gives undefined.
 function descriptionOf(head: string): string | undefined {
   const value = /^description:[ \t]*(.*)$/m.exec(head)?.[1]?.trim() ?? '';
-  if (value.startsWith('"')) return JSON.parse(value) as string;
-  if (value.startsWith("'")) return value.slice(1, -1).replaceAll("''", "'");
-  return /^[>|]/.test(value) ? undefined : value || undefined;
+  const double = /^("(?:[^"\\]|\\.)*")\s*(?:#.*)?$/.exec(value)?.[1];
+  if (double) {
+    try {
+      return JSON.parse(double) as string;
+    } catch {
+      return undefined;
+    }
+  }
+  const single = /^'((?:[^']|'')*)'\s*(?:#.*)?$/.exec(value)?.[1];
+  if (single !== undefined) return single.replaceAll("''", "'");
+  if (/^["'>|]/.test(value)) return undefined;
+  return value.replace(/\s+#.*$/, '') || undefined;
 }
 
 function codexProfile(markdown: string, prefix: string, role: string): string {
