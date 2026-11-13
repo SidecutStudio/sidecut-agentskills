@@ -73,7 +73,7 @@ function descriptionOf(head: string): string | undefined {
   }
   const single = /^'((?:[^']|'')*)'\s*(?:#.*)?$/.exec(value)?.[1];
   if (single !== undefined) return single.replaceAll("''", "'");
-  if (/^["'>|]/.test(value)) return undefined;
+  if (/^["'>|#]/.test(value)) return undefined;
   return value.replace(/\s+#.*$/, '') || undefined;
 }
 
