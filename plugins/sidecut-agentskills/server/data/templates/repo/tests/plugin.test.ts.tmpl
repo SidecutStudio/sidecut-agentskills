@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const root = join(import.meta.dir, '..', 'plugins', '{{id}}');
-const manifest = JSON.parse(readFileSync(join(root, 'plugin.json'), 'utf8'));
+const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
 
 function callServer(messages: object[]): Record<string, unknown>[] {
   const input = `${messages.map((m) => JSON.stringify({ jsonrpc: '2.0', ...m })).join('\n')}\n`;

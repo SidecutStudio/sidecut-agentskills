@@ -7,7 +7,7 @@ import { checkRepo } from './check/repo.ts';
 import { Report } from './check/report.ts';
 import { addSkill, dataRoot, scaffoldPlugin } from './scaffold.ts';
 
-const manifestUrl = new URL('../plugin.json', import.meta.url);
+const manifestUrl = new URL('../.claude-plugin/plugin.json', import.meta.url);
 const manifest = JSON.parse(readFileSync(manifestUrl, 'utf8')) as { name: string; version: string };
 
 const server = new McpServer(

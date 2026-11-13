@@ -8,7 +8,7 @@ import { checkSkills } from './skills.ts';
 
 const PLUGIN_ENTRIES = new Set([
   '.claude-plugin',
-  'plugin.json',
+  '.codex-plugin',
   '.mcp.json',
   'mcp.json',
   'CHANGELOG.md',
@@ -16,6 +16,7 @@ const PLUGIN_ENTRIES = new Set([
   'README.md',
   'assets',
   'agents',
+  'codex',
   'hooks',
   'server',
   'skills',
@@ -44,8 +45,6 @@ const INTERFACE_FIELDS = [
   'composerIcon',
   'logo',
 ];
-const PLUGIN_SCHEMA = 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json';
-const MCP_SCHEMA = 'https://agent-plugins.org/schemas/1.0.0/mcp.schema.json';
 const SEMVER = /^\d+\.\d+\.\d+$/;
 const README_SECTIONS = [
   'What it does',
@@ -115,8 +114,8 @@ function checkLayout(pluginDir: string, root: string, report: Report): void {
     if (name === '.DS_Store') continue;
     if (!PLUGIN_ENTRIES.has(name)) {
       const hint =
-        name === '.codex-plugin'
-          ? 'Codex reads plugin.json and mcp.json instead.'
+        name === 'plugin.json'
+          ? 'Codex reads .codex-plugin/plugin.json; a root plugin.json stops it loading hooks.'
           : name === 'commands'
             ? 'Turn commands into skills.'
             : 'Move or remove it.';
@@ -185,7 +184,7 @@ function checkManifests(
   report: Report,
 ): Json | null {
   const claudePath = join(pluginDir, '.claude-plugin', 'plugin.json');
-  const portablePath = join(pluginDir, 'plugin.json');
+  const portablePath = join(pluginDir, '.codex-plugin', 'plugin.json');
   for (const path of [claudePath, portablePath]) {
     if (!existsSync(path))
       report.add(
@@ -203,13 +202,28 @@ function checkManifests(
   const claudeFile = relative(root, claudePath);
   const portableFile = relative(root, portablePath);
   checkKeys(claude, SHARED_FIELDS, claudeFile, report, 'MANIFEST_FIELDS');
+  // Codex finds each part through a path in its manifest, and only what exists is listed.
+  const paths: Json = { skills: './skills/' };
+  if (existsSync(join(pluginDir, 'mcp.json'))) paths.mcpServers = './mcp.json';
+  if (existsSync(join(pluginDir, 'hooks', 'codex-hooks.json')))
+    paths.hooks = './hooks/codex-hooks.json';
   checkKeys(
     portable,
-    ['$schema', ...SHARED_FIELDS, 'extensions'],
+    [...SHARED_FIELDS, ...Object.keys(paths), 'interface'],
     portableFile,
     report,
     'MANIFEST_FIELDS',
   );
+  for (const [field, value] of Object.entries(paths)) {
+    if (portable[field] !== value)
+      report.add(
+        'MANIFEST_CODEX_PATH',
+        portableFile,
+        undefined,
+        `"${field}" is not "${value}".`,
+        'Set it.',
+      );
+  }
   for (const field of SHARED_FIELDS) {
     if (!sameJson(claude[field], portable[field])) {
       report.add(
@@ -220,15 +234,6 @@ function checkManifests(
         'Make the shared fields identical.',
       );
     }
-  }
-  if (portable.$schema !== PLUGIN_SCHEMA) {
-    report.add(
-      'MANIFEST_SCHEMA',
-      portableFile,
-      undefined,
-      '`$schema` is not the Agent Plugins 1.0 plugin schema.',
-      `Set it to ${PLUGIN_SCHEMA}.`,
-    );
   }
   if (claude.name !== id || !PLUGIN_ID.test(id)) {
     report.add(
@@ -307,21 +312,7 @@ function checkManifests(
       'Fix the keyword list.',
     );
   }
-  const extensions = (portable.extensions ?? {}) as Json;
-  const openai = (extensions['com.openai'] ?? {}) as Json;
-  if (
-    Object.keys(extensions).join() !== 'com.openai' ||
-    Object.keys(openai).join() !== 'interface'
-  ) {
-    report.add(
-      'MANIFEST_EXTENSIONS',
-      portableFile,
-      undefined,
-      '`extensions` holds more than `com.openai.interface`.',
-      'Keep only `com.openai.interface`.',
-    );
-  }
-  const ui = (openai.interface ?? {}) as Json;
+  const ui = (portable.interface ?? {}) as Json;
   checkKeys(ui, INTERFACE_FIELDS, portableFile, report, 'MANIFEST_INTERFACE');
   const expected: Json = {
     displayName: displayNameOf(id),
@@ -394,15 +385,7 @@ function checkMcp(pluginDir: string, id: string, root: string, report: Report): 
   const claudeFile = relative(root, claudePath);
   const portableFile = relative(root, portablePath);
   checkKeys(claude, ['mcpServers'], claudeFile, report, 'MCP_FIELDS');
-  checkKeys(portable, ['$schema', 'mcpServers'], portableFile, report, 'MCP_FIELDS');
-  if (portable.$schema !== MCP_SCHEMA)
-    report.add(
-      'MCP_SCHEMA',
-      portableFile,
-      undefined,
-      '`$schema` is not the Agent Plugins 1.0 MCP schema.',
-      `Set it to ${MCP_SCHEMA}.`,
-    );
+  checkKeys(portable, ['mcpServers'], portableFile, report, 'MCP_FIELDS');
   const a = (claude.mcpServers ?? {}) as Record<string, Json>;
   const b = (portable.mcpServers ?? {}) as Record<string, Json>;
   const key = id.replace(/^sidecut-/, '');
@@ -419,15 +402,12 @@ function checkMcp(pluginDir: string, id: string, root: string, report: Report): 
   for (const [name, server] of Object.entries(a)) {
     const other = b[name] ?? {};
     if (server.url) {
-      if (
-        !sameJson(server, { type: 'http', url: server.url }) ||
-        !sameJson(other, { type: 'streamable-http', url: server.url })
-      ) {
+      if (!sameJson(server, { type: 'http', url: server.url }) || !sameJson(other, server)) {
         report.add(
           'MCP_REMOTE',
           claudeFile,
           undefined,
-          `Remote server "${name}" isn't type http with url in .mcp.json and type streamable-http with the same url in mcp.json.`,
+          `Remote server "${name}" isn't the same \`type: http\` and \`url\` in .mcp.json and mcp.json.`,
           'Use only `type` and `url`.',
         );
       }
@@ -445,18 +425,15 @@ function checkMcp(pluginDir: string, id: string, root: string, report: Report): 
         );
       }
       if (
-        !sameJson(other, {
-          type: 'stdio',
-          command: 'node',
-          args: [`\${PLUGIN_ROOT}/server/index.mjs`],
-        })
+        // Codex fills in no root variable for MCP servers, but resolves `cwd` from the plugin root.
+        !sameJson(other, { command: 'node', args: ['server/index.mjs'], cwd: '.' })
       ) {
         report.add(
           'MCP_LOCAL',
           portableFile,
           undefined,
-          `Server "${name}" isn't stdio node running \${PLUGIN_ROOT}/server/index.mjs.`,
-          'Use `type`, `command` and `args` as the template does.',
+          `Server "${name}" isn't node running server/index.mjs with \`cwd: "."\`.`,
+          'Use `command`, `args` and `cwd` as the template does.',
         );
       }
     }
@@ -468,23 +445,12 @@ function kebab(event: string): string {
   return event.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-function checkHooks(pluginDir: string, root: string, report: Report): void {
-  const dir = join(pluginDir, 'hooks');
-  if (!existsSync(dir)) return;
-  const configPath = join(dir, 'hooks.json');
-  const config = existsSync(configPath) ? readJson(configPath, root, report) : null;
-  const file = relative(root, configPath);
-  if (!config) {
-    report.add(
-      'HOOKS_CONFIG',
-      file,
-      undefined,
-      'hooks/ has no valid hooks.json.',
-      'Add hooks.json or remove the folder.',
-    );
-    return;
-  }
-  const registered = new Set<string>();
+function checkHookConfig(
+  config: Json,
+  file: string,
+  registered: Set<string>,
+  report: Report,
+): void {
   for (const [event, groups] of Object.entries((config.hooks ?? {}) as Record<string, Json[]>)) {
     for (const group of groups) {
       for (const handler of (group.hooks ?? []) as Json[]) {
@@ -497,7 +463,7 @@ function checkHooks(pluginDir: string, root: string, report: Report): void {
             file,
             undefined,
             `A ${event} hook isn't \`node "\${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"\`.`,
-            'Run a hook script with node from the plugin root.',
+            'Run a hook script with node from the plugin root; Codex fills in the same variable.',
           );
           continue;
         }
@@ -524,6 +490,45 @@ function checkHooks(pluginDir: string, root: string, report: Report): void {
       }
     }
   }
+}
+
+function checkHooks(pluginDir: string, root: string, report: Report): void {
+  const dir = join(pluginDir, 'hooks');
+  if (!existsSync(dir)) return;
+  const configPath = join(dir, 'hooks.json');
+  if (!existsSync(configPath) || !readJson(configPath, root, report)) {
+    report.add(
+      'HOOKS_CONFIG',
+      relative(root, configPath),
+      undefined,
+      'hooks/ has no valid hooks.json.',
+      'Add hooks.json or remove the folder.',
+    );
+    return;
+  }
+  // Claude Code reads hooks.json; Codex reads codex-hooks.json, named in its manifest.
+  const registered = new Set<string>();
+  const byHost = new Map<string, Set<string>>();
+  for (const name of ['hooks.json', 'codex-hooks.json']) {
+    const path = join(dir, name);
+    const config = existsSync(path) ? readJson(path, root, report) : null;
+    const scripts = new Set<string>();
+    if (config) checkHookConfig(config, relative(root, path), scripts, report);
+    for (const script of scripts) registered.add(script);
+    byHost.set(name, scripts);
+  }
+  // Every hook runs in both hosts, so each script is registered in both files.
+  const claudeHooks = [...(byHost.get('hooks.json') ?? [])].sort().join();
+  const codexHooks = [...(byHost.get('codex-hooks.json') ?? [])].sort().join();
+  if (claudeHooks !== codexHooks) {
+    report.add(
+      'HOOK_PARITY',
+      relative(root, join(dir, 'codex-hooks.json')),
+      undefined,
+      "hooks.json and codex-hooks.json don't register the same scripts.",
+      'Register every hook script in both, with the event and matcher each host uses.',
+    );
+  }
   const scripts = readdirSync(dir).filter((n) => n.endsWith('.mjs'));
   for (const name of scripts) {
     const path = join(dir, name);
@@ -533,7 +538,7 @@ function checkHooks(pluginDir: string, root: string, report: Report): void {
         relative(root, path),
         undefined,
         'Hook script is not registered.',
-        'Register it in hooks.json or delete it.',
+        'Register it in hooks.json or codex-hooks.json, or delete it.',
       );
     const text = readFileSync(path, 'utf8');
     if (/\bfetch\(|node:https?|node:net|node:dgram/.test(text)) {
@@ -565,7 +570,7 @@ function checkHooks(pluginDir: string, root: string, report: Report): void {
     if (!scripts.includes(name))
       report.add(
         'HOOK_MISSING',
-        file,
+        relative(root, dir),
         undefined,
         `Registered hook ${name} doesn't exist.`,
         'Add the script or remove the entry.',
