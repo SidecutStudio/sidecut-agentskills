@@ -197,6 +197,19 @@ function checkPackage(
       'scripts/build-server.ts is missing or differs from the Sidecut copy.',
       'Copy it again from the sidecut-agentskills template.',
     );
+  const releaseScript = join(root, 'scripts', 'release.ts');
+  const releaseCanonical = readFileSync(
+    join(templatesRoot, 'repo', 'scripts', 'release.ts.tmpl'),
+    'utf8',
+  );
+  if (!existsSync(releaseScript) || readFileSync(releaseScript, 'utf8') !== releaseCanonical)
+    report.add(
+      'REPO_RELEASE_SCRIPT',
+      'scripts/release.ts',
+      undefined,
+      'scripts/release.ts is missing or differs from the Sidecut copy.',
+      'Copy it again from the sidecut-agentskills template.',
+    );
   for (const [name, spec] of Object.entries({
     ...(pkg.dependencies as object),
     ...(pkg.devDependencies as object),
@@ -285,6 +298,15 @@ function checkCi(root: string, report: Report): void {
       undefined,
       'There is no check workflow.',
       'Copy check.yml from the template.',
+    );
+  }
+  if (!existsSync(join(dir, 'release.yml'))) {
+    report.add(
+      'CI_RELEASE',
+      '.github/workflows/release.yml',
+      undefined,
+      'There is no release workflow.',
+      'Copy release.yml from the template, so merging a version bump publishes it.',
     );
   }
   if (!existsSync(dir)) return;

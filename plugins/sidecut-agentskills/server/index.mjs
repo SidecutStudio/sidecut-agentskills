@@ -23065,6 +23065,10 @@ function checkPackage(root, id, version, report) {
   const canonical = readFileSync5(join6(templatesRoot, "repo", "scripts", "build-server.ts.tmpl"), "utf8");
   if (!existsSync6(buildScript) || readFileSync5(buildScript, "utf8") !== canonical)
     report.add("REPO_BUILD_SCRIPT", "scripts/build-server.ts", undefined, "scripts/build-server.ts is missing or differs from the Sidecut copy.", "Copy it again from the sidecut-agentskills template.");
+  const releaseScript = join6(root, "scripts", "release.ts");
+  const releaseCanonical = readFileSync5(join6(templatesRoot, "repo", "scripts", "release.ts.tmpl"), "utf8");
+  if (!existsSync6(releaseScript) || readFileSync5(releaseScript, "utf8") !== releaseCanonical)
+    report.add("REPO_RELEASE_SCRIPT", "scripts/release.ts", undefined, "scripts/release.ts is missing or differs from the Sidecut copy.", "Copy it again from the sidecut-agentskills template.");
   for (const [name, spec] of Object.entries({
     ...pkg.dependencies,
     ...pkg.devDependencies
@@ -23111,6 +23115,9 @@ function checkCi(root, report) {
   const dir = join6(root, ".github", "workflows");
   if (!existsSync6(join6(dir, "check.yml"))) {
     report.add("CI_MISSING", ".github/workflows/check.yml", undefined, "There is no check workflow.", "Copy check.yml from the template.");
+  }
+  if (!existsSync6(join6(dir, "release.yml"))) {
+    report.add("CI_RELEASE", ".github/workflows/release.yml", undefined, "There is no release workflow.", "Copy release.yml from the template, so merging a version bump publishes it.");
   }
   if (!existsSync6(dir))
     return;

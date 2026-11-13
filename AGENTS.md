@@ -23,7 +23,7 @@ plugins/sidecut-agentskills/
   skills/                  the plugin's skills
   agents/                  the reviewer subagent; codex/agents/ holds its generated Codex profile
   evals/                   trigger and near-miss evals for the skills
-scripts/                   new.ts and check.ts, the commands behind bun run new and sidecut-check
+scripts/                   new.ts and check.ts (bun run new, sidecut-check), and release.ts, which the Release workflow runs
 tests/                     checker and template tests
 ```
 
