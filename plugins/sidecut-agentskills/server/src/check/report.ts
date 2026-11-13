@@ -6,6 +6,11 @@ export type Problem = {
   fix: string;
 };
 
+/** Whether a sidecut.keep key covers a problem: its code, its file, a folder holding it, or "CODE file". */
+export function keepCovers(key: string, code: string, file: string): boolean {
+  return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
+}
+
 export class Report {
   problems: Problem[] = [];
   /** Problems the repo lists under `sidecut.keep` in package.json, each with the reason given. */

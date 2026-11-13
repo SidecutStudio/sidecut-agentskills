@@ -23004,42 +23004,78 @@ var MARK = /^(?:<!--|#) sidecut:(start|end) ([\w-]+)(?: -->)?$/;
 function blocksOf(lines) {
   const blocks = [];
   let open = null;
-  lines.forEach((line, i) => {
+  for (const [i, line] of lines.entries()) {
     const m = MARK.exec(line);
     if (!m)
-      return;
-    if (m[1] === "start")
-      open = { name: m[2] ?? "", start: i };
-    else if (open && open.name === m[2]) {
+      continue;
+    const name = m[2] ?? "";
+    if (m[1] === "start") {
+      if (open)
+        return `line ${i + 1} starts block "${name}" inside block "${open.name}"`;
+      if (blocks.some((b) => b.name === name))
+        return `block "${name}" appears twice`;
+      open = { name, start: i };
+    } else if (!open || open.name !== name)
+      return `line ${i + 1} ends block "${name}", which isn't open`;
+    else {
       blocks.push({ ...open, end: i });
       open = null;
     }
+  }
+  return open ? `block "${open.name}" is never ended` : blocks;
+}
+function fenced(lines) {
+  let inside = false;
+  return lines.map((line) => {
+    if (/^\s*```/.test(line)) {
+      inside = !inside;
+      return true;
+    }
+    return inside;
   });
-  return blocks;
 }
 function mergeBlocks(current, template, file) {
+  const crlf = current.includes(`\r
+`);
   const want = template.split(`
 `);
-  let have = current.split(`
+  let have = current.replaceAll(`\r
+`, `
+`).split(`
 `);
-  for (const block of blocksOf(want)) {
+  const templateBlocks = blocksOf(want);
+  if (typeof templateBlocks === "string")
+    throw new Error(`Template ${file}: ${templateBlocks}`);
+  for (const block of templateBlocks) {
+    const found = blocksOf(have);
+    if (typeof found === "string")
+      return { error: `The sidecut markers in ${file} are broken: ${found}.` };
     const body = want.slice(block.start, block.end + 1);
-    const found = blocksOf(have).find((b) => b.name === block.name);
-    if (found) {
-      have = [...have.slice(0, found.start), ...body, ...have.slice(found.end + 1)];
+    const same = found.find((b) => b.name === block.name);
+    if (same) {
+      have = [...have.slice(0, same.start), ...body, ...have.slice(same.end + 1)];
       continue;
     }
     const anchor = want.slice(0, block.start).reverse().find((line) => line.trim() !== "" && !MARK.test(line));
-    const at = anchor === undefined ? -1 : have.indexOf(anchor);
+    let at = anchor === undefined ? -1 : have.indexOf(anchor);
+    if (at < 0 && file.endsWith(".md"))
+      at = have.findIndex((line) => line.startsWith("# "));
     const head = have.slice(0, at + 1);
-    const covered = new Set(body.filter((line) => line.trim() !== ""));
     let rest = have.slice(at + 1);
-    rest = rest.filter((line, i) => !covered.has(line) && !(file === ".gitignore" && line.startsWith("#") && !MARK.test(line) && covered.has(rest[i + 1] ?? "")));
+    const covered = new Set(body.filter((line) => line.trim() !== ""));
+    const keepAll = file === ".gitignore" && have.some((line) => line.startsWith("!"));
+    if (!keepAll) {
+      const code = fenced(rest);
+      rest = rest.filter((line, i) => code[i] || !covered.has(line));
+    }
     const spaced = file === ".gitignore" ? body : ["", ...body, ""];
     have = collapse([...head, ...spaced, ...rest]);
   }
-  return have.join(`
+  const text = have.join(`
 `);
+  return { text: crlf ? text.replaceAll(`
+`, `\r
+`) : text };
 }
 function parseVersion(spec) {
   const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(spec);
@@ -23067,6 +23103,7 @@ function planPackage(root, vars) {
     return null;
   const text = readFileSync5(path, "utf8");
   const pkg = JSON.parse(text);
+  const indent = /^\{\r?\n([ \t]+)"/.exec(text)?.[1] ?? "  ";
   const template = JSON.parse(renderFile("repo/package.json.tmpl", {
     id: vars.id,
     version: "0.0.0",
@@ -23096,11 +23133,11 @@ function planPackage(root, vars) {
   return {
     file: "package.json",
     what: `Behind the template: ${raised.join(", ")}.`,
-    next: `${JSON.stringify(pkg, null, 2)}
+    next: `${JSON.stringify(pkg, null, indent)}
 `
   };
 }
-function planSync(root, vars, keep = new Set) {
+function planSync(root, vars, kept = () => false) {
   const changes = [];
   const render = (file) => renderFile(`repo/${file}.tmpl`, {
     id: vars.id,
@@ -23108,7 +23145,7 @@ function planSync(root, vars, keep = new Set) {
     displayName: displayNameOf(vars.id)
   });
   for (const file of OWNED_FILES) {
-    if (keep.has(file))
+    if (kept(file))
       continue;
     const want = render(file);
     const path = join6(root, file);
@@ -23121,7 +23158,7 @@ function planSync(root, vars, keep = new Set) {
       });
   }
   for (const file of BLOCK_FILES) {
-    if (keep.has(file))
+    if (kept(file))
       continue;
     const path = join6(root, file);
     const template = render(file);
@@ -23130,11 +23167,17 @@ function planSync(root, vars, keep = new Set) {
       continue;
     }
     const have = readFileSync5(path, "utf8");
-    const next = mergeBlocks(have, template, file);
-    if (next !== have)
-      changes.push({ file, what: `The Sidecut blocks in ${file} are out of date.`, next });
+    const merged = mergeBlocks(have, template, file);
+    if ("error" in merged)
+      changes.push({ file, what: `${merged.error} Fix them by hand.`, next: null });
+    else if (merged.text !== have)
+      changes.push({
+        file,
+        what: `The Sidecut blocks in ${file} are out of date.`,
+        next: merged.text
+      });
   }
-  if (!keep.has("package.json")) {
+  if (!kept("package.json")) {
     const pkg = planPackage(root, vars);
     if (pkg)
       changes.push(pkg);

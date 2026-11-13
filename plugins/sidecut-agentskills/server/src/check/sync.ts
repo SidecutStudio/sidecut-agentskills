@@ -10,8 +10,11 @@ export const BLOCK_FILES = ['.gitignore', 'AGENTS.md', 'SECURITY.md'];
 const SHARED_TOOLS = ['@biomejs/biome', '@types/bun', 'lefthook', 'typescript'];
 const CHECKER = 'github:SidecutStudio/sidecut-agentskills#v';
 
-/** One change sync would make. `next` is the file's new content. */
-export type Change = { file: string; what: string; next: string };
+/**
+ * One change sync would make. `next` is the file's new content, or null when sync can't make the
+ * change safely and someone has to fix the file by hand first.
+ */
+export type Change = { file: string; what: string; next: string | null };
 
 export type SyncVars = { id: string; repo: string; version: string };
 
@@ -19,59 +22,86 @@ const MARK = /^(?:<!--|#) sidecut:(start|end) ([\w-]+)(?: -->)?$/;
 
 type Block = { name: string; start: number; end: number };
 
-function blocksOf(lines: string[]): Block[] {
+/** The marked blocks in `lines`, or a sentence saying why the markers can't be trusted. */
+function blocksOf(lines: string[]): Block[] | string {
   const blocks: Block[] = [];
   let open: { name: string; start: number } | null = null;
-  lines.forEach((line, i) => {
+  for (const [i, line] of lines.entries()) {
     const m = MARK.exec(line);
-    if (!m) return;
-    if (m[1] === 'start') open = { name: m[2] ?? '', start: i };
-    else if (open && open.name === m[2]) {
+    if (!m) continue;
+    const name = m[2] ?? '';
+    if (m[1] === 'start') {
+      if (open) return `line ${i + 1} starts block "${name}" inside block "${open.name}"`;
+      if (blocks.some((b) => b.name === name)) return `block "${name}" appears twice`;
+      open = { name, start: i };
+    } else if (!open || open.name !== name)
+      return `line ${i + 1} ends block "${name}", which isn't open`;
+    else {
       blocks.push({ ...open, end: i });
       open = null;
     }
+  }
+  return open ? `block "${open.name}" is never ended` : blocks;
+}
+
+/** Lines inside ``` fences, which adoption never touches. */
+function fenced(lines: string[]): boolean[] {
+  let inside = false;
+  return lines.map((line) => {
+    if (/^\s*```/.test(line)) {
+      inside = !inside;
+      return true;
+    }
+    return inside;
   });
-  return blocks;
 }
 
 /**
- * Puts the template's marked blocks into `current`, leaving everything outside them alone. A block
- * the file doesn't have yet goes after the line that comes before it in the template, or at the top.
+ * Puts the template's marked blocks into `current`, leaving everything outside them alone, or
+ * returns why it can't. A block the file doesn't have yet goes after the line that comes before it
+ * in the template; failing that, after a Markdown file's title, or at the top.
  */
-export function mergeBlocks(current: string, template: string, file: string): string {
+export function mergeBlocks(
+  current: string,
+  template: string,
+  file: string,
+): { text: string } | { error: string } {
+  const crlf = current.includes('\r\n');
   const want = template.split('\n');
-  let have = current.split('\n');
-  for (const block of blocksOf(want)) {
+  let have = current.replaceAll('\r\n', '\n').split('\n');
+  const templateBlocks = blocksOf(want);
+  if (typeof templateBlocks === 'string') throw new Error(`Template ${file}: ${templateBlocks}`);
+  for (const block of templateBlocks) {
+    const found = blocksOf(have);
+    if (typeof found === 'string')
+      return { error: `The sidecut markers in ${file} are broken: ${found}.` };
     const body = want.slice(block.start, block.end + 1);
-    const found = blocksOf(have).find((b) => b.name === block.name);
-    if (found) {
-      have = [...have.slice(0, found.start), ...body, ...have.slice(found.end + 1)];
+    const same = found.find((b) => b.name === block.name);
+    if (same) {
+      have = [...have.slice(0, same.start), ...body, ...have.slice(same.end + 1)];
       continue;
     }
     const anchor = want
       .slice(0, block.start)
       .reverse()
       .find((line) => line.trim() !== '' && !MARK.test(line));
-    const at = anchor === undefined ? -1 : have.indexOf(anchor);
+    let at = anchor === undefined ? -1 : have.indexOf(anchor);
+    if (at < 0 && file.endsWith('.md')) at = have.findIndex((line) => line.startsWith('# '));
     const head = have.slice(0, at + 1);
-    // Adopting a block replaces the lines it now covers, so the file doesn't say them twice.
-    const covered = new Set(body.filter((line) => line.trim() !== ''));
     let rest = have.slice(at + 1);
-    // In a .gitignore, a comment that only explained a covered line goes with it.
-    rest = rest.filter(
-      (line, i) =>
-        !covered.has(line) &&
-        !(
-          file === '.gitignore' &&
-          line.startsWith('#') &&
-          !MARK.test(line) &&
-          covered.has(rest[i + 1] ?? '')
-        ),
-    );
+    // Adopting a block replaces the lines it now covers, so the file doesn't say them twice. Fenced
+    // examples stay, and so does a .gitignore with negations, where line order changes meaning.
+    const covered = new Set(body.filter((line) => line.trim() !== ''));
+    const keepAll = file === '.gitignore' && have.some((line) => line.startsWith('!'));
+    if (!keepAll) {
+      const code = fenced(rest);
+      rest = rest.filter((line, i) => code[i] || !covered.has(line));
+    }
     const spaced = file === '.gitignore' ? body : ['', ...body, ''];
     have = collapse([...head, ...spaced, ...rest]);
   }
-  return have.join('\n');
+  const text = have.join('\n');
+  return { text: crlf ? text.replaceAll('\n', '\r\n') : text };
 }
 
 function parseVersion(spec: string): number[] | null {
@@ -100,6 +130,7 @@ function planPackage(root: string, vars: SyncVars): Change | null {
   if (!existsSync(path)) return null;
   const text = readFileSync(path, 'utf8');
   const pkg = JSON.parse(text) as Record<string, unknown>;
+  const indent = /^\{\r?\n([ \t]+)"/.exec(text)?.[1] ?? '  ';
   const template = JSON.parse(
     renderFile('repo/package.json.tmpl', {
       id: vars.id,
@@ -130,12 +161,19 @@ function planPackage(root: string, vars: SyncVars): Change | null {
   return {
     file: 'package.json',
     what: `Behind the template: ${raised.join(', ')}.`,
-    next: `${JSON.stringify(pkg, null, 2)}\n`,
+    next: `${JSON.stringify(pkg, null, indent)}\n`,
   };
 }
 
-/** Everything that differs from what sidecut-agentskills owns in the repo at `root`. */
-export function planSync(root: string, vars: SyncVars, keep: Set<string> = new Set()): Change[] {
+/**
+ * Everything that differs from what sidecut-agentskills owns in the repo at `root`. `kept` says
+ * whether sidecut.keep covers a file, so a kept file is never planned.
+ */
+export function planSync(
+  root: string,
+  vars: SyncVars,
+  kept: (file: string) => boolean = () => false,
+): Change[] {
   const changes: Change[] = [];
   const render = (file: string) =>
     renderFile(`repo/${file}.tmpl`, {
@@ -144,7 +182,7 @@ export function planSync(root: string, vars: SyncVars, keep: Set<string> = new S
       displayName: displayNameOf(vars.id),
     });
   for (const file of OWNED_FILES) {
-    if (keep.has(file)) continue;
+    if (kept(file)) continue;
     const want = render(file);
     const path = join(root, file);
     const have = existsSync(path) ? readFileSync(path, 'utf8') : null;
@@ -156,7 +194,7 @@ export function planSync(root: string, vars: SyncVars, keep: Set<string> = new S
       });
   }
   for (const file of BLOCK_FILES) {
-    if (keep.has(file)) continue;
+    if (kept(file)) continue;
     const path = join(root, file);
     const template = render(file);
     if (!existsSync(path)) {
@@ -164,21 +202,34 @@ export function planSync(root: string, vars: SyncVars, keep: Set<string> = new S
       continue;
     }
     const have = readFileSync(path, 'utf8');
-    const next = mergeBlocks(have, template, file);
-    if (next !== have)
-      changes.push({ file, what: `The Sidecut blocks in ${file} are out of date.`, next });
+    const merged = mergeBlocks(have, template, file);
+    if ('error' in merged)
+      changes.push({ file, what: `${merged.error} Fix them by hand.`, next: null });
+    else if (merged.text !== have)
+      changes.push({
+        file,
+        what: `The Sidecut blocks in ${file} are out of date.`,
+        next: merged.text,
+      });
   }
-  if (!keep.has('package.json')) {
+  if (!kept('package.json')) {
     const pkg = planPackage(root, vars);
     if (pkg) changes.push(pkg);
   }
   return changes;
 }
 
-export function applySync(root: string, changes: Change[]): void {
+/** Writes every change sync can make safely; returns the ones it left for a person. */
+export function applySync(root: string, changes: Change[]): Change[] {
+  const left: Change[] = [];
   for (const change of changes) {
+    if (change.next === null) {
+      left.push(change);
+      continue;
+    }
     const path = join(root, change.file);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, change.next);
   }
+  return left;
 }

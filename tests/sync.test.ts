@@ -84,13 +84,13 @@ test('adopting a block replaces the lines it covers instead of repeating them', 
   const template =
     '# Security\n\n<!-- sidecut:start a -->\n\n## Report\n\nTell us.\n\n<!-- sidecut:end a -->\n\n## Runs\n';
   const before = '# Security\n\n## Report\n\nTell us.\n\n## Runs\n\nA server.\n';
-  expect(mergeBlocks(before, template, 'SECURITY.md')).toBe(
-    '# Security\n\n<!-- sidecut:start a -->\n\n## Report\n\nTell us.\n\n<!-- sidecut:end a -->\n\n## Runs\n\nA server.\n',
-  );
+  expect(mergeBlocks(before, template, 'SECURITY.md')).toEqual({
+    text: '# Security\n\n<!-- sidecut:start a -->\n\n## Report\n\nTell us.\n\n<!-- sidecut:end a -->\n\n## Runs\n\nA server.\n',
+  });
   const ignore = '# sidecut:start a\nnode_modules/\n.env*\n# sidecut:end a\n';
-  expect(mergeBlocks('node_modules/\ndist/\n\n# Secrets\n.env*\n', ignore, '.gitignore')).toBe(
-    '# sidecut:start a\nnode_modules/\n.env*\n# sidecut:end a\ndist/\n',
-  );
+  expect(mergeBlocks('node_modules/\ndist/\n\n# Secrets\n.env*\n', ignore, '.gitignore')).toEqual({
+    text: '# sidecut:start a\nnode_modules/\n.env*\n# sidecut:end a\ndist/\n\n# Secrets\n',
+  });
 });
 
 test('shared tool versions only go up, and the checker pin follows this version', () => {
@@ -123,7 +123,7 @@ test('sidecut.keep skips a file in sync and lists it as kept in the checker', ()
   const root = copy();
   write(root, 'scripts/release.ts', '// mine\n');
   pkg(root, (v) => Object.assign(v, { sidecut: { keep: { 'scripts/release.ts': 'Testing.' } } }));
-  expect(planSync(root, vars, new Set(['scripts/release.ts']))).toEqual([]);
+  expect(planSync(root, vars, (file) => file === 'scripts/release.ts')).toEqual([]);
   const report = new Report();
   checkRepo(root, report);
   expect(report.problems.map((p) => p.code)).not.toContain('REPO_SYNC');
@@ -166,16 +166,86 @@ test('the checker says what it checked', () => {
   expect(report.scope).toBe(`Checked the whole repo for ${ID}.`);
 });
 
-test('sidecut-sync --check lists the change and exits 1, then a sync fixes it', () => {
+const git = (root: string, ...args: string[]) =>
+  spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], { cwd: root });
+const cli = (root: string, ...args: string[]) =>
+  spawnSync('bun', [join(import.meta.dir, '..', 'scripts', 'sync.ts'), root, ...args], {
+    encoding: 'utf8',
+  });
+
+test('sidecut-sync --check lists the change, refuses uncommitted work, then syncs', () => {
   const root = copy();
+  git(root, 'init', '-q');
   write(root, 'CLAUDE.md', 'Read AGENTS.md.\n');
-  const cli = (...args: string[]) =>
-    spawnSync('bun', [join(import.meta.dir, '..', 'scripts', 'sync.ts'), root, ...args], {
-      encoding: 'utf8',
-    });
-  const check = cli('--check');
+  const check = cli(root, '--check');
   expect(check.status).toBe(1);
   expect(check.stdout).toContain('Would change CLAUDE.md');
-  expect(cli('--offline').status).toBe(0);
+  const dirty = cli(root, '--offline');
+  expect(dirty.status).toBe(1);
+  expect(dirty.stderr).toContain('uncommitted changes');
+  expect(read(root, 'CLAUDE.md')).toBe('Read AGENTS.md.\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-qm', 'base');
+  expect(cli(root, '--offline').status).toBe(0);
   expect(read(root, 'CLAUDE.md')).toBe('@AGENTS.md\n');
+});
+
+test('sidecut-sync refuses a folder that is not a git repo', () => {
+  const root = copy();
+  write(root, 'CLAUDE.md', 'Read AGENTS.md.\n');
+  expect(cli(root, '--offline').stderr).toContain('not a git repo');
+  expect(read(root, 'CLAUDE.md')).toBe('Read AGENTS.md.\n');
+});
+
+test('a folder, code or "CODE file" keep protects files from sync too', () => {
+  for (const key of ['scripts', 'REPO_SYNC', 'REPO_SYNC scripts/release.ts']) {
+    const root = copy();
+    write(root, 'scripts/release.ts', '// mine\n');
+    pkg(root, (v) => Object.assign(v, { sidecut: { keep: { [key]: 'Mine.' } } }));
+    git(root, 'init', '-q');
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'base');
+    cli(root, '--offline');
+    expect(read(root, 'scripts/release.ts')).toBe('// mine\n');
+  }
+});
+
+test('a .gitignore with negations keeps every line, so what it ignores does not change', () => {
+  const ignore = '# sidecut:start a\n*.log\n# sidecut:end a\n';
+  const result = mergeBlocks('dist/\n!keep.log\n*.log\n', ignore, '.gitignore');
+  expect(result).toEqual({
+    text: '# sidecut:start a\n*.log\n# sidecut:end a\ndist/\n!keep.log\n*.log\n',
+  });
+});
+
+test('adoption leaves fenced examples alone, keeps CRLF, and goes under the title', () => {
+  const template = '# Title\n\n<!-- sidecut:start a -->\n- Shared rule.\n<!-- sidecut:end a -->\n';
+  const before = '# Security Policy\r\n\r\n```text\r\n- Shared rule.\r\n```\r\n- Shared rule.\r\n';
+  const result = mergeBlocks(before, template, 'SECURITY.md');
+  expect(result).toEqual({
+    text: '# Security Policy\r\n\r\n<!-- sidecut:start a -->\r\n- Shared rule.\r\n<!-- sidecut:end a -->\r\n\r\n```text\r\n- Shared rule.\r\n```\r\n',
+  });
+});
+
+test('broken markers are left for a person to fix', () => {
+  const template = '<!-- sidecut:start a -->\nx\n<!-- sidecut:end a -->\n';
+  for (const before of [
+    '<!-- sidecut:start a -->\nold\n',
+    '<!-- sidecut:start a -->\n<!-- sidecut:start a -->\nold\n<!-- sidecut:end a -->\n',
+    'old\n<!-- sidecut:end a -->\n',
+  ])
+    expect('error' in mergeBlocks(before, template, 'AGENTS.md')).toBe(true);
+  const root = copy();
+  write(root, 'AGENTS.md', `${read(root, 'AGENTS.md')}<!-- sidecut:start house-style -->\n`);
+  const plan = planSync(root, vars);
+  expect(plan.map((c) => [c.file, c.next])).toEqual([['AGENTS.md', null]]);
+});
+
+test('package.json keeps its own indentation', () => {
+  const root = copy();
+  const value = JSON.parse(read(root, 'package.json'));
+  value.devDependencies['@biomejs/biome'] = '2.0.0';
+  write(root, 'package.json', `${JSON.stringify(value, null, '\t')}\n`);
+  const [change] = planSync(root, vars);
+  expect(change?.next?.startsWith('{\n\t"name"')).toBe(true);
 });
