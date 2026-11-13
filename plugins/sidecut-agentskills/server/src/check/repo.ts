@@ -197,6 +197,19 @@ function checkPackage(
       'scripts/build-server.ts is missing or differs from the Sidecut copy.',
       'Copy it again from the sidecut-agentskills template.',
     );
+  const releaseScript = join(root, 'scripts', 'release.ts');
+  const releaseCanonical = readFileSync(
+    join(templatesRoot, 'repo', 'scripts', 'release.ts.tmpl'),
+    'utf8',
+  );
+  if (!existsSync(releaseScript) || readFileSync(releaseScript, 'utf8') !== releaseCanonical)
+    report.add(
+      'REPO_RELEASE_SCRIPT',
+      'scripts/release.ts',
+      undefined,
+      'scripts/release.ts is missing or differs from the Sidecut copy.',
+      'Copy it again from the sidecut-agentskills template.',
+    );
   for (const [name, spec] of Object.entries({
     ...(pkg.dependencies as object),
     ...(pkg.devDependencies as object),
@@ -287,6 +300,15 @@ function checkCi(root: string, report: Report): void {
       'Copy check.yml from the template.',
     );
   }
+  if (!existsSync(join(dir, 'release.yml'))) {
+    report.add(
+      'CI_RELEASE',
+      '.github/workflows/release.yml',
+      undefined,
+      'There is no release workflow.',
+      'Copy release.yml from the template, so merging a version bump publishes it.',
+    );
+  }
   if (!existsSync(dir)) return;
   for (const name of readdirSync(dir)) {
     const file = `.github/workflows/${name}`;
@@ -328,6 +350,18 @@ function checkCi(root: string, report: Report): void {
   // Every job has to say where it runs; a job that calls another workflow can't count as hosted.
   const jobs = jobsOf(check);
   const hostedOnly = jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
+  const release = existsSync(join(dir, 'release.yml'))
+    ? readFileSync(join(dir, 'release.yml'), 'utf8')
+    : '';
+  if (hostedOnly && /self-hosted|SidecutStudio\/sidecut-ops\/\.github\/actions\//.test(release)) {
+    report.add(
+      'CI_RELEASE',
+      '.github/workflows/release.yml',
+      undefined,
+      'A public repo releases on a self-hosted runner or with a private sidecut-ops action.',
+      'Run the release job on `ubuntu-24.04` and drop the setup-ci-tools step; gh is already there.',
+    );
+  }
   if (check && !check.includes('/pick-runner@') && !hostedOnly) {
     report.add(
       'CI_PICKER',

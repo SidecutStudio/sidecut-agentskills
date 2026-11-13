@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0] - 2026-11-13
+
+### Added
+
+- Every plugin repo releases itself. The template adds `release.yml` and `scripts/release.ts`, the same in every repo. After Check passes on `main`, they publish the manifest version if it has no release yet: the `v<version>` tag, a GitHub Release with the CHANGELOG entry, the plugin folder as a ZIP and its checksum. They never replace a published release.
+- The checker reports a repo with no release workflow (`CI_RELEASE`) or a changed release script (`REPO_RELEASE_SCRIPT`).
+
+### Changed
+
+- `agentskills-publish-plugin`: merging the version bump is the release. It confirms the published release instead of tagging by hand.
+- `agentskills-review-plugin` and the subagent guidance size reviews to the change, using Solo Workflow's review levels. Light gets no reviewer, standard gets the reviewer on a cheaper model, and deep gets it on the parent model. A rebuild is always deep.
+- This repo now publishes its own releases this way.
+
 ## [0.4.0] - 2026-11-13
 
 ### Changed

@@ -23065,6 +23065,10 @@ function checkPackage(root, id, version, report) {
   const canonical = readFileSync5(join6(templatesRoot, "repo", "scripts", "build-server.ts.tmpl"), "utf8");
   if (!existsSync6(buildScript) || readFileSync5(buildScript, "utf8") !== canonical)
     report.add("REPO_BUILD_SCRIPT", "scripts/build-server.ts", undefined, "scripts/build-server.ts is missing or differs from the Sidecut copy.", "Copy it again from the sidecut-agentskills template.");
+  const releaseScript = join6(root, "scripts", "release.ts");
+  const releaseCanonical = readFileSync5(join6(templatesRoot, "repo", "scripts", "release.ts.tmpl"), "utf8");
+  if (!existsSync6(releaseScript) || readFileSync5(releaseScript, "utf8") !== releaseCanonical)
+    report.add("REPO_RELEASE_SCRIPT", "scripts/release.ts", undefined, "scripts/release.ts is missing or differs from the Sidecut copy.", "Copy it again from the sidecut-agentskills template.");
   for (const [name, spec] of Object.entries({
     ...pkg.dependencies,
     ...pkg.devDependencies
@@ -23112,6 +23116,9 @@ function checkCi(root, report) {
   if (!existsSync6(join6(dir, "check.yml"))) {
     report.add("CI_MISSING", ".github/workflows/check.yml", undefined, "There is no check workflow.", "Copy check.yml from the template.");
   }
+  if (!existsSync6(join6(dir, "release.yml"))) {
+    report.add("CI_RELEASE", ".github/workflows/release.yml", undefined, "There is no release workflow.", "Copy release.yml from the template, so merging a version bump publishes it.");
+  }
   if (!existsSync6(dir))
     return;
   for (const name of readdirSync4(dir)) {
@@ -23133,6 +23140,10 @@ function checkCi(root, report) {
   const check = existsSync6(join6(dir, "check.yml")) ? readFileSync5(join6(dir, "check.yml"), "utf8") : "";
   const jobs = jobsOf(check);
   const hostedOnly = jobs.length > 0 && jobs.every((job) => job.runsOn === "ubuntu-24.04");
+  const release = existsSync6(join6(dir, "release.yml")) ? readFileSync5(join6(dir, "release.yml"), "utf8") : "";
+  if (hostedOnly && /self-hosted|SidecutStudio\/sidecut-ops\/\.github\/actions\//.test(release)) {
+    report.add("CI_RELEASE", ".github/workflows/release.yml", undefined, "A public repo releases on a self-hosted runner or with a private sidecut-ops action.", "Run the release job on `ubuntu-24.04` and drop the setup-ci-tools step; gh is already there.");
+  }
   if (check && !check.includes("/pick-runner@") && !hostedOnly) {
     report.add("CI_PICKER", ".github/workflows/check.yml", undefined, "check.yml neither uses the runner picker nor runs every job on ubuntu-24.04.", "Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.");
   }

@@ -52,3 +52,4 @@ Codex runs a subagent with the parent session's permissions; `tools` limits it o
 - Give it only the tools its job needs.
 - It returns data for the main agent, never instructions to it.
 - The skill names it once for each host: `<plugin id>:reviewer` in Claude Code, `<prefix>_reviewer` in Codex.
+- Its frontmatter says `model: inherit`. A skill that starts a reviewer picks the model from the change's review level: none at light, a cheaper model such as `sonnet` at standard, the parent's at deep. Every other subagent keeps the parent's model unless the user chooses another.

@@ -25,6 +25,7 @@ A repo exists to ship one plugin when it holds one plugin whose manifest `reposi
 
 ```text
 .github/workflows/check.yml
+.github/workflows/release.yml
 .gitignore
 AGENTS.md
 CHANGELOG.md
@@ -38,6 +39,7 @@ lefthook.yml
 package.json
 plugins/<plugin-id>/
 scripts/build-server.ts
+scripts/release.ts
 solo-workflow.toml
 tests/
 tsconfig.json
@@ -206,6 +208,7 @@ Router skill, in this order: `# Start`, one paragraph, `## Pick a skill` (a tabl
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Frontmatter | `name` (the file name), `description` in the skill shape, `tools` as the narrowest list that works, `model: inherit` | review |
+| Model | A skill that starts a reviewer picks its model from the review level `solo-workflow-review-change` reports: no reviewer at light, a cheaper model such as `sonnet` at standard, the parent's at deep | review |
 | Body | `# <Role>`, one paragraph, `## Steps`, `## Return` | review |
 | Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `bun run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>` with the prefix's hyphens as underscores, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
 | Naming one in a skill | `<plugin id>:<role>` for Claude Code and `<prefix>_<role>` for Codex, both in backticks: `sidecut-agentskills:reviewer` (`agentskills_reviewer` in Codex). A `<plugin id>:<name>` pointer must name one of the plugin's skills or subagents | yes |
@@ -330,6 +333,7 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
 | CI | `check.yml` copied from sidecut-ops' runner-picker pattern; actions pinned by full SHA; Bun from `packageManager`; no hosted macOS or Windows | yes |
+| Release | `release.yml` runs `bun scripts/release.ts`, the same file in every plugin repo, after Check passes on a push to `main`. It publishes the manifest version when that version has no published release: the `v<version>` tag on the checked commit, a GitHub Release with the CHANGELOG entry as notes, `<plugin-id>-<version>.zip` of the plugin folder and its `.sha256`. It never replaces a published release or moves Latest backwards, so merging a version bump is the release | yes |
 | Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses the self-hosted runners or sidecut-ops' private actions | yes |
 | Private repo CI | Keeps the runner picker, whose budget guard stops hosted jobs near the monthly credit; the checker can't tell a private repo from a public one, so a hosted-only private repo is caught in review | review |
 | Merge gate | `required_checks` in `solo-workflow.toml` includes `check` | yes |
