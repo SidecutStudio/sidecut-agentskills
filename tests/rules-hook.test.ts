@@ -1,6 +1,14 @@
 import { afterAll, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -57,8 +65,16 @@ test('--init opts in, and later sessions follow every change to the rules', () =
     { 'b.md': '# B\n\nSecond.\n', 'a.md': '---\npaths: x\n---\n# A\n\nFirst.\n' },
     '# Old\n',
   );
-  expect(hook(dir, '--init').stdout.trim()).toBe('written');
-  expect(codex(dir)).toBe(`${GENERATED}\n\n# A\n\nFirst.\n\n# B\n\nSecond.\n`);
+  expect(hook(dir, '--init').stdout.trim()).toBe(
+    'written; the old file is now AGENTS.md.before-sidecut-rules',
+  );
+  expect(codex(dir)).toBe(
+    `${GENERATED}\n\nWhen working on files matching x:\n\n# A\n\nFirst.\n\n# B\n\nSecond.\n`,
+  );
+  // The hand-written file is kept, and a second --init won't overwrite that copy.
+  expect(readFileSync(join(dir, '.codex', 'AGENTS.md.before-sidecut-rules'), 'utf8')).toBe(
+    '# Old\n',
+  );
   writeFileSync(join(dir, '.claude', 'rules', 'b.md'), '# B\n\nChanged.\n');
   expect(hook(dir).stdout).toBe('');
   expect(codex(dir)).toContain('Changed.');
@@ -69,4 +85,48 @@ test('no rules folder leaves the Codex file as it is, and the hook still exits 0
   rmSync(join(dir, '.claude'), { recursive: true });
   expect(hook(dir).status).toBe(0);
   expect(codex(dir)).toBe(`${GENERATED}\n\nkept\n`);
+});
+
+test('--init through a symlinked plugin folder still runs', () => {
+  const dir = home({ 'a.md': '# A\n' });
+  const link = join(dir, 'linked plugin');
+  symlinkSync(join(SCRIPT, '..'), link);
+  expect(
+    spawnSync('node', [join(link, 'session-start-rules.mjs'), '--init'], {
+      env: { HOME: dir, PATH: process.env.PATH ?? '' },
+      encoding: 'utf8',
+    }).stdout.trim(),
+  ).toBe('written');
+  expect(codex(dir)).toBe(`${GENERATED}\n\n# A\n`);
+});
+
+test('Windows line endings, folders and dangling links in the rules folder are handled', () => {
+  const dir = home({ 'a.md': '---\r\npaths: y\r\n---\r\n# A\r\n' });
+  mkdirSync(join(dir, '.claude', 'rules', 'x.md'));
+  symlinkSync(join(dir, 'missing.md'), join(dir, '.claude', 'rules', 'b.md'));
+  expect(hook(dir, '--init').status).toBe(0);
+  expect(codex(dir)).toBe(`${GENERATED}\n\nWhen working on files matching y:\n\n# A\n`);
+});
+
+test('--init says why it failed instead of failing silently', () => {
+  const dir = home({ 'a.md': '# A\n' }, '# Old\n');
+  writeFileSync(join(dir, '.codex', 'AGENTS.md.before-sidecut-rules'), 'earlier copy\n');
+  const result = hook(dir, '--init');
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('already exists');
+  expect(codex(dir)).toBe('# Old\n');
+});
+
+test('importing the script runs nothing', () => {
+  const dir = home({ 'a.md': '# A\n' });
+  const result = spawnSync(
+    'node',
+    ['--input-type=module', '-e', `await import(${JSON.stringify(SCRIPT)})`],
+    {
+      env: { HOME: dir, PATH: process.env.PATH ?? '' },
+      encoding: 'utf8',
+    },
+  );
+  expect(result.status).toBe(0);
+  expect(existsSync(join(dir, '.codex', 'AGENTS.md'))).toBe(false);
 });
