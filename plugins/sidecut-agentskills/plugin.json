@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "sidecut-agentskills",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.",
   "author": {
     "name": "Sidecut Studio",

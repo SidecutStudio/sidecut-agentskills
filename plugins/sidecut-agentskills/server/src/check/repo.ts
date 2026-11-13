@@ -295,13 +295,16 @@ function checkCi(root: string, report: Report): void {
   const check = existsSync(join(dir, 'check.yml'))
     ? readFileSync(join(dir, 'check.yml'), 'utf8')
     : '';
-  if (check && !check.includes('/pick-runner@')) {
+  // A public repo runs every job on GitHub-hosted Linux and never reaches the self-hosted runners.
+  const runsOn = [...check.matchAll(/^\s*runs-on:\s*(.+)$/gm)].map((m) => m[1]?.trim());
+  const hostedOnly = runsOn.length > 0 && runsOn.every((r) => r === 'ubuntu-24.04');
+  if (check && !check.includes('/pick-runner@') && !hostedOnly) {
     report.add(
       'CI_PICKER',
       '.github/workflows/check.yml',
       undefined,
-      "check.yml doesn't use the runner picker.",
-      'Copy the runner job from the template.',
+      'check.yml neither uses the runner picker nor runs every job on ubuntu-24.04.',
+      'Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.',
     );
   }
 }

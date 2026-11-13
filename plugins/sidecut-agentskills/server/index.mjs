@@ -23030,8 +23030,10 @@ function checkCi(root, report) {
     });
   }
   const check = existsSync6(join6(dir, "check.yml")) ? readFileSync5(join6(dir, "check.yml"), "utf8") : "";
-  if (check && !check.includes("/pick-runner@")) {
-    report.add("CI_PICKER", ".github/workflows/check.yml", undefined, "check.yml doesn't use the runner picker.", "Copy the runner job from the template.");
+  const runsOn = [...check.matchAll(/^\s*runs-on:\s*(.+)$/gm)].map((m) => m[1]?.trim());
+  const hostedOnly = runsOn.length > 0 && runsOn.every((r) => r === "ubuntu-24.04");
+  if (check && !check.includes("/pick-runner@") && !hostedOnly) {
+    report.add("CI_PICKER", ".github/workflows/check.yml", undefined, "check.yml neither uses the runner picker nor runs every job on ubuntu-24.04.", "Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.");
   }
 }
 function checkSolo(root, report) {

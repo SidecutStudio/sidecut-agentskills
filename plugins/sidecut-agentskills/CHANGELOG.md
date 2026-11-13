@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1] - 2026-11-13
+
+### Changed
+
+- The checker accepts a public repo's CI when every job runs on `ubuntu-24.04`, and the house style says so.
+
 ## [0.1.0] - 2026-11-12
 
 ### Added

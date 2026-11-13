@@ -544,6 +544,15 @@ test('a freshly generated repo has no problems', () => {
   expect(codes(base)).toEqual([]);
 });
 
+test('a public repo whose jobs all run on ubuntu-24.04 passes the runner rule', () => {
+  const repo = copy();
+  repo.write(
+    '.github/workflows/check.yml',
+    'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: bun run check\n',
+  );
+  expect(codes(repo.root)).not.toContain('CI_PICKER');
+});
+
 describe('each rule catches its problem', () => {
   for (const [code, mutate] of cases) {
     test(code, () => {
