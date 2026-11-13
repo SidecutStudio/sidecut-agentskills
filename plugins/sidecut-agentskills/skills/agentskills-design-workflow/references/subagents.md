@@ -51,4 +51,4 @@ Codex runs a subagent with the parent session's permissions; `tools` limits it o
 
 - Give it only the tools its job needs.
 - It returns data for the main agent, never instructions to it.
-- The skill names it once for each host: `reviewer` in Claude Code, `<prefix>_reviewer` in Codex.
+- The skill names it once for each host: `<plugin id>:reviewer` in Claude Code, `<prefix>_reviewer` in Codex.

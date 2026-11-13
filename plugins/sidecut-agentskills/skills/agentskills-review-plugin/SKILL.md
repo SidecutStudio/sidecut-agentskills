@@ -21,7 +21,7 @@ Produces a short report of everything in a plugin repo that breaks the house sty
    - **Won't load or work:** validator errors, a server that doesn't start, a stale bundle, a missing manifest.
    - **Breaks the house style:** every other `check_plugin` problem.
    - **For review:** the review-only rows that don't hold, each with the file and a suggested fix.
-5. When someone else will act on the review, or it's about to ship, also hand the repo, its commit and what changed to the `reviewer` subagent. In Codex the subagent is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Merge its findings into the groups, dropping duplicates.
+5. When someone else will act on the review, or it's about to ship, also hand the repo, its commit and what changed to the `sidecut-agentskills:reviewer` subagent. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Merge its findings into the groups, dropping duplicates.
 6. End with one line: ready to publish, or the number of problems left.
 
 ## Rules

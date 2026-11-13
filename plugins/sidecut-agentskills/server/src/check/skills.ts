@@ -453,8 +453,8 @@ function checkSections(
           'SKILL_POINTER',
           file,
           i + 1,
-          `\`${token}\` isn't a skill in this plugin.`,
-          'Point at a skill that exists.',
+          `\`${token}\` isn't a skill or subagent in this plugin.`,
+          'Point at a skill or subagent that exists.',
         );
       }
       if (TOOL_NAME.test(token) && tools && !tools.has(token)) {
@@ -582,6 +582,12 @@ export function checkSkills(
     .filter((n) => statSync(join(skillsDir, n)).isDirectory())
     .sort();
   const skills = new Set(names);
+  // `<plugin>:<name>` can name a skill or one of the plugin's subagents.
+  const agentsDir = join(pluginDir, 'agents');
+  const targets = new Set(names);
+  if (existsSync(agentsDir)) {
+    for (const f of readdirSync(agentsDir)) if (f.endsWith('.md')) targets.add(f.slice(0, -3));
+  }
   const prefix = skillPrefixOf(plugin);
   const infos: SkillInfo[] = [];
   for (const name of names) {
@@ -609,7 +615,7 @@ export function checkSkills(
     checkLayout(dir, root, report);
     const doc = parseMarkdown(join(dir, 'SKILL.md'), readFileSync(join(dir, 'SKILL.md'), 'utf8'));
     const info = checkFrontmatter(name, doc.frontmatter, file, report, tools, plugin);
-    checkSections(dir, name, root, report, tools, skills, plugin);
+    checkSections(dir, name, root, report, tools, targets, plugin);
     if (info) {
       checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), brandColor, root, report);
       infos.push(info);
