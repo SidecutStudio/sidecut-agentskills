@@ -420,6 +420,14 @@ const cases: [string, (repo: Repo) => void][] = [
         iface((ui) => Object.assign(ui, { displayName: 'Demo' })),
       ),
   ],
+  [
+    'MANIFEST_INTERFACE',
+    (r) =>
+      r.json(
+        `${P}/.codex-plugin/plugin.json`,
+        iface((ui) => Object.assign(ui, { brandColor: '#2F6B5E' })),
+      ),
+  ],
   ['MCP_PAIR', (r) => r.rm(`${P}/mcp.json`)],
   ['MCP_KEY', (r) => r.edit(`${P}/.mcp.json`, (t) => t.replace('"demo"', '"sidecut-demo"'))],
   ['MCP_LOCAL', (r) => r.edit(`${P}/.mcp.json`, (t) => t.replace('"node"', '"bun"'))],

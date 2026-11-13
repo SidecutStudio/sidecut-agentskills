@@ -9,6 +9,7 @@ This repo ships the Sidecut Agentskills plugin, the template every Sidecut plugi
 | `bun run build` | Bundles the MCP server into `plugins/sidecut-agentskills/server/index.mjs`, writes its bundled licences and the reviewer's Codex profile |
 | `bun run check` | Runs everything CI runs: Biome, types, the house-style checker, tests and the stale-bundle check |
 | `bun run fix` | Formats and fixes what Biome can |
+| `bun run icon` | Draws a plugin icon in the Sidecut style from a Lucide icon name, for example `bun run icon blocks`; other repos run it as `bunx sidecut-icon` |
 | `bun run new` | Creates a new plugin repo from the template, for example `bun run new plugin sidecut-notes --description ... --long-description ... --keywords a,b,c` |
 | `bun run style` | Checks this repo against the house style |
 | `bun run test` | Runs the tests, including one that breaks each checker rule on purpose |

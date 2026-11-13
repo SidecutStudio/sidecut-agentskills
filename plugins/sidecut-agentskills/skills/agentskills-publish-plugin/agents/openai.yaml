@@ -1,5 +1,7 @@
 interface:
   display_name: "Publish plugin"
   short_description: "Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step."
-  brand_color: "#2F6B5E"
+  icon_small: "../../assets/icon.png"
+  icon_large: "../../assets/icon.png"
+  brand_color: "#FF6B00"
   default_prompt: "Use $agentskills-publish-plugin to publish a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step."

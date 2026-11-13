@@ -1,5 +1,7 @@
 interface:
   display_name: "Review plugin"
   short_description: "Reviews a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything."
-  brand_color: "#2F6B5E"
+  icon_small: "../../assets/icon.png"
+  icon_large: "../../assets/icon.png"
+  brand_color: "#FF6B00"
   default_prompt: "Use $agentskills-review-plugin to review a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything."

@@ -280,6 +280,9 @@ export function openAiYamlOf(info: SkillInfo, title: string, brandColor: string)
     'interface:',
     `  display_name: "${title}"`,
     `  short_description: "${info.firstSentence}"`,
+    // Codex accepts a path out of the skill only into the plugin's own assets/.
+    '  icon_small: "../../assets/icon.png"',
+    '  icon_large: "../../assets/icon.png"',
     `  brand_color: "${brandColor}"`,
     `  default_prompt: "Use $${info.name} to ${defaultPromptOf(info.firstSentence)}"`,
     ...(info.manualOnly ? ['policy:', '  allow_implicit_invocation: false'] : []),

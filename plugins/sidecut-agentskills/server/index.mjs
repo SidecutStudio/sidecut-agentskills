@@ -21520,7 +21520,6 @@ import { join as join6 } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { deflateSync } from "node:zlib";
 
 // plugins/sidecut-agentskills/server/src/check/report.ts
 class Report {
@@ -21552,7 +21551,7 @@ function skillPrefixOf(pluginId) {
 function isSkillName(name, prefix) {
   return name === prefix || name.startsWith(`${prefix}-`) && SKILL_NAME.test(name.slice(prefix.length + 1));
 }
-var HEX_COLOR = /^#[0-9A-F]{6}$/;
+var BRAND_COLOR = "#FF6B00";
 var DEFAULT_CHECKER = "github:SidecutStudio/sidecut-agentskills";
 function checkPluginInput(input) {
   const problems = [];
@@ -21580,12 +21579,6 @@ function checkPluginInput(input) {
     problems.push({
       code: "MANIFEST_KEYWORDS",
       message: "Give 3 to 8 lowercase keywords that aren't the plugin id."
-    });
-  }
-  if (input.brandColor && !HEX_COLOR.test(input.brandColor)) {
-    problems.push({
-      code: "MANIFEST_BRAND_COLOR",
-      message: "The brand color must be an upper-case hex color such as #ED8D70."
     });
   }
   return problems;
@@ -21677,40 +21670,6 @@ function renderTree(templateDir, vars) {
   }
   return files;
 }
-function crc32(bytes) {
-  let crc = 4294967295;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0;bit < 8; bit++)
-      crc = crc & 1 ? crc >>> 1 ^ 3988292384 : crc >>> 1;
-  }
-  return (crc ^ 4294967295) >>> 0;
-}
-function pngChunk(type, data) {
-  const head = Buffer.alloc(8);
-  head.writeUInt32BE(data.length, 0);
-  head.write(type, 4, "ascii");
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
-  return Buffer.concat([head, data, crc]);
-}
-function solidIcon(hex, size = 512) {
-  const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
-  const row = Buffer.alloc(1 + size * 3);
-  for (let x = 0;x < size; x++)
-    row.set([r ?? 0, g ?? 0, b ?? 0], 1 + x * 3);
-  const raw = Buffer.concat(Array.from({ length: size }, () => row));
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(size, 0);
-  header.writeUInt32BE(size, 4);
-  header.set([8, 2, 0, 0, 0], 8);
-  return Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    pngChunk("IHDR", header),
-    pngChunk("IDAT", deflateSync(raw)),
-    pngChunk("IEND", Buffer.alloc(0))
-  ]);
-}
 function writeAll(out, files) {
   for (const [path, content] of files) {
     const target = join(out, path);
@@ -21737,7 +21696,7 @@ function scaffoldPlugin(input, out) {
     description: input.description,
     longDescription: input.longDescription,
     keywordsJson: JSON.stringify(input.keywords),
-    brandColor: input.brandColor ?? "#ED8D70",
+    brandColor: BRAND_COLOR,
     version,
     date,
     year: date.slice(0, 4),
@@ -21754,7 +21713,7 @@ function scaffoldPlugin(input, out) {
   for (const name of ["README.md", "LICENSE", "CHANGELOG.md"]) {
     files.set(name, files.get(`${pluginDir}/${name}`));
   }
-  files.set(`${pluginDir}/assets/icon.png`, solidIcon(vars.brandColor));
+  files.set(`${pluginDir}/assets/icon.png`, readFileSync(join(templatesRoot, "..", "icon.png")));
   return writeAll(out, files);
 }
 function brandColorOf(pluginDir) {
@@ -22384,6 +22343,8 @@ function openAiYamlOf(info, title, brandColor) {
     "interface:",
     `  display_name: "${title}"`,
     `  short_description: "${info.firstSentence}"`,
+    '  icon_small: "../../assets/icon.png"',
+    '  icon_large: "../../assets/icon.png"',
     `  brand_color: "${brandColor}"`,
     `  default_prompt: "Use $${info.name} to ${defaultPromptOf(info.firstSentence)}"`,
     ...info.manualOnly ? ["policy:", "  allow_implicit_invocation: false"] : [],
@@ -22751,8 +22712,8 @@ function checkManifests(pluginDir, id, repoName, root, report) {
   if (prompts.length < 1 || prompts.length > 3 || prompts.some((p) => p.length > 128)) {
     report.add("MANIFEST_INTERFACE", portableFile, undefined, "defaultPrompt is not 1 to 3 prompts of at most 128 characters.", "Fix the prompt list.");
   }
-  if (!/^#[0-9A-F]{6}$/.test(String(ui.brandColor ?? ""))) {
-    report.add("MANIFEST_INTERFACE", portableFile, undefined, "brandColor is not an upper-case hex color.", "Use a color such as #ED8D70.");
+  if (ui.brandColor !== BRAND_COLOR) {
+    report.add("MANIFEST_INTERFACE", portableFile, undefined, `brandColor isn't Sidecut Builder's orange.`, `Use ${BRAND_COLOR}.`);
   }
   return claude;
 }
@@ -23339,8 +23300,7 @@ server.registerTool("scaffold_plugin", {
     id: string2().describe("sidecut-<name>"),
     description: string2().describe("One sentence, at most 120 characters"),
     longDescription: string2().describe("2 or 3 sentences for the Codex listing"),
-    keywords: array(string2()),
-    brandColor: string2().optional()
+    keywords: array(string2())
   }),
   annotations: writes
 }, async ({ out, ...input }) => {

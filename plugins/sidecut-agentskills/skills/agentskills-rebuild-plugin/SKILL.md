@@ -19,7 +19,7 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 
 1. Record the plugin as it is now, following [parity.md](references/parity.md): its skills and their trigger requests, its tools and their output on fixed inputs, its hooks and its required checks.
 2. Call `check_plugin` and keep the list; it shows most of what has to change.
-3. Call `scaffold_plugin` into a temporary folder with the plugin's id, description and keywords. Copy in whichever generated files the plugin lacks: manifests, MCP files, hook, icon, CI workflow.
+3. Call `scaffold_plugin` into a temporary folder with the plugin's id, description and keywords. Copy in whichever generated files the plugin lacks: manifests, MCP files, hook, CI workflow. Draw its icon with `bunx sidecut-icon <lucide-name>`.
 4. Rewrite each skill with `agentskills-write-skill`. Read the old skill to list what it covers, then write the new one from that list.
 5. Move the server's logic into `server/src/` and bundle it with `bun run build`. Keep tool names and outputs, except where the house style says otherwise; list every change.
 6. Delete what the house style has no place for: extra manifests, duplicate MCP files, commands, unused scripts and stale docs.
