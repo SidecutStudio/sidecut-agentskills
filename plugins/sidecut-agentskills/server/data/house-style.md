@@ -316,4 +316,5 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
 | CI | `check.yml` copied from sidecut-ops' runner-picker pattern; actions pinned by full SHA; Bun from `packageManager`; no hosted macOS or Windows | yes |
+| Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses the self-hosted runners or sidecut-ops' private actions | yes |
 | Merge gate | `required_checks` in `solo-workflow.toml` includes `check` | yes |
