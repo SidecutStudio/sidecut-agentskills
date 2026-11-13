@@ -1,15 +1,25 @@
-// Bundles the plugin's MCP server into server/index.mjs and writes the licence of every package the
-// bundle inlines to server/THIRD_PARTY_LICENSES.txt. `--check` builds into a temporary folder and
-// fails when either committed file differs. Every Sidecut plugin repo has this file unchanged.
+// Builds what a plugin repo generates: the MCP server bundle in server/index.mjs, the licence of
+// every package it inlines in server/THIRD_PARTY_LICENSES.txt, and a Codex profile in codex/agents/
+// for each subagent in agents/. `--check` builds into a temporary folder and fails when a committed
+// file differs. Every Sidecut plugin repo has this file unchanged.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const id = JSON.parse(readFileSync('package.json', 'utf8')).name as string;
-const server = join('plugins', id, 'server');
+const plugin = join('plugins', id);
 const check = process.argv.includes('--check');
-const output = check ? mkdtempSync(join(tmpdir(), 'build-server-')) : server;
+const output = check ? mkdtempSync(join(tmpdir(), 'build-server-')) : plugin;
 const meta = mkdtempSync(join(tmpdir(), 'build-meta-'));
 
 // Each bundled package and the folder it was read from: the last node_modules folder in a path, so
@@ -27,11 +37,11 @@ function packagesOf(inputs: string[]): Map<string, string> {
 }
 
 // The package's licence files (names starting with licence, license or copying, in any case, sorted
-// so every system picks the same ones); otherwise the licence its package.json names.
+// so every system picks the same ones, symlinks followed); otherwise the licence its package.json
+// names.
 function licence(pkg: string, dir: string): string {
-  const files = readdirSync(dir, { withFileTypes: true })
-    .filter((f) => f.isFile() && /^(licen[cs]e|copying)/i.test(f.name))
-    .map((f) => f.name)
+  const files = readdirSync(dir)
+    .filter((f) => /^(licen[cs]e|copying)/i.test(f) && statSync(join(dir, f)).isFile())
     .sort();
   if (files.length > 0) {
     const texts = files.map((f) => readFileSync(join(dir, f), 'utf8').trim());
@@ -46,7 +56,25 @@ function licence(pkg: string, dir: string): string {
   return `${pkg}\n\nLicensed under ${named}. The package ships no licence file.\n`;
 }
 
-try {
+// Codex loads subagents only from a project's .codex/agents/, so the plugin ships each one as a
+// profile its skills copy there: the name as <prefix>_<role>, the description, and the body.
+function codexProfile(markdown: string, prefix: string, role: string): string {
+  const [, head = '', body = ''] = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(markdown) ?? [];
+  const description = /^description: "(.*)"$/m.exec(head)?.[1] ?? '';
+  const note =
+    "Codex runs you with the parent session's permissions, so any limit above is an instruction, not a sandbox.";
+  return [
+    `name = ${JSON.stringify(`${prefix}_${role}`)}`,
+    `description = ${JSON.stringify(description)}`,
+    `developer_instructions = ${JSON.stringify(`${body.trim()}\n\n${note}\n`)}`,
+    '',
+  ].join('\n');
+}
+
+function generated(): string[] {
+  const files: string[] = [];
+  const server = join(plugin, 'server');
+  mkdirSync(join(output, 'server'), { recursive: true });
   // The same command the house-style checker uses, so its stale-bundle check compares like with like.
   const build = spawnSync(
     'bun',
@@ -55,7 +83,7 @@ try {
       join(server, 'src', 'index.ts'),
       '--target=node',
       '--format=esm',
-      `--outfile=${join(output, 'index.mjs')}`,
+      `--outfile=${join(output, 'server', 'index.mjs')}`,
       `--metafile=${join(meta, 'meta.json')}`,
     ],
     { stdio: ['ignore', 'ignore', 'inherit'] },
@@ -65,10 +93,35 @@ try {
     JSON.parse(readFileSync(join(meta, 'meta.json'), 'utf8')).inputs as object,
   );
   const notices = [...packagesOf(inputs)].map(([pkg, dir]) => licence(pkg, dir));
-  writeFileSync(join(output, 'THIRD_PARTY_LICENSES.txt'), notices.join('\n---\n\n'));
+  writeFileSync(join(output, 'server', 'THIRD_PARTY_LICENSES.txt'), notices.join('\n---\n\n'));
+  files.push(join('server', 'index.mjs'), join('server', 'THIRD_PARTY_LICENSES.txt'));
+  const agents = join(plugin, 'agents');
+  const roles = existsSync(agents) ? readdirSync(agents).filter((f) => f.endsWith('.md')) : [];
+  if (roles.length > 0) mkdirSync(join(output, 'codex', 'agents'), { recursive: true });
+  const prefix = id.replace(/^sidecut-/, '');
+  for (const file of roles.sort()) {
+    const role = file.replace(/\.md$/, '');
+    const profile = join('codex', 'agents', `${prefix}-${role}.toml`);
+    writeFileSync(
+      join(output, profile),
+      codexProfile(readFileSync(join(agents, file), 'utf8'), prefix, role),
+    );
+    files.push(profile);
+  }
+  return files;
+}
+
+try {
+  const files = generated();
   if (check) {
-    for (const file of ['index.mjs', 'THIRD_PARTY_LICENSES.txt']) {
-      if (!readFileSync(join(output, file)).equals(readFileSync(join(server, file)))) {
+    const profiles = join(plugin, 'codex', 'agents');
+    const committed = existsSync(profiles)
+      ? readdirSync(profiles).map((f) => join('codex', 'agents', f))
+      : [];
+    for (const file of new Set([...files, ...committed])) {
+      const wanted = existsSync(join(output, file)) ? readFileSync(join(output, file)) : null;
+      const actual = existsSync(join(plugin, file)) ? readFileSync(join(plugin, file)) : null;
+      if (!wanted || !actual || !wanted.equals(actual)) {
         throw new Error(`${file} is stale. Run bun run build and commit it.`);
       }
     }

@@ -25,6 +25,7 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 6. Delete what the house style has no place for: extra manifests, duplicate MCP files, commands, unused scripts and stale docs.
 7. Run `bun run check` until it passes.
 8. Repeat the recording from step 1 on the new version and compare the two. Write down every difference and why it is there.
+9. Hand the rebuilt repo, its commit and the list of differences to the `reviewer` subagent, which reads it without your context. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Fix what it finds and run `bun run check` again.
 
 ## Rules
 

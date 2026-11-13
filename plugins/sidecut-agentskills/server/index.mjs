@@ -22666,6 +22666,11 @@ function checkLayout2(pluginDir, root, report) {
       if (!/^[a-z]+\.md$/.test(name)) {
         report.add("NAME_AGENT", relative5(root, join5(pluginDir, "agents", name)), undefined, "Subagent file is not a one-word role noun.", "Rename it, for example `reviewer.md`.");
       }
+      const prefix = relative5(join5(pluginDir, ".."), pluginDir).replace(/^sidecut-/, "");
+      const profile = join5(pluginDir, "codex", "agents", `${prefix}-${name.replace(/\.md$/, "")}.toml`);
+      if (!existsSync5(profile)) {
+        report.add("AGENT_CODEX_PROFILE", relative5(root, profile), undefined, "The subagent has no Codex profile.", "Run `bun run build`, which writes codex/agents/ from agents/.");
+      }
     }
   }
 }

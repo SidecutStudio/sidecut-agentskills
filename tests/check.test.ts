@@ -355,6 +355,10 @@ const cases: [string, (repo: Repo) => void][] = [
   ['PLUGIN_ASSET', (r) => r.write(`${P}/assets/logo.png`, 'x')],
   ['PLUGIN_ICON', (r) => r.write(`${P}/assets/icon.png`, 'not a png')],
   ['NAME_AGENT', (r) => r.write(`${P}/agents/code-reviewer.md`, '# Reviewer\n\nReviews code.\n')],
+  [
+    'AGENT_CODEX_PROFILE',
+    (r) => r.write(`${P}/agents/reviewer.md`, '# Reviewer\n\nReviews code.\n'),
+  ],
   ['MANIFEST_MISSING', (r) => r.rm(`${P}/.codex-plugin/plugin.json`)],
   [
     'MANIFEST_FIELDS',

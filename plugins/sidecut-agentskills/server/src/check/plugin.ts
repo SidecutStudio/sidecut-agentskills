@@ -172,6 +172,23 @@ function checkLayout(pluginDir: string, root: string, report: Report): void {
           'Rename it, for example `reviewer.md`.',
         );
       }
+      // Codex loads subagents only from a project's .codex/agents/, so each one ships as a profile.
+      const prefix = relative(join(pluginDir, '..'), pluginDir).replace(/^sidecut-/, '');
+      const profile = join(
+        pluginDir,
+        'codex',
+        'agents',
+        `${prefix}-${name.replace(/\.md$/, '')}.toml`,
+      );
+      if (!existsSync(profile)) {
+        report.add(
+          'AGENT_CODEX_PROFILE',
+          relative(root, profile),
+          undefined,
+          'The subagent has no Codex profile.',
+          'Run `bun run build`, which writes codex/agents/ from agents/.',
+        );
+      }
     }
   }
 }
