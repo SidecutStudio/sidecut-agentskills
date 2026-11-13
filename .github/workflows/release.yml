@@ -11,8 +11,9 @@ permissions:
 jobs:
   release:
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
-    # This repo is public, so the job runs on GitHub-hosted Linux, which already has gh.
-    runs-on: ubuntu-24.04
+    runs-on:
+      group: sidecut-linux-x64
+      labels: [self-hosted, Linux, X64, sidecut-ci]
     timeout-minutes: 15
     concurrency:
       group: release
@@ -31,6 +32,9 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
+      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab
+        with:
+          tools: gh
       - name: Choose the version
         id: version
         run: bun scripts/release.ts --auto >> "$GITHUB_OUTPUT"

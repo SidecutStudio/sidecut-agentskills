@@ -1,0 +1,29 @@
+{
+  "name": "sidecut-demo",
+  "version": "0.1.0",
+  "description": "Shows how a Sidecut plugin is put together.",
+  "author": {
+    "name": "Sidecut Studio",
+    "url": "https://sidecut.dev"
+  },
+  "homepage": "https://sidecut.dev",
+  "repository": "https://github.com/SidecutStudio/sidecut-demo",
+  "license": "MIT",
+  "keywords": ["example", "template", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./mcp.json",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "displayName": "Sidecut Demo",
+    "shortDescription": "Shows how a Sidecut plugin is put together.",
+    "longDescription": "A small example plugin with one skill and one MCP tool. It exists to test sync.",
+    "developerName": "Sidecut Studio",
+    "category": "Developer Tools",
+    "capabilities": ["Read"],
+    "websiteURL": "https://sidecut.dev",
+    "defaultPrompt": ["Check that Sidecut Demo is working"],
+    "brandColor": "#FF6B00",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/icon.png"
+  }
+}

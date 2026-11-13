@@ -1,33 +1,20 @@
-# Sidecut Agentskills
+# Sidecut Demo
 
-Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.
+Shows how a Sidecut plugin is put together.
 
 ## What it does
 
 | Skill | Does |
 | --- | --- |
-| `agentskills` | Routes a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill. |
-| `agentskills-build-mcp-server` | Builds the MCP side of a Sidecut plugin: the tools in its bundled server, or a connection to a hosted server. |
-| `agentskills-create-plugin` | Creates a new Sidecut plugin repo from the template, with Claude Code and Codex manifests, a bundled MCP server and a first skill. |
-| `agentskills-design-workflow` | Designs what a Sidecut plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it. |
-| `agentskills-publish-plugin` | Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. |
-| `agentskills-rebuild-plugin` | Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost. |
-| `agentskills-review-plugin` | Reviews a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything. |
-| `agentskills-write-skill` | Writes one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style. |
-
-Its MCP server provides the tools behind them: `get_house_style` and `get_patterns` return the rules and the reasons for them, `check_plugin` checks a repo against them, and `scaffold_plugin` and `add_skill` write new plugins and skills from the template.
+| `demo-check-status` | Checks that the Sidecut Demo MCP server is running and reports its version. |
 
 ## Install
 
-In Claude Code, run `/plugin install sidecut-agentskills@sidecut-plugins`. In Codex, run `codex plugin add sidecut-agentskills@sidecut-plugins`.
+In Claude Code, run `/plugin install sidecut-demo@sidecut-plugins`. In Codex, run `codex plugin add sidecut-demo@sidecut-plugins`.
 
 ## Use
 
-- "Make me a new Sidecut plugin that tracks my Lovable credits."
-- "Is my sidecut-demo plugin ready to publish?"
-- "Bring sidecut-ci up to the Sidecut template without losing anything."
-
-Plugin repos also run two commands from it. `bunx sidecut-check` checks a repo against the house style, and `bunx sidecut-sync` brings a repo up to date with the latest release: the files and marked blocks the house style shares, and the shared tool versions.
+- "Check that Sidecut Demo is working."
 
 ## Settings
 

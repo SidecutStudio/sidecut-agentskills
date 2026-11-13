@@ -1,7 +1,0 @@
-interface:
-  display_name: "Rebuild plugin"
-  short_description: "Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost."
-  icon_small: "../../assets/icon.png"
-  icon_large: "../../assets/icon.png"
-  brand_color: "#FF6B00"
-  default_prompt: "Use $agentskills-rebuild-plugin to rebuild an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost."

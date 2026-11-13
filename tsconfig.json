@@ -14,5 +14,5 @@
     "allowImportingTsExtensions": true,
     "types": ["bun"]
   },
-  "include": ["plugins/*/server/src", "scripts", "tests"]
+  "include": ["plugins/*/server/src", "tests"]
 }
