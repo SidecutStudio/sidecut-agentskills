@@ -1,0 +1,45 @@
+name: Release
+# After Check passes on a push to main, publishes the manifest version when it has no published
+# release yet: tag, GitHub Release, ZIP and checksum. Merging a version bump is the release.
+on:
+  workflow_run:
+    workflows: [Check]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  release:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on:
+      group: sidecut-linux-x64
+      labels: [self-hosted, Linux, X64, sidecut-ci]
+    timeout-minutes: 15
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      checks: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab
+        with:
+          tools: gh
+      - name: Choose the version
+        id: version
+        run: bun scripts/release.ts --auto >> "$GITHUB_OUTPUT"
+      - name: Tag and publish the checked version
+        if: steps.version.outputs.needed == 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: bun scripts/release.ts "$RELEASE_VERSION" --publish

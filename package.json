@@ -1,28 +1,33 @@
 {
-  "name": "sidecut-demo",
-  "version": "0.1.0",
+  "name": "sidecut-agentskills",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.4",
+  "bin": {
+    "sidecut-check": "scripts/check.ts",
+    "sidecut-icon": "scripts/icon.ts",
+    "sidecut-sync": "scripts/sync.ts"
+  },
   "scripts": {
     "build": "bun scripts/build-server.ts",
     "check": "biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check",
     "fix": "biome check --write .",
-    "style": "sidecut-check",
+    "icon": "bun scripts/icon.ts",
+    "new": "bun scripts/new.ts",
+    "style": "bun scripts/check.ts",
     "test": "bun test"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "lucide-static": "1.72.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
     "@modelcontextprotocol/server": "2.4.0",
     "@types/bun": "1.4.4",
     "lefthook": "2.2.2",
-    "sidecut-agentskills": "file:../sidecut-agentskills",
     "typescript": "7.0.2",
     "zod": "4.6.7"
-  },
-  "sidecut": {
-    "keep": {
-      "REPO_SYNC": "Mine."
-    }
   }
 }

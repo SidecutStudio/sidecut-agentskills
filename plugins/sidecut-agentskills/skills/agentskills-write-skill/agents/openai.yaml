@@ -1,0 +1,7 @@
+interface:
+  display_name: "Write skill"
+  short_description: "Writes one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style."
+  icon_small: "../../assets/icon.png"
+  icon_large: "../../assets/icon.png"
+  brand_color: "#FF6B00"
+  default_prompt: "Use $agentskills-write-skill to write one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style."

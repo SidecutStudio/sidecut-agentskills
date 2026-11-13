@@ -1,7 +1,0 @@
-interface:
-  display_name: "Check status"
-  short_description: "Checks that the Sidecut Demo MCP server is running and reports its version."
-  icon_small: "../../assets/icon.png"
-  icon_large: "../../assets/icon.png"
-  brand_color: "#FF6B00"
-  default_prompt: "Use $demo-check-status to check that the Sidecut Demo MCP server is running and reports its version."

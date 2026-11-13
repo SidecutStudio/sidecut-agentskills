@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "agentskills": {
+      "command": "node",
+      "args": ["server/index.mjs"],
+      "cwd": "."
+    }
+  }
+}

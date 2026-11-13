@@ -1,0 +1,9 @@
+base_branch = "main"
+merge = "when-green"
+merge_method = "squash"
+# CI jobs that gate a PR (.github/workflows/check.yml); the required-checks ruleset enforces them.
+required_checks = ["check", "secrets"]
+worktrees = "when-overlapping"
+
+[checks]
+check = "bun run check"
