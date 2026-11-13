@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { checkRepo, jobsOf } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
 import { Report } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
 import {
+  checkPluginInput,
   displayNameOf,
   scaffoldPlugin,
 } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
@@ -655,4 +656,17 @@ test("a skill's own MCP tools and a manual-only policy pass on both hosts", () =
     (t) => `${t}policy:\n  allow_implicit_invocation: false\n`,
   );
   expect(codes(repo.root)).toEqual([]);
+});
+
+test('the generator refuses a long description that is not 2 or 3 sentences', () => {
+  const input = {
+    id: 'sidecut-trial',
+    description: 'Checks a trial.',
+    longDescription: 'Checks a trial plugin end to end.',
+    keywords: ['a', 'b', 'c'],
+  };
+  expect(checkPluginInput(input).map((p) => p.code)).toEqual(['MANIFEST_INTERFACE']);
+  expect(checkPluginInput({ ...input, longDescription: 'Checks a trial. It is a test.' })).toEqual(
+    [],
+  );
 });

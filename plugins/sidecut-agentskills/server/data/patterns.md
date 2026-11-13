@@ -10,8 +10,8 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 | --- | --- | --- | --- |
 | Claude manifest finds skills by folder convention, no `skills` list | Apify, Expo, Vercel | Adopt | A hand-kept list drifts; Firecrawl keeps the same 12 paths in two files |
 | Explicit `commands` and `agents` path lists | Vercel | Skip | Convention finds them; lists are one more thing to keep in sync |
-| Codex manifest in `.codex-plugin/` with an `interface` block | Expo | Skip | Tested: Codex reads its `.mcp.json` without expanding any root variable and runs the server from the user's project, so a bundled server can't start |
-| Agent Plugins 1.0 `plugin.json` and `mcp.json` with `${PLUGIN_ROOT}`, Codex listing in `extensions.com.openai.interface` | sidecut-ci, Lovable Workbench | Adopt | Tested: Codex starts the bundled server; Claude Code ignores both files, so it keeps its own pair; Codex caps starter prompts at 3 of 128 characters |
+| Codex manifest in `.codex-plugin/` with an `interface` block | Expo | Adopt | Tested: Codex loads plugin hooks only from this layout (openai/codex#47925). It fills in no root variable for MCP servers, but resolves `cwd: "."` from the plugin's folder, so a bundled server runs |
+| Agent Plugins 1.0 root `plugin.json` and `mcp.json` with `${PLUGIN_ROOT}`, Codex listing in `extensions.com.openai.interface` | sidecut-ci, Lovable Workbench | Skip | Tested: with this root manifest Codex starts the bundled server but loads none of the plugin's hooks |
 | One manifest per extra host (Cursor, Grok, Kimi, open-plugin) | Expo, Vercel | Skip | Every extra file disagreed with the others: names, descriptions, keyword counts (8, 10, 14, 28) |
 | Same description in every manifest | Apify | Adopt | Apify is the only example where all copies match |
 | Version in every manifest, nothing checks they match | All four | Adapt | Keep one version in every file and let the checker fail on any mismatch |

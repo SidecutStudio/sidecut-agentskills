@@ -36,12 +36,12 @@ Produces the smallest mechanism that makes the behavior happen every time, in th
 
 - A hook is never a safety boundary; when it fails or is missing, everything carries on.
 - Every hook has a timeout of 5 seconds or less and makes no network calls.
-- Subagents run in Claude Code only. A plugin that needs the behavior in Codex puts it in a skill step instead.
+- Every hook and subagent works in both Claude Code and Codex: register hooks in both hook files, and ship each subagent's Codex profile with `bun run build`.
 - CI uses the sidecut-ops runner picker and pins every action by SHA.
 
 ## When it goes wrong
 
-- **A hook never fires:** check its event and matcher in `hooks.json`, then run the script by hand with sample input.
+- **A hook never fires:** check its event and matcher in `hooks.json` or `codex-hooks.json`, then run the script by hand with sample input. In Codex, check the user has trusted the plugin's hooks.
 - **A hook slows every session:** move the work into a skill step or a CI job.
 - **A CI job queues for a long time:** use `sidecut-ci:diagnose`.
 

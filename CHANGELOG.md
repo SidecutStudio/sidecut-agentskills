@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.0] - 2026-11-13
+
+### Added
+
+- The `reviewer` subagent, which `agentskills-review-plugin` and `agentskills-rebuild-plugin` hand work to. `bun run build` writes its Codex profile to `codex/agents/`, and the skills copy it into the project before the first use in Codex.
+- Skill metadata for both hosts: `argument-hint`, `model` and `effort` in the frontmatter, pre-approved MCP tools in `allowed-tools`, and `brand_color` and the invocation policy in `agents/openai.yaml`. The checker enforces each.
+- `hooks/codex-hooks.json`, so every hook also runs in Codex. The usage log counts a skill in Codex when Codex reads its `SKILL.md`.
+
+### Changed
+
+- Every skill name starts with the plugin's short name: `agentskills-write-skill`. The router is `agentskills`, replacing `start`.
+- Codex reads `.codex-plugin/plugin.json` and a `mcp.json` that runs the server with `cwd: "."`. The root Agent Plugins 1.0 `plugin.json` is gone, because with it Codex loads none of the plugin's hooks.
+- The hooks and subagents guidance covers Codex, which has both.
+
+### Fixed
+
+- The usage log records `codex` as the host in Codex; it used to say `claude-code` in both.
+- `bun run build` follows a licence file that is a symlink.
+
 ## [0.1.2] - 2026-11-13
 
 ### Added

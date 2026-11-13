@@ -59,16 +59,18 @@ tsconfig.json
 ```text
 plugins/<plugin-id>/
   .claude-plugin/plugin.json  Claude Code manifest
-  plugin.json                 Agent Plugins 1.0 manifest, read by Codex
+  .codex-plugin/plugin.json   Codex manifest
   .mcp.json                   Claude Code MCP config, only with an MCP server
-  mcp.json                    Agent Plugins 1.0 MCP config, read by Codex
+  mcp.json                    Codex MCP config, only with an MCP server
   CHANGELOG.md                copy of the repo's, kept identical
   LICENSE                     copy of the repo's, kept identical
   README.md                   copy of the repo's, kept identical
   assets/icon.png             512 by 512 PNG, the only asset
   agents/<role>.md            only with subagents
+  codex/agents/<prefix>-<role>.toml  Codex profile of each subagent, generated
   evals/<case>/               trigger and near-miss evals, one folder per case
-  hooks/hooks.json            only with hooks
+  hooks/hooks.json            Claude Code hooks, only with hooks
+  hooks/codex-hooks.json      Codex hooks, the same scripts
   hooks/<event>-<what>.mjs
   server/index.mjs            bundled MCP server, generated
   server/THIRD_PARTY_LICENSES.txt  licence notices of the packages the bundle inlines, generated
@@ -86,7 +88,7 @@ plugins/<plugin-id>/
 
 ## Manifests
 
-Claude Code reads only `.claude-plugin/plugin.json`. Codex reads the Agent Plugins 1.0 `plugin.json` and, unlike a `.codex-plugin/plugin.json`, expands `${PLUGIN_ROOT}` in its MCP config, which a bundled server needs. No `.codex-plugin/` folder is used. Shared fields are identical in both manifests and appear in this order: `name`, `version`, `description`, `author`, `homepage`, `repository`, `license`, `keywords`.
+Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/plugin.json`. There is no root `plugin.json`: Codex prefers an Agent Plugins 1.0 root manifest and then loads none of the plugin's hooks (openai/codex#47925). Shared fields are identical in both manifests and appear in this order: `name`, `version`, `description`, `author`, `homepage`, `repository`, `license`, `keywords`.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
@@ -99,8 +101,8 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads the Agent Plugi
 | `license` | `MIT` | yes |
 | `keywords` | 3 to 8, lowercase, no plugin name | yes |
 | Claude extra fields | None; skills, agents and hooks are found by folder | yes |
-| `plugin.json` extra fields | `$schema` first (`https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`), then `extensions` last holding only `com.openai.interface`; skills and MCP config are found by file name | yes |
-| `com.openai.interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`Sidecut Studio`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor`, `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
+| Codex extra fields | After the shared fields: `skills` (`./skills/`), `mcpServers` (`./mcp.json`) with an MCP server, `hooks` (`./hooks/codex-hooks.json`) with hooks, then `interface` last | yes |
+| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`Sidecut Studio`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor`, `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
 | Unknown fields | None | yes |
 
 ## MCP servers
@@ -109,11 +111,11 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads the Agent Plugi
 | --- | --- | --- |
 | Config files | `.mcp.json` for Claude Code and `mcp.json` for Codex, defining the same servers under the same keys; they differ only in the fields this table names | yes |
 | Local server in `.mcp.json` | `"command": "node"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/server/index.mjs"]`, no `env` block, no `PATH` | yes |
-| Local server in `mcp.json` | `$schema` first (`https://agent-plugins.org/schemas/1.0.0/mcp.schema.json`), then `"type": "stdio"`, `"command": "node"`, `"args": ["${PLUGIN_ROOT}/server/index.mjs"]` | yes |
-| Remote server | `"type": "http"` in `.mcp.json` and `"type": "streamable-http"` in `mcp.json`, plus `"url"`; nothing else; auth handled by the host | yes |
+| Local server in `mcp.json` | `"command": "node"`, `"args": ["server/index.mjs"]`, `"cwd": "."`. Codex fills in no root variable for MCP servers, but resolves `cwd` from the plugin's folder | yes |
+| Remote server | `"type": "http"` and `"url"`, the same in both files; nothing else; auth handled by the host | yes |
 | Finding its own files | The server resolves paths from `import.meta.url`, never from the working directory, which is the user's project in Claude Code | yes |
 | Source and build | TypeScript in `server/src/`, bundled to `server/index.mjs` with every dependency inlined, built file committed; CI rebuilds and fails on any difference | yes |
-| Build script | `bun run build` is `bun scripts/build-server.ts`, the same file in every plugin repo; it also writes `server/THIRD_PARTY_LICENSES.txt` with the licence of every package the bundle inlines | yes |
+| Build script | `bun run build` is `bun scripts/build-server.ts`, the same file in every plugin repo; it also writes `server/THIRD_PARTY_LICENSES.txt` with the licence of every package the bundle inlines, and the Codex profile of each subagent | yes |
 | Transport | stdio for local servers; a remote server is hosted elsewhere and only configured here | review |
 | Tool annotations | Every tool sets `title`, `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` explicitly | yes |
 | Tool description | At most 2 sentences: what it returns, then when to use it; no "Use this tool to" | yes |
@@ -204,7 +206,8 @@ Router skill, in this order: `# Start`, one paragraph, `## Pick a skill` (a tabl
 | --- | --- | --- |
 | Frontmatter | `name` (the file name), `description` in the skill shape, `tools` as the narrowest list that works, `model: inherit` | review |
 | Body | `# <Role>`, one paragraph, `## Steps`, `## Return` | review |
-| Hosts | Claude Code only; Codex plugins don't load subagents | review |
+| Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `bun run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>`, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
+| Limits | A subagent's tool limits are enforced in Claude Code only; in Codex it runs with the parent session's permissions, and its profile says so | yes |
 
 ## Evals
 
@@ -220,12 +223,13 @@ Router skill, in this order: `# Start`, one paragraph, `## Pick a skill` (a tabl
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Command | `node "${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"` | yes |
+| Files | `hooks/hooks.json` for Claude Code and `hooks/codex-hooks.json` for Codex, registering the same scripts with each host's event and matcher names. Codex loads plugin hooks only once the user trusts them | yes |
+| Command | `node "${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"`; Codex fills in the same variable | yes |
 | Timeout | Every hook sets `"timeout"` of at most 5 | yes |
 | Scripts | Node ESM, built-in modules only, no network, exit 0 even when they fail themselves | yes |
 | Output | Nothing on stdout unless the hook's job is to add context | review |
 | Usage log hook | `post-tool-use-skill-log.mjs` is byte-identical to the template's copy | yes |
-| Registration | Every file in `hooks/` is registered and every registered file exists; a test pins the list | yes |
+| Registration | Every script in `hooks/` is registered in both files and every registered file exists; a test pins the list | yes |
 
 ## Usage log
 
@@ -233,7 +237,7 @@ The only telemetry a Sidecut plugin has.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Trigger | A `PostToolUse` hook with matcher `Skill`; Claude Code only, since Codex has no skill tool call to match | review |
+| Trigger | `PostToolUse`: matcher `Skill` in Claude Code; matcher `Bash` in Codex, which has no skill tool and opens a skill by reading its `SKILL.md` with a shell command (openai/codex#17132). A skill Codex puts straight into the prompt, without a read, isn't logged | yes |
 | Switch | Off unless `SIDECUT_SKILL_LOG=1`; `DO_NOT_TRACK=1` or a CI environment turns it off even then; tests in the template prove all three | yes |
 | Record | One JSON line per skill run with `time`, `plugin`, `skill`, `host` and nothing else | yes |
 | Location | `~/.sidecut/skill-log.jsonl`, never sent anywhere | yes |
@@ -286,7 +290,7 @@ Sections in this order:
 2. `## What it does`: a table with columns `Skill` and `Does`, one row per skill, using each description's first sentence.
 3. `## Install`: install through the Sidecut marketplace in Claude Code and Codex.
 4. `## Use`: 2 or 3 example requests.
-5. `## Settings`: a table of environment variables with default and meaning, or the line "None."
+5. `## Settings`: a table of environment variables with default and meaning, or the line "None." A plugin with hooks then says Codex runs them only once trusted.
 6. `## Privacy`: every field the usage log records and where it goes, or the line "This plugin records nothing."
 7. `## Develop`: the line "The commands are in `AGENTS.md` at the root of the repo."
 8. `## License`: `MIT. See [LICENSE](LICENSE).`

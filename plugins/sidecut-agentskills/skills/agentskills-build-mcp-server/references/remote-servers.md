@@ -17,7 +17,7 @@ Claude Code reads `.mcp.json` and Codex reads `mcp.json`. Both name the server w
 }
 ```
 
-In `mcp.json` the same server starts with the `$schema` line from the house style and uses `"type": "streamable-http"` with the same `url`.
+`mcp.json` holds exactly the same entry: Codex accepts `"type": "http"` too.
 
 ## Sign-in
 
