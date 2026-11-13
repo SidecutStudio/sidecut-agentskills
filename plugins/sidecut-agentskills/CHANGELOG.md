@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2026-11-13
+
+### Changed
+
+- `agentskills-rebuild-plugin` records each skill's hard rules (every never, always and only-when) and each hook's decisions on fixed inputs, and counts a weaker rule or a changed decision as a regression even when the tests pass.
+- `agentskills-rebuild-plugin` finds every place outside the repo that uses a name the rebuild changes, asks before renaming anything already in use, and updates the marketplaces and other repos after the release.
+- `agentskills-rebuild-plugin` pushes a draft PR early and after each step, and keeps parity records and rebuild notes out of the repo's files.
+- A skill can name one of its plugin's subagents as `<plugin id>:<role>`; the checker no longer reports it as a missing skill.
+- Skills and the checker point at Solo Workflow 0.20.0's skill names, `solo-workflow-configure-project` and `solo-workflow-finish-change`.
+
 ## [0.3.0] - 2026-11-13
 
 ### Added

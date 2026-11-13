@@ -22,7 +22,7 @@ Produces a new plugin repo that passes `bun run check` on its first commit and l
 3. Run `bunx sidecut-icon <lucide-name>` to draw the plugin's icon with its agreed mark.
 4. Run `bun run check`. It passes on a fresh repo; if it doesn't, fix the cause before going on.
 5. Load the plugin for one session with `claude --plugin-dir <folder>/plugins/<plugin-id>` and run its `check-status` skill. The new plugin's status tool answers with its name and version.
-6. Ask the user before creating the GitHub repo. On a yes, create `SidecutStudio/<plugin-id>` as a private repo, push `main`, then run `solo-workflow:setup` to fill the Solo Workflow section of `AGENTS.md`.
+6. Ask the user before creating the GitHub repo. On a yes, create `SidecutStudio/<plugin-id>` as a private repo, push `main`, then run `solo-workflow-configure-project` to fill the Solo Workflow section of `AGENTS.md`.
 7. Add the plugin's real skills with `agentskills-write-skill` and its real tools with `agentskills-build-mcp-server`. Keep `check-status` while the status tool is the server's only tool.
 
 ## Rules

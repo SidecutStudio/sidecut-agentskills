@@ -208,6 +208,7 @@ Router skill, in this order: `# Start`, one paragraph, `## Pick a skill` (a tabl
 | Frontmatter | `name` (the file name), `description` in the skill shape, `tools` as the narrowest list that works, `model: inherit` | review |
 | Body | `# <Role>`, one paragraph, `## Steps`, `## Return` | review |
 | Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `bun run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>` with the prefix's hyphens as underscores, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
+| Naming one in a skill | `<plugin id>:<role>` for Claude Code and `<prefix>_<role>` for Codex, both in backticks: `sidecut-agentskills:reviewer` (`agentskills_reviewer` in Codex). A `<plugin id>:<name>` pointer must name one of the plugin's skills or subagents | yes |
 | Limits | A subagent's tool limits are enforced in Claude Code only; in Codex it runs with the parent session's permissions, and its profile says so | yes |
 
 ## Evals
@@ -312,7 +313,7 @@ Sections in this order:
 
 ## AGENTS.md
 
-Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table with columns `Command` and `Does`), `## Layout` (a `text` tree of the top two levels), `## Rules` (repo-specific rules only), then the Solo Workflow markers. The generator writes the markers empty and `solo-workflow:setup` fills them; the checker skips the text between them, since Solo owns it.
+Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table with columns `Command` and `Does`), `## Layout` (a `text` tree of the top two levels), `## Rules` (repo-specific rules only), then the Solo Workflow markers. The generator writes the markers empty and `solo-workflow-configure-project` fills them; the checker skips the text between them, since Solo owns it.
 
 | Item | Rule | Checked |
 | --- | --- | --- |

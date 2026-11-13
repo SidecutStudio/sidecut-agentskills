@@ -22428,7 +22428,7 @@ function checkSections(dir, name, root, report, tools, skills, plugin) {
       const token = match[1] ?? "";
       const pointer = /^([a-z0-9-]+):([a-z0-9-]+)$/.exec(token);
       if (pointer && pointer[1] === plugin && !skills.has(pointer[2] ?? "")) {
-        report.add("SKILL_POINTER", file, i + 1, `\`${token}\` isn't a skill in this plugin.`, "Point at a skill that exists.");
+        report.add("SKILL_POINTER", file, i + 1, `\`${token}\` isn't a skill or subagent in this plugin.`, "Point at a skill or subagent that exists.");
       }
       if (TOOL_NAME.test(token) && tools && !tools.has(token)) {
         report.add("SKILL_TOOL", file, i + 1, `\`${token}\` isn't a tool on this plugin's MCP server.`, "Name a tool the server has.");
@@ -22488,6 +22488,13 @@ function checkSkills(pluginDir, root, report, tools, plugin, brandColor) {
   }
   const names = readdirSync2(skillsDir).filter((n) => statSync2(join4(skillsDir, n)).isDirectory()).sort();
   const skills = new Set(names);
+  const agentsDir = join4(pluginDir, "agents");
+  const targets = new Set(names);
+  if (existsSync4(agentsDir)) {
+    for (const f of readdirSync2(agentsDir))
+      if (f.endsWith(".md"))
+        targets.add(f.slice(0, -3));
+  }
   const prefix = skillPrefixOf(plugin);
   const infos = [];
   for (const name of names) {
@@ -22503,7 +22510,7 @@ function checkSkills(pluginDir, root, report, tools, plugin, brandColor) {
     checkLayout(dir, root, report);
     const doc = parseMarkdown(join4(dir, "SKILL.md"), readFileSync3(join4(dir, "SKILL.md"), "utf8"));
     const info = checkFrontmatter(name, doc.frontmatter, file, report, tools, plugin);
-    checkSections(dir, name, root, report, tools, skills, plugin);
+    checkSections(dir, name, root, report, tools, targets, plugin);
     if (info) {
       checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), brandColor, root, report);
       infos.push(info);
@@ -23084,7 +23091,7 @@ function checkAgents(root, id, scripts, report) {
     report.add("AGENTS_SECTIONS", "AGENTS.md", undefined, "Sections are not Commands, Layout, Rules.", "Use exactly those, then the Solo Workflow section.");
   }
   if (!/<!-- solo-workflow:start -->[\s\S]*<!-- solo-workflow:end -->\n$/.test(text)) {
-    report.add("AGENTS_SOLO", "AGENTS.md", undefined, "AGENTS.md does not end with the Solo Workflow markers.", "Run solo-workflow:setup.");
+    report.add("AGENTS_SOLO", "AGENTS.md", undefined, "AGENTS.md does not end with the Solo Workflow markers.", "Run solo-workflow-configure-project.");
   }
   const commands = sections(doc).find((h) => h.text === "Commands");
   if (commands) {

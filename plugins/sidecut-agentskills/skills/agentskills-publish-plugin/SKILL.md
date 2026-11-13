@@ -18,7 +18,7 @@ Produces a tagged release of the plugin that the sidecut-plugins marketplace ser
 
 1. On a branch, set the new version in `plugins/<plugin-id>/.claude-plugin/plugin.json`, `plugins/<plugin-id>/.codex-plugin/plugin.json` and `package.json`.
 2. Add a CHANGELOG entry for it at the top, with today's date and one line per change under Added, Changed, Fixed or Removed. Copy it to the plugin's CHANGELOG so the two stay identical.
-3. Run `bun run check`, then merge through `solo-workflow:finish`.
+3. Run `bun run check`, then merge through `solo-workflow-finish-change`.
 4. Tag the merge commit `v<version>` and push the tag.
 5. In the `sidecut-plugins` repo, point the plugin's entries in `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json` at the new tag, following [marketplace.md](references/marketplace.md). Merge that change the same way.
 6. After the marketplace syncs, start a new Claude Code session and confirm the plugin's skills show the new version.

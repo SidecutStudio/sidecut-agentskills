@@ -647,6 +647,18 @@ test('a comment at the start of a line, a quoted job name or a nested runs-on hi
   ]);
 });
 
+test("a skill may name one of the plugin's subagents as plugin:role", () => {
+  const repo = copy();
+  repo.write(
+    `${P}/agents/reviewer.md`,
+    '---\nname: reviewer\ndescription: Reviews a change.\nmodel: inherit\n---\n\n# Reviewer\n',
+  );
+  repo.edit(skillMd, (t) =>
+    t.replace('1. Call', '1. Hand it to `sidecut-demo:reviewer`, then call'),
+  );
+  expect(codes(repo.root)).not.toContain('SKILL_POINTER');
+});
+
 test('display names put common acronyms in capitals', () => {
   expect(displayNameOf('sidecut-ai-tools')).toBe('Sidecut AI Tools');
   expect(displayNameOf('sidecut-sql-ui')).toBe('Sidecut SQL UI');

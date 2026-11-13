@@ -245,7 +245,7 @@ function checkAgents(
       'AGENTS.md',
       undefined,
       'AGENTS.md does not end with the Solo Workflow markers.',
-      'Run solo-workflow:setup.',
+      'Run solo-workflow-configure-project.',
     );
   }
   const commands = sections(doc).find((h) => h.text === 'Commands');
