@@ -18,7 +18,7 @@ When neither is true, return text and structured data only.
 
 ## Rules
 
-- Bundle the page's scripts and styles into the HTML. Loading them from elsewhere needs the domains declared in `_meta.ui.csp`.
+- Bundle the page's scripts and styles into the HTML. Loading them from elsewhere needs the domains declared in the resource's `_meta.ui.csp`; hosts ignore it on the tool.
 - Draw the view in both light and dark, and at phone width.
 - The page shows data and sends nothing anywhere.
 
@@ -26,4 +26,4 @@ When neither is true, return text and structured data only.
 
 - Test the tool over stdio as usual, checking `structuredContent` and that `_meta.ui.resourceUri` names a resource the server lists.
 - Open the page in a browser through the ext-apps `AppBridge`, send it a recorded tool result, and check it at chat and phone widths in light and dark.
-- Check it in a chat app that draws views, such as Claude or the Codex desktop app. Claude Code and the Codex CLI show the text summary instead.
+- Check it in a chat app that draws views, such as Claude. Claude Code and Codex show the text summary instead.

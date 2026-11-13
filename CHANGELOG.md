@@ -5,7 +5,7 @@
 ### Changed
 
 - `agentskills` asks what a request's result is for before handing over, and sends a view drawn in the chat to `agentskills-build-mcp-server`.
-- `agentskills-build-mcp-server` checks the tool in Codex as well as Claude Code, works with any repo's build and test commands, and has a new reference on views drawn in the chat.
+- `agentskills-build-mcp-server` checks the tool in Codex as well as Claude Code, works with any repo's build and test commands, and has new references on testing in Codex and on views drawn in the chat.
 - The tool-design reference says why tools take the project's path, to keep required inputs few, and to keep the field names of JSON a tool wraps.
 
 ### Fixed

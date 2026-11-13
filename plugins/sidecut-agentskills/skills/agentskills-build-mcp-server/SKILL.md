@@ -24,7 +24,7 @@ Produces tools that agents pick correctly, that return data a check can verify, 
 4. Add a test that starts the bundle over stdio, calls the tool and checks its structured result. In a repo made from the template it goes in `tests/plugin.test.ts`.
 5. Run the repo's checks, `bun run check` in a repo made from the template.
 6. Load the plugin with `claude --plugin-dir plugins/<plugin-id>`, ask for something that needs the tool, and confirm the agent picks it.
-7. Do the same in Codex with a throwaway `CODEX_HOME`: `codex plugin marketplace add <repo>`, then `codex plugin add <plugin-id>@<marketplace>`. Never use the user's own `~/.codex`.
+7. Do the same in Codex with a throwaway `CODEX_HOME`, never the user's own `~/.codex`. A plugin repo isn't a marketplace, so follow [codex-testing.md](references/codex-testing.md).
 8. For a view drawn in the chat, follow [mcp-apps.md](references/mcp-apps.md). For a hosted server instead, follow [remote-servers.md](references/remote-servers.md).
 
 ## Rules
@@ -52,5 +52,6 @@ The repo's checks and the new test pass, and both a Claude Code `--plugin-dir` s
 | Read | When |
 | --- | --- |
 | [tool-design.md](references/tool-design.md) | Designing, naming or describing a tool |
+| [codex-testing.md](references/codex-testing.md) | Trying the plugin in Codex before it's published |
 | [mcp-apps.md](references/mcp-apps.md) | Showing a tool's result as a view in the chat |
 | [remote-servers.md](references/remote-servers.md) | Connecting a hosted MCP server |
