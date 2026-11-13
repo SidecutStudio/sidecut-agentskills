@@ -19,5 +19,10 @@
     "sidecut-agentskills": "file:../sidecut-agentskills",
     "typescript": "7.0.2",
     "zod": "4.6.7"
+  },
+  "sidecut": {
+    "keep": {
+      "scripts": "Mine."
+    }
   }
 }
