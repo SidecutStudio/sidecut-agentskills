@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.2] - 2026-11-13
+
+### Added
+
+- Every plugin repo builds with `scripts/build-server.ts`, which also writes `server/THIRD_PARTY_LICENSES.txt` with the licence of each package the bundle inlines. The checker requires both.
+
+### Fixed
+
+- Display names keep acronyms in capitals, so `sidecut-ci` is `Sidecut CI`.
+- The template server finds its manifest from its source as well as its bundle.
+- The checker's public-repo CI rule no longer skips a job that has no `runs-on`, and its runner hint fits public repos.
+- `publish-plugin`'s marketplace reference uses the HTTPS URL, which Claude Code can clone without SSH keys.
+
 ## [0.1.1] - 2026-11-13
 
 ### Changed

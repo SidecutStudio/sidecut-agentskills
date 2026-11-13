@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderTree } from '../scaffold.ts';
+import { renderTree, templatesRoot } from '../scaffold.ts';
 import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { checkPlugin } from './plugin.ts';
 import type { Report } from './report.ts';
@@ -19,11 +19,12 @@ const REQUIRED_ENTRIES = [
   'lefthook.yml',
   'package.json',
   'plugins',
+  'scripts',
   'solo-workflow.toml',
   'tests',
   'tsconfig.json',
 ];
-const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml', 'scripts'];
+const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml'];
 const CHECK_SCRIPT = 'biome check . && tsc --noEmit && bun run style && bun test';
 const AGENTS_SECTIONS = ['Commands', 'Layout', 'Rules'];
 
@@ -168,6 +169,27 @@ function checkPackage(
       'There is no `style` script.',
       'Add `"style": "sidecut-check"`.',
     );
+  if (scripts.build !== 'bun scripts/build-server.ts')
+    report.add(
+      'REPO_BUILD_SCRIPT',
+      'package.json',
+      undefined,
+      '`build` is not `bun scripts/build-server.ts`.',
+      'Set it, so the bundle and its licences are built the same way everywhere.',
+    );
+  const buildScript = join(root, 'scripts', 'build-server.ts');
+  const canonical = readFileSync(
+    join(templatesRoot, 'repo', 'scripts', 'build-server.ts.tmpl'),
+    'utf8',
+  );
+  if (!existsSync(buildScript) || readFileSync(buildScript, 'utf8') !== canonical)
+    report.add(
+      'REPO_BUILD_SCRIPT',
+      'scripts/build-server.ts',
+      undefined,
+      'scripts/build-server.ts is missing or differs from the Sidecut copy.',
+      'Copy it again from the sidecut-agentskills template.',
+    );
   for (const [name, spec] of Object.entries({
     ...(pkg.dependencies as object),
     ...(pkg.devDependencies as object),
@@ -279,7 +301,7 @@ function checkCi(root: string, report: Report): void {
           file,
           i + 1,
           'Job runs on hosted macOS or Windows.',
-          'Use the sidecut-ops runner picker or self-hosted labels.',
+          'Use `ubuntu-24.04` in a public repo, or the sidecut-ops runner picker in a private one.',
         );
       }
       if (/bun-version:/.test(line))
@@ -297,7 +319,11 @@ function checkCi(root: string, report: Report): void {
     : '';
   // A public repo runs every job on GitHub-hosted Linux and never reaches the self-hosted runners.
   const runsOn = [...check.matchAll(/^\s*runs-on:\s*(.+)$/gm)].map((m) => m[1]?.trim());
-  const hostedOnly = runsOn.length > 0 && runsOn.every((r) => r === 'ubuntu-24.04');
+  // Every job has to say where it runs; a job that calls another workflow can't count as hosted.
+  const jobsBlock = check.split(/^jobs:\s*$/m)[1] ?? '';
+  const jobs = [...jobsBlock.matchAll(/^ {2}[A-Za-z0-9_-]+:\s*$/gm)].length;
+  const hostedOnly =
+    jobs > 0 && runsOn.length === jobs && runsOn.every((r) => r === 'ubuntu-24.04');
   if (check && !check.includes('/pick-runner@') && !hostedOnly) {
     report.add(
       'CI_PICKER',

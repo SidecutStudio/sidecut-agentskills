@@ -11,7 +11,7 @@ In `.claude-plugin/marketplace.json`, the plugin's entry in `plugins`:
   "name": "sidecut-agentskills",
   "source": {
     "source": "git-subdir",
-    "url": "SidecutStudio/sidecut-agentskills",
+    "url": "https://github.com/SidecutStudio/sidecut-agentskills.git",
     "path": "plugins/sidecut-agentskills",
     "ref": "v0.1.0"
   },
@@ -20,7 +20,7 @@ In `.claude-plugin/marketplace.json`, the plugin's entry in `plugins`:
 }
 ```
 
-The `description` is the plugin's manifest description, word for word.
+The `description` is the plugin's manifest description, word for word. Both hosts get the full HTTPS URL: Claude Code clones the `owner/repo` shorthand over SSH, which fails on a Mac signed in to GitHub over HTTPS.
 
 ## Codex
 

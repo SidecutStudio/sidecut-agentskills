@@ -1,9 +1,12 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 
-const manifestUrl = new URL("../plugin.json", import.meta.url);
+// The plugin manifest sits one folder above the bundled server/index.mjs, or two above server/src/.
+const manifestUrl =
+  ["../plugin.json", "../../plugin.json"].map((p) => new URL(p, import.meta.url)).find((u) => existsSync(u)) ??
+  new URL("../plugin.json", import.meta.url);
 const manifest = JSON.parse(readFileSync(manifestUrl, "utf8")) as { name: string; version: string };
 
 const server = new McpServer(

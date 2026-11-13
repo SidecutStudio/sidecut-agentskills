@@ -21573,13 +21573,13 @@ function checkSkillInput(input) {
   }
   return problems;
 }
+var ACRONYMS = new Set(["mcp", "cli", "ci", "pr", "url", "api"]);
 function displayNameOf(id) {
-  return id.split("-").map((word) => (word[0] ?? "").toUpperCase() + word.slice(1)).join(" ");
+  return id.split("-").map((word) => ACRONYMS.has(word) ? word.toUpperCase() : (word[0] ?? "").toUpperCase() + word.slice(1)).join(" ");
 }
 function skillTitleOf(name) {
-  const acronyms = new Set(["mcp", "cli", "ci", "pr", "url", "api"]);
   return name.split("-").map((word, i) => {
-    if (acronyms.has(word))
+    if (ACRONYMS.has(word))
       return word.toUpperCase();
     return i === 0 ? (word[0] ?? "").toUpperCase() + word.slice(1) : word;
   }).join(" ");
@@ -22133,7 +22133,14 @@ function checkServer(pluginDir, root, report) {
   const out = mkdtempSync(join3(tmpdir(), "sidecut-check-"));
   try {
     const built = join3(out, "index.mjs");
-    const result = spawnSync("bun", ["build", source, "--target=node", "--format=esm", `--outfile=${built}`], {
+    const result = spawnSync("bun", [
+      "build",
+      source,
+      "--target=node",
+      "--format=esm",
+      `--outfile=${built}`,
+      `--metafile=${join3(out, "meta.json")}`
+    ], {
       cwd: root,
       encoding: "utf8"
     });
@@ -22142,6 +22149,19 @@ function checkServer(pluginDir, root, report) {
 `)[0]}`, "Run `bun install`, then fix the build error.");
     } else if (!readFileSync2(built).equals(readFileSync2(bundle))) {
       report.add("SERVER_BUNDLE_STALE", relative3(root, bundle), undefined, "The committed bundle doesn't match the source.", "Run `bun run build` and commit server/index.mjs.");
+    }
+    if (result.status === 0) {
+      const inputs = Object.keys(JSON.parse(readFileSync2(join3(out, "meta.json"), "utf8")).inputs);
+      const packages = [
+        ...new Set(inputs.flatMap((p) => /node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(p)?.[1] ?? []))
+      ];
+      const notices = join3(pluginDir, "server", "THIRD_PARTY_LICENSES.txt");
+      const text = existsSync3(notices) ? readFileSync2(notices, "utf8") : "";
+      const missing = packages.filter((pkg) => !text.split(`
+`).includes(pkg));
+      if (missing.length > 0) {
+        report.add("SERVER_LICENSES", relative3(root, notices), undefined, `The bundle inlines ${missing.join(", ")} without its licence notice.`, "Run `bun run build`, which writes server/THIRD_PARTY_LICENSES.txt.");
+      }
     }
   } finally {
     rmSync(out, { recursive: true, force: true });
@@ -22896,11 +22916,12 @@ var REQUIRED_ENTRIES = [
   "lefthook.yml",
   "package.json",
   "plugins",
+  "scripts",
   "solo-workflow.toml",
   "tests",
   "tsconfig.json"
 ];
-var OPTIONAL_ENTRIES = [".git", "node_modules", "bunfig.toml", "scripts"];
+var OPTIONAL_ENTRIES = [".git", "node_modules", "bunfig.toml"];
 var CHECK_SCRIPT = "biome check . && tsc --noEmit && bun run style && bun test";
 var AGENTS_SECTIONS = ["Commands", "Layout", "Rules"];
 function ignoredBy(patterns, name) {
@@ -22964,6 +22985,12 @@ function checkPackage(root, id, version, report) {
   }
   if (!scripts.style)
     report.add("REPO_STYLE_SCRIPT", "package.json", undefined, "There is no `style` script.", 'Add `"style": "sidecut-check"`.');
+  if (scripts.build !== "bun scripts/build-server.ts")
+    report.add("REPO_BUILD_SCRIPT", "package.json", undefined, "`build` is not `bun scripts/build-server.ts`.", "Set it, so the bundle and its licences are built the same way everywhere.");
+  const buildScript = join6(root, "scripts", "build-server.ts");
+  const canonical = readFileSync5(join6(templatesRoot, "repo", "scripts", "build-server.ts.tmpl"), "utf8");
+  if (!existsSync6(buildScript) || readFileSync5(buildScript, "utf8") !== canonical)
+    report.add("REPO_BUILD_SCRIPT", "scripts/build-server.ts", undefined, "scripts/build-server.ts is missing or differs from the Sidecut copy.", "Copy it again from the sidecut-agentskills template.");
   for (const [name, spec] of Object.entries({
     ...pkg.dependencies,
     ...pkg.devDependencies
@@ -23023,7 +23050,7 @@ function checkCi(root, report) {
         report.add("CI_PIN", file, i + 1, `${uses} is not pinned by full SHA.`, "Pin the action to a 40-character commit SHA.");
       }
       if (/runs-on:.*(macos|windows)/i.test(line)) {
-        report.add("CI_RUNNER", file, i + 1, "Job runs on hosted macOS or Windows.", "Use the sidecut-ops runner picker or self-hosted labels.");
+        report.add("CI_RUNNER", file, i + 1, "Job runs on hosted macOS or Windows.", "Use `ubuntu-24.04` in a public repo, or the sidecut-ops runner picker in a private one.");
       }
       if (/bun-version:/.test(line))
         report.add("CI_BUN", file, i + 1, "Bun version set in the workflow.", "Use `bun-version-file: package.json`.");
@@ -23031,7 +23058,9 @@ function checkCi(root, report) {
   }
   const check = existsSync6(join6(dir, "check.yml")) ? readFileSync5(join6(dir, "check.yml"), "utf8") : "";
   const runsOn = [...check.matchAll(/^\s*runs-on:\s*(.+)$/gm)].map((m) => m[1]?.trim());
-  const hostedOnly = runsOn.length > 0 && runsOn.every((r) => r === "ubuntu-24.04");
+  const jobsBlock = check.split(/^jobs:\s*$/m)[1] ?? "";
+  const jobs = [...jobsBlock.matchAll(/^ {2}[A-Za-z0-9_-]+:\s*$/gm)].length;
+  const hostedOnly = jobs > 0 && runsOn.length === jobs && runsOn.every((r) => r === "ubuntu-24.04");
   if (check && !check.includes("/pick-runner@") && !hostedOnly) {
     report.add("CI_PICKER", ".github/workflows/check.yml", undefined, "check.yml neither uses the runner picker nor runs every job on ubuntu-24.04.", "Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.");
   }
