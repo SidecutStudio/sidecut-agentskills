@@ -46,7 +46,7 @@ const PROPER_NOUNS = new Set([
   'Studio',
   'Workflow',
 ]);
-const ALLOWED_HTML = /^<!-- solo-workflow:(start|end) -->$/;
+const ALLOWED_HTML = /^<!-- (solo-workflow|sidecut):(start|end)( [\w-]+)? -->$/;
 
 export function parseMarkdown(path: string, text: string): MarkdownDoc {
   const lines = text.split('\n');
@@ -72,6 +72,11 @@ export function parseMarkdown(path: string, text: string): MarkdownDoc {
     if (solo) {
       inCode[i] = true;
       if (line === '<!-- solo-workflow:end -->') solo = false;
+      continue;
+    }
+    // A sidecut-sync marker; the block's own text is checked like any other.
+    if (!fence && /^<!-- sidecut:(start|end) [\w-]+ -->$/.test(line)) {
+      inCode[i] = true;
       continue;
     }
     if (/^\s*```/.test(line)) {

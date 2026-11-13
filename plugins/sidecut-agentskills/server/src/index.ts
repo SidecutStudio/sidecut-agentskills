@@ -91,23 +91,25 @@ server.registerTool(
   },
 );
 
+const problem = z.object({
+  code: z.string(),
+  file: z.string(),
+  line: z.number().optional(),
+  message: z.string(),
+  fix: z.string(),
+});
+
 server.registerTool(
   'check_plugin',
   {
     title: 'Check plugin',
     description:
-      'Returns every place a plugin repo breaks the house style, each with a code, file, line, message and fix. Use it after any change and before publishing.',
+      'Returns every place a plugin repo breaks the house style, each with a code, file, line, message and fix, plus what it checked and the differences the repo keeps on purpose. Use it after any change and before publishing.',
     inputSchema: z.object({ repo: z.string().describe('Absolute path to the repo root') }),
     outputSchema: z.object({
-      problems: z.array(
-        z.object({
-          code: z.string(),
-          file: z.string(),
-          line: z.number().optional(),
-          message: z.string(),
-          fix: z.string(),
-        }),
-      ),
+      scope: z.string().describe('Whether the whole repo or only its plugins was checked, and why'),
+      problems: z.array(problem),
+      kept: z.array(problem.extend({ reason: z.string() })),
     }),
     annotations: readOnly,
   },
@@ -116,7 +118,7 @@ server.registerTool(
     if (!root) return failure('Give the repo as an absolute path.');
     const report = new Report();
     checkRepo(root, report);
-    const output = { problems: report.problems };
+    const output = { scope: report.scope, problems: report.problems, kept: report.kept };
     return { ...text(output), structuredContent: output };
   },
 );

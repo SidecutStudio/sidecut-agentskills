@@ -23,15 +23,20 @@ plugins/sidecut-agentskills/
   skills/                  the plugin's skills
   agents/                  the reviewer subagent; codex/agents/ holds its generated Codex profile
   evals/                   trigger and near-miss evals for the skills
-scripts/                   new.ts and check.ts (bun run new, sidecut-check), and release.ts, which the Release workflow runs
+scripts/                   new.ts, check.ts and sync.ts (bun run new, sidecut-check, sidecut-sync), and release.ts, which the Release workflow runs
 tests/                     checker and template tests
 ```
 
 ## Rules
 
+<!-- sidecut:start house-style -->
+- Run `bun run build` after changing anything in a plugin's `server/src/` or `agents/`, and commit what it writes.
+- Any change under `plugins/` bumps the version in both manifests and `package.json` and adds a CHANGELOG entry.
+- Blocks marked `sidecut:start` and the files sidecut-agentskills owns come from its templates. Change them there, then run `bunx sidecut-sync` here; list a deliberate difference under `sidecut.keep` in `package.json` with the reason.
+<!-- sidecut:end house-style -->
+
 - The house style lives in `plugins/sidecut-agentskills/server/data/house-style.md`. Change a rule there, in the checker and in the templates together, and add a test to `tests/check.test.ts` for any rule the checker enforces.
 - A freshly generated repo has to pass its own `bun run check`; `tests/check.test.ts` proves it on every run.
-- Run `bun run build` after changing anything in `server/src/` or `agents/`, and commit what it writes.
 - Other repos depend on this one by tag for `sidecut-check`, so a change to a checker rule is a new version.
 
 <!-- solo-workflow:start -->

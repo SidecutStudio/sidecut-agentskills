@@ -21,7 +21,7 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 
 ## Repo layout
 
-A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. That repo has exactly these top-level entries, plus `node_modules/` when installed and `bunfig.toml` when used. A repo that ships a plugin next to other work, such as `sidecut-ops`, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down.
+A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`, or another SidecutStudio repo when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed and `bunfig.toml` when used. A repo that ships a plugin next to other work, such as `sidecut-ops`, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down.
 
 ```text
 .github/workflows/check.yml
@@ -51,7 +51,7 @@ tsconfig.json
 | `LICENSE` | MIT, `Copyright (c) <year> Sidecut Studio` | yes |
 | Marketplace | Not in the plugin repo; the plugin is listed from the `sidecut-plugins` marketplace | yes |
 | Plugins per repo | One | review |
-| `.gitignore` | Exactly `node_modules/`, `.DS_Store`, `*.log` and `.env*`, one per line | yes |
+| `.gitignore` | Starts with the template's `house-style` block; the repo's own lines go after it | yes |
 | `package.json` | `name` is the plugin id, `version` matches the manifests, `packageManager` is a pinned `bun@x.y.z`, every dependency is an exact version or a tagged GitHub source | yes |
 | Code formatting | Biome with the template's `biome.json`: 2-space indent, single quotes, 100-character lines; it also formats every JSON file | yes |
 | Unexpected top-level files | Fail the check | yes |
@@ -314,9 +314,26 @@ Sections in this order:
 | Sections | `### Added`, `### Changed`, `### Fixed`, `### Removed`, in that order, only those with entries | yes |
 | Entries | One line each, past tense, naming the skill or tool it touches | review |
 
+## Shared files
+
+sidecut-agentskills owns part of every plugin repo, and `bunx sidecut-sync` keeps it current. Run it after a new sidecut-agentskills release; it first moves the repo to the latest release and runs that version. The checker reports anything out of date as `REPO_SYNC`.
+
+| What | Owned by sidecut-agentskills | Belongs to the repo |
+| --- | --- | --- |
+| `CLAUDE.md`, `scripts/build-server.ts`, `scripts/release.ts` | The whole file | Nothing |
+| `.gitignore`, `AGENTS.md`, `SECURITY.md` | The block between `sidecut:start house-style` and `sidecut:end house-style` | Everything outside it |
+| `package.json` | `packageManager` and the versions of Biome, TypeScript, Lefthook, `@types/bun` and `sidecut-agentskills`, which sync only ever raises | Everything else |
+
+| Item | Rule | Checked |
+| --- | --- | --- |
+| Changing a shared part | Change the template here, release, then sync each repo. Never edit a block or an owned file in one repo only | yes |
+| A repo that got it right | When a repo's own version is better, move it into the template rather than syncing it away | review |
+| Deliberate differences | Listed in `package.json` under `sidecut.keep`, as `"<file, folder, rule code or 'CODE file'>": "<why>"`. The checker lists them as kept; a key with no reason, or one that no longer covers a problem, fails | yes |
+| What was checked | The checker's first line says whether it checked the whole repo or only the plugins, and why | yes |
+
 ## AGENTS.md
 
-Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table with columns `Command` and `Does`), `## Layout` (a `text` tree of the top two levels), `## Rules` (repo-specific rules only), then the Solo Workflow markers. The generator writes the markers empty and `solo-workflow-configure-project` fills them; the checker skips the text between them, since Solo owns it.
+Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table with columns `Command` and `Does`), `## Layout` (a `text` tree of the top two levels), `## Rules` (the shared `house-style` block, then the repo's own rules), then the Solo Workflow markers. The generator writes the markers empty and `solo-workflow-configure-project` fills them; the checker skips the text between them, since Solo owns it.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
@@ -327,9 +344,9 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| `bun run check` | Exactly `biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check`; the last step fails when the bundle or its licence notices are stale | yes |
+| `bun run check` | Runs `biome check .`, `tsc --noEmit`, `bun run style`, `bun test` and `bun scripts/build-server.ts --check` in that order, with the repo's own steps anywhere between; the last fails when the bundle or its licence notices are stale | yes |
 | `bun run style` | `sidecut-check`, from the `sidecut-agentskills` dev dependency pinned to a tag; it includes the bundle drift check | yes |
-| Checker output | One line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
+| Checker output | What it checked, then what is kept on purpose, then one line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
 | CI | `check.yml` copied from sidecut-ops' runner-picker pattern; actions pinned by full SHA; Bun from `packageManager`; no hosted macOS or Windows | yes |

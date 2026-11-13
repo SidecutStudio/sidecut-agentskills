@@ -23,8 +23,11 @@ tests/                 tests for the plugin and its MCP server
 
 ## Rules
 
-- Run `bun run build` after changing anything in `plugins/{{id}}/server/src/` or `plugins/{{id}}/agents/`, and commit what it writes.
-- Any change under `plugins/{{id}}/` bumps the version in both manifests and `package.json` and adds a CHANGELOG entry.
+<!-- sidecut:start house-style -->
+- Run `bun run build` after changing anything in a plugin's `server/src/` or `agents/`, and commit what it writes.
+- Any change under `plugins/` bumps the version in both manifests and `package.json` and adds a CHANGELOG entry.
+- Blocks marked `sidecut:start` and the files sidecut-agentskills owns come from its templates. Change them there, then run `bunx sidecut-sync` here; list a deliberate difference under `sidecut.keep` in `package.json` with the reason.
+<!-- sidecut:end house-style -->
 
 <!-- solo-workflow:start -->
 <!-- solo-workflow:end -->

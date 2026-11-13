@@ -32,7 +32,8 @@ Produces a tagged release of the plugin that the sidecut-plugins marketplace ser
 ## When it goes wrong
 
 - **`VERSION_SYNC`:** one of the version fields or the CHANGELOG still has the old version.
-- **`CI_RELEASE` or `REPO_RELEASE_SCRIPT`:** the repo predates automatic releases. Copy `release.yml` and `scripts/release.ts` from the template, together with the next version bump, so the first run publishes it. Remove any old release job from `check.yml`, such as one that calls `./.github/workflows/release.yml`, and any old release script and its tests. The ZIP is now named `<plugin-id>-<version>.zip`. A public repo runs the job on `ubuntu-24.04` without sidecut-ops' setup action.
+- **`REPO_SYNC`:** the repo is behind sidecut-agentskills. Run `bunx sidecut-sync` and commit what it changes with the release.
+- **`CI_RELEASE` or `REPO_SYNC` on `scripts/release.ts`:** the repo predates automatic releases. Run `bunx sidecut-sync` and copy `release.yml` from the template, together with the next version bump, so the first run publishes it. Remove any old release job from `check.yml`, such as one that calls `./.github/workflows/release.yml`, and any old release script and its tests. The ZIP is now named `<plugin-id>-<version>.zip`. A public repo runs the job on `ubuntu-24.04` without sidecut-ops' setup action.
 - **The Release run says the tag is on another commit:** a hand-made tag got there first. Bump to the next version instead of moving it.
 - **The new version doesn't appear:** confirm the tag exists on GitHub and the marketplace entry names it, then wait for the next sync.
 
