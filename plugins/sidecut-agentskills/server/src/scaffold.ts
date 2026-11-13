@@ -1,7 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { deflateSync } from 'node:zlib';
 import { sentences } from './check/report.ts';
 
 // The data folder sits next to the bundled server/index.mjs, or one level up from server/src/.
@@ -16,7 +15,6 @@ export type PluginInput = {
   description: string;
   longDescription: string;
   keywords: string[];
-  brandColor?: string;
   date?: string;
   /** Where the generated repo gets the house-style checker from. */
   checkerSource?: string;
@@ -42,7 +40,8 @@ export function isSkillName(name: string, prefix: string): boolean {
     (name.startsWith(`${prefix}-`) && SKILL_NAME.test(name.slice(prefix.length + 1)))
   );
 }
-const HEX_COLOR = /^#[0-9A-F]{6}$/;
+/** Sidecut Builder's orange, the brand color of every Sidecut plugin. */
+export const BRAND_COLOR = '#FF6B00';
 const DEFAULT_CHECKER = 'github:SidecutStudio/sidecut-agentskills';
 
 export function checkPluginInput(input: PluginInput): Problem[] {
@@ -72,12 +71,6 @@ export function checkPluginInput(input: PluginInput): Problem[] {
     problems.push({
       code: 'MANIFEST_KEYWORDS',
       message: "Give 3 to 8 lowercase keywords that aren't the plugin id.",
-    });
-  }
-  if (input.brandColor && !HEX_COLOR.test(input.brandColor)) {
-    problems.push({
-      code: 'MANIFEST_BRAND_COLOR',
-      message: 'The brand color must be an upper-case hex color such as #ED8D70.',
     });
   }
   return problems;
@@ -199,42 +192,6 @@ export function renderTree(templateDir: string, vars: Record<string, string>): M
   return files;
 }
 
-function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit++) crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function pngChunk(type: string, data: Buffer): Buffer {
-  const head = Buffer.alloc(8);
-  head.writeUInt32BE(data.length, 0);
-  head.write(type, 4, 'ascii');
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
-  return Buffer.concat([head, data, crc]);
-}
-
-/** A 512 by 512 PNG filled with one color, used as the starting icon. */
-export function solidIcon(hex: string, size = 512): Buffer {
-  const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
-  const row = Buffer.alloc(1 + size * 3);
-  for (let x = 0; x < size; x++) row.set([r ?? 0, g ?? 0, b ?? 0], 1 + x * 3);
-  const raw = Buffer.concat(Array.from({ length: size }, () => row));
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(size, 0);
-  header.writeUInt32BE(size, 4);
-  header.set([8, 2, 0, 0, 0], 8);
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    pngChunk('IHDR', header),
-    pngChunk('IDAT', deflateSync(raw)),
-    pngChunk('IEND', Buffer.alloc(0)),
-  ]);
-}
-
 function writeAll(out: string, files: Map<string, string | Buffer>): string[] {
   for (const [path, content] of files) {
     const target = join(out, path);
@@ -263,7 +220,7 @@ export function scaffoldPlugin(input: PluginInput, out: string): string[] {
     description: input.description,
     longDescription: input.longDescription,
     keywordsJson: JSON.stringify(input.keywords),
-    brandColor: input.brandColor ?? '#ED8D70',
+    brandColor: BRAND_COLOR,
     version,
     date,
     year: date.slice(0, 4),
@@ -279,7 +236,8 @@ export function scaffoldPlugin(input: PluginInput, out: string): string[] {
   for (const name of ['README.md', 'LICENSE', 'CHANGELOG.md']) {
     files.set(name, files.get(`${pluginDir}/${name}`) as string);
   }
-  files.set(`${pluginDir}/assets/icon.png`, solidIcon(vars.brandColor as string));
+  // A plain mark until `sidecut-icon` draws the plugin's own.
+  files.set(`${pluginDir}/assets/icon.png`, readFileSync(join(templatesRoot, '..', 'icon.png')));
   return writeAll(out, files);
 }
 

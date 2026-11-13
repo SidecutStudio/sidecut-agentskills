@@ -1,6 +1,6 @@
 {
   "name": "sidecut-agentskills",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.",
   "author": {
     "name": "Sidecut Studio",
@@ -26,7 +26,7 @@
       "Check this plugin against the Sidecut house style",
       "Bring my old plugin into the Sidecut house style"
     ],
-    "brandColor": "#2F6B5E",
+    "brandColor": "#FF6B00",
     "composerIcon": "./assets/icon.png",
     "logo": "./assets/icon.png"
   }

@@ -1,6 +1,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { brandColorOf, displayNameOf, listFiles, PLUGIN_ID, templatesRoot } from '../scaffold.ts';
+import {
+  BRAND_COLOR,
+  brandColorOf,
+  displayNameOf,
+  listFiles,
+  PLUGIN_ID,
+  templatesRoot,
+} from '../scaffold.ts';
 import { checkMarkdown, paragraphAfter, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { type Report, sameJson, sentences } from './report.ts';
 import { checkServer } from './server.ts';
@@ -368,13 +375,13 @@ function checkManifests(
       'Fix the prompt list.',
     );
   }
-  if (!/^#[0-9A-F]{6}$/.test(String(ui.brandColor ?? ''))) {
+  if (ui.brandColor !== BRAND_COLOR) {
     report.add(
       'MANIFEST_INTERFACE',
       portableFile,
       undefined,
-      'brandColor is not an upper-case hex color.',
-      'Use a color such as #ED8D70.',
+      `brandColor isn't Sidecut Builder's orange.`,
+      `Use ${BRAND_COLOR}.`,
     );
   }
   return claude;

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { scaffoldPlugin } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
-const usage = `Usage: bun run new plugin <id> --description <text> --long-description <text> --keywords <a,b,c> [--brand-color <#RRGGBB>] [--checker <package spec>] [--out <dir>]
+const usage = `Usage: bun run new plugin <id> --description <text> --long-description <text> --keywords <a,b,c> [--checker <package spec>] [--out <dir>]
 
 Creates a new plugin repo with Claude Code and Codex manifests, one skill and a bundled MCP server.`;
 
@@ -13,7 +13,6 @@ const { positionals, values } = parseArgs({
     description: { type: 'string' },
     'long-description': { type: 'string' },
     keywords: { type: 'string' },
-    'brand-color': { type: 'string' },
     checker: { type: 'string' },
     out: { type: 'string' },
     help: { type: 'boolean' },
@@ -41,7 +40,6 @@ try {
       description: values.description,
       longDescription: values['long-description'],
       keywords: values.keywords.split(',').map((k) => k.trim()),
-      brandColor: values['brand-color'],
       checkerSource: values.checker,
     },
     out,

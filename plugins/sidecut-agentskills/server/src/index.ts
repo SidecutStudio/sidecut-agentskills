@@ -133,7 +133,6 @@ server.registerTool(
       description: z.string().describe('One sentence, at most 120 characters'),
       longDescription: z.string().describe('2 or 3 sentences for the Codex listing'),
       keywords: z.array(z.string()),
-      brandColor: z.string().optional(),
     }),
     annotations: writes,
   },

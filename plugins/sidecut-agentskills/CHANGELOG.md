@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0] - 2026-11-13
+
+### Added
+
+- `sidecut-icon` (`bun run icon` here) draws a plugin's icon in Sidecut Builder's style: a near-black rounded tile, one white Lucide mark and Builder's orange full stop. A new plugin starts with a plain box mark, and `agentskills-create-plugin` asks which mark it should have.
+
+### Changed
+
+- Every plugin's `brandColor` is `#FF6B00`, Sidecut Builder's orange, and the checker enforces it. `scaffold_plugin` and `bun run new` no longer take a brand color.
+- Each skill's `agents/openai.yaml` sets `icon_small` and `icon_large` to `../../assets/icon.png`, so Codex shows the plugin's icon beside its skills.
+- Sidecut Agentskills has its own icon, a blocks mark.
+
 ## [0.2.1] - 2026-11-13
 
 ### Changed

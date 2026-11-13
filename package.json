@@ -1,19 +1,25 @@
 {
   "name": "sidecut-agentskills",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.4",
   "bin": {
-    "sidecut-check": "scripts/check.ts"
+    "sidecut-check": "scripts/check.ts",
+    "sidecut-icon": "scripts/icon.ts"
   },
   "scripts": {
     "build": "bun scripts/build-server.ts",
     "check": "biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check",
     "fix": "biome check --write .",
+    "icon": "bun scripts/icon.ts",
     "new": "bun scripts/new.ts",
     "style": "bun scripts/check.ts",
     "test": "bun test"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "lucide-static": "1.72.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",

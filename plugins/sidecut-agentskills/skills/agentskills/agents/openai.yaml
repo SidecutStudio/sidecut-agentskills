@@ -1,5 +1,7 @@
 interface:
   display_name: "Sidecut Agentskills"
   short_description: "Routes a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill."
-  brand_color: "#2F6B5E"
+  icon_small: "../../assets/icon.png"
+  icon_large: "../../assets/icon.png"
+  brand_color: "#FF6B00"
   default_prompt: "Use $agentskills to route a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill."

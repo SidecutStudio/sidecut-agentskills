@@ -65,7 +65,7 @@ plugins/<plugin-id>/
   CHANGELOG.md                copy of the repo's, kept identical
   LICENSE                     copy of the repo's, kept identical
   README.md                   copy of the repo's, kept identical
-  assets/icon.png             512 by 512 PNG, the only asset
+  assets/icon.png             512 by 512 PNG from sidecut-icon, the only asset
   agents/<role>.md            only with subagents
   codex/agents/<prefix>-<role>.toml  Codex profile of each subagent, generated
   evals/<case>/               trigger and near-miss evals, one folder per case
@@ -85,6 +85,7 @@ plugins/<plugin-id>/
 | Hosts | Claude Code and Codex only | yes |
 | Copies of repo files | Byte-identical to the repo root | yes |
 | Empty folders | None | yes |
+| Icon | `bunx sidecut-icon <lucide-name>` draws it in Sidecut Builder's style: a near-black rounded tile, one white [Lucide](https://lucide.dev/icons) mark and Builder's orange full stop. One mark per plugin, never another plugin's | no |
 
 ## Manifests
 
@@ -102,7 +103,7 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/
 | `keywords` | 3 to 8, lowercase, no plugin name | yes |
 | Claude extra fields | None; skills, agents and hooks are found by folder | yes |
 | Codex extra fields | After the shared fields: `skills` (`./skills/`), `mcpServers` (`./mcp.json`) with an MCP server, `hooks` (`./hooks/codex-hooks.json`) with hooks, then `interface` last | yes |
-| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`Sidecut Studio`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor`, `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
+| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`Sidecut Studio`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (`#FF6B00`, Sidecut Builder's orange), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
 | Unknown fields | None | yes |
 
 ## MCP servers
@@ -144,7 +145,7 @@ skills/<skill>/
 | Unfinished text | No `TODO` anywhere; the skill template's `TODO` markers fail the check until replaced | yes |
 | Links to other skills' files | None; name the skill instead | yes |
 | Scripts | Node ESM, built-in modules only, `--help` flag, exit 0 on success and 1 on failure, plain-text output | yes |
-| `agents/openai.yaml` | `interface:` with `display_name` (the SKILL.md H1), `short_description` (the description's first sentence), `brand_color` (the plugin's) and `default_prompt` (`Use $<skill> to <first sentence with its verb in base form>`, so "Checks that" becomes "check that"), each value in double quotes. A skill with `disable-model-invocation: true` adds `policy:` with `allow_implicit_invocation: false`, the Codex equivalent, which Codex reads only from this file | yes |
+| `agents/openai.yaml` | `interface:` with `display_name` (the SKILL.md H1), `short_description` (the description's first sentence), `icon_small` and `icon_large` (both `../../assets/icon.png`, the plugin's icon), `brand_color` (the plugin's) and `default_prompt` (`Use $<skill> to <first sentence with its verb in base form>`, so "Checks that" becomes "check that"), each value in double quotes. A skill with `disable-model-invocation: true` adds `policy:` with `allow_implicit_invocation: false`, the Codex equivalent, which Codex reads only from this file | yes |
 
 ## Skill frontmatter
 
