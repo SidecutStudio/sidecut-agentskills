@@ -1,0 +1,5 @@
+interface:
+  display_name: "Build MCP server"
+  short_description: "Builds the MCP side of a Sidecut plugin: the tools in its bundled server, or a connection to a hosted server."
+  brand_color: "#2F6B5E"
+  default_prompt: "Use $agentskills-build-mcp-server to build the MCP side of a Sidecut plugin: the tools in its bundled server, or a connection to a hosted server."

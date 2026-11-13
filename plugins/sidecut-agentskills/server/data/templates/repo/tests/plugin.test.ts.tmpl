@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const root = join(import.meta.dir, '..', 'plugins', '{{id}}');
-const manifest = JSON.parse(readFileSync(join(root, 'plugin.json'), 'utf8'));
+const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
 
 function callServer(messages: object[]): Record<string, unknown>[] {
   const input = `${messages.map((m) => JSON.stringify({ jsonrpc: '2.0', ...m })).join('\n')}\n`;
@@ -35,11 +35,12 @@ test('get_status returns the plugin name and version', () => {
   expect(call.result.structuredContent.version).toBe(manifest.version);
 });
 
-function runSkillLog(env: Record<string, string>, skill: string): string {
+// Runs the usage log hook on one tool call and returns what it wrote.
+function runSkillLog(env: Record<string, string>, call: object): string {
   const home = mkdtempSync(join(tmpdir(), 'skill-log-'));
   try {
     spawnSync('node', [join(root, 'hooks', 'post-tool-use-skill-log.mjs')], {
-      input: JSON.stringify({ tool_name: 'Skill', tool_input: { skill } }),
+      input: JSON.stringify(call),
       env: { PATH: process.env.PATH ?? '', HOME: home, ...env },
       timeout: 5_000,
     });
@@ -53,22 +54,41 @@ function runSkillLog(env: Record<string, string>, skill: string): string {
   }
 }
 
+const skill = '{{key}}-check-status';
+const on = { SIDECUT_SKILL_LOG: '1' };
+// Claude Code runs a skill through its Skill tool; Codex reads the SKILL.md with a shell command.
+const claude = (name: string) => ({ tool_name: 'Skill', tool_input: { skill: name } });
+const codex = (command: string) => ({ tool_name: 'Bash', turn_id: 'turn', tool_input: { command } });
+const skillFile = join(root, 'skills', skill, 'SKILL.md');
+
 test('the usage log stays off unless SIDECUT_SKILL_LOG=1', () => {
-  expect(runSkillLog({}, `${manifest.name}:check-status`)).toBe('');
+  expect(runSkillLog({}, claude(`${manifest.name}:${skill}`))).toBe('');
 });
 
-test('the usage log records one line for this plugin\'s skill', () => {
-  const lines = runSkillLog({ SIDECUT_SKILL_LOG: '1' }, `${manifest.name}:check-status`).trim().split('\n');
+test("the usage log records this plugin's skill in Claude Code", () => {
+  const lines = runSkillLog(on, claude(`${manifest.name}:${skill}`)).trim().split('\n');
   expect(lines).toHaveLength(1);
-  expect(Object.keys(JSON.parse(lines[0] ?? '{}'))).toEqual(['time', 'plugin', 'skill', 'host']);
+  const entry = JSON.parse(lines[0] ?? '{}');
+  expect(Object.keys(entry)).toEqual(['time', 'plugin', 'skill', 'host']);
+  expect(entry.host).toBe('claude-code');
+});
+
+test("the usage log records this plugin's skill when Codex reads its SKILL.md", () => {
+  const entry = JSON.parse(runSkillLog(on, codex(`sed -n 1,200p '${skillFile}'`)) || '{}');
+  expect([entry.skill, entry.host]).toEqual([skill, 'codex']);
+  expect(runSkillLog(on, codex(`sed -n '1,80p;120,140p' '${skillFile}'`))).not.toBe('');
+  expect(runSkillLog(on, codex(`echo don\\'t; cat '${skillFile}'`))).not.toBe('');
+  expect(runSkillLog(on, codex(`cd /tmp\ncat '${skillFile}'`))).not.toBe('');
 });
 
 test('DO_NOT_TRACK and CI turn the usage log off', () => {
-  expect(runSkillLog({ SIDECUT_SKILL_LOG: '1', DO_NOT_TRACK: '1' }, `${manifest.name}:check-status`)).toBe('');
-  expect(runSkillLog({ SIDECUT_SKILL_LOG: '1', CI: 'true' }, `${manifest.name}:check-status`)).toBe('');
+  expect(runSkillLog({ ...on, DO_NOT_TRACK: '1' }, claude(`${manifest.name}:${skill}`))).toBe('');
+  expect(runSkillLog({ ...on, CI: 'true' }, claude(`${manifest.name}:${skill}`))).toBe('');
 });
 
-test('the usage log ignores other plugins and unknown skills', () => {
-  expect(runSkillLog({ SIDECUT_SKILL_LOG: '1' }, 'other-plugin:check-status')).toBe('');
-  expect(runSkillLog({ SIDECUT_SKILL_LOG: '1' }, `${manifest.name}:no-such-skill`)).toBe('');
+test('the usage log ignores other plugins, unknown skills and commands that only mention a skill', () => {
+  expect(runSkillLog(on, claude(`other-plugin:${skill}`))).toBe('');
+  expect(runSkillLog(on, claude(`${manifest.name}:no-such-skill`))).toBe('');
+  expect(runSkillLog(on, codex(`grep name '${skillFile}'`))).toBe('');
+  expect(runSkillLog(on, codex(`grep name '${skillFile}' | head`))).toBe('');
 });

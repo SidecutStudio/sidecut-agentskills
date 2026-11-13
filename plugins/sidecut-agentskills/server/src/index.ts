@@ -7,7 +7,7 @@ import { checkRepo } from './check/repo.ts';
 import { Report } from './check/report.ts';
 import { addSkill, dataRoot, scaffoldPlugin } from './scaffold.ts';
 
-const manifestUrl = new URL('../plugin.json', import.meta.url);
+const manifestUrl = new URL('../.claude-plugin/plugin.json', import.meta.url);
 const manifest = JSON.parse(readFileSync(manifestUrl, 'utf8')) as { name: string; version: string };
 
 const server = new McpServer(
@@ -156,7 +156,7 @@ server.registerTool(
       'Writes a skill skeleton with SKILL.md and agents/openai.yaml into a plugin folder and returns the files it wrote. Use it to start a new skill, then replace every TODO.',
     inputSchema: z.object({
       plugin: z.string().describe('Absolute path to plugins/<plugin-id>'),
-      name: z.string().describe('Verb then object in kebab-case, such as write-skill'),
+      name: z.string().describe('Verb then object in kebab-case, such as agentskills-write-skill'),
       does: z.string().describe('One sentence starting with a third-person verb'),
     }),
     annotations: writes,

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Start"
-  short_description: "Routes a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill."
-  default_prompt: "Use $start to route a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill."

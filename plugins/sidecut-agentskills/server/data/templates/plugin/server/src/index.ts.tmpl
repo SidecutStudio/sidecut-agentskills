@@ -3,10 +3,11 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 
-// The plugin manifest sits one folder above the bundled server/index.mjs, or two above server/src/.
+// The Claude Code manifest, from the bundled server/index.mjs or from server/src/.
 const manifestUrl =
-  ["../plugin.json", "../../plugin.json"].map((p) => new URL(p, import.meta.url)).find((u) => existsSync(u)) ??
-  new URL("../plugin.json", import.meta.url);
+  ["../.claude-plugin/plugin.json", "../../.claude-plugin/plugin.json"]
+    .map((p) => new URL(p, import.meta.url))
+    .find((u) => existsSync(u)) ?? new URL("../.claude-plugin/plugin.json", import.meta.url);
 const manifest = JSON.parse(readFileSync(manifestUrl, "utf8")) as { name: string; version: string };
 
 const server = new McpServer(

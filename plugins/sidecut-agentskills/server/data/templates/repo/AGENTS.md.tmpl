@@ -6,7 +6,7 @@ This repo ships the {{displayName}} plugin for Claude Code and Codex. It follows
 
 | Command | Does |
 | --- | --- |
-| `bun run build` | Bundles the MCP server into `plugins/{{id}}/server/index.mjs` and writes its bundled licences |
+| `bun run build` | Bundles the MCP server into `plugins/{{id}}/server/index.mjs`, writes its bundled licences and the Codex profile of each subagent |
 | `bun run check` | Runs everything CI runs: Biome, types, the house-style checker, tests and the stale-bundle check |
 | `bun run fix` | Formats and fixes what Biome can |
 | `bun run style` | Checks the repo against the Sidecut house style |
@@ -23,7 +23,7 @@ tests/                 tests for the plugin and its MCP server
 
 ## Rules
 
-- Run `bun run build` after changing anything in `plugins/{{id}}/server/src/`, and commit the bundle.
+- Run `bun run build` after changing anything in `plugins/{{id}}/server/src/` or `plugins/{{id}}/agents/`, and commit what it writes.
 - Any change under `plugins/{{id}}/` bumps the version in both manifests and `package.json` and adds a CHANGELOG entry.
 
 <!-- solo-workflow:start -->

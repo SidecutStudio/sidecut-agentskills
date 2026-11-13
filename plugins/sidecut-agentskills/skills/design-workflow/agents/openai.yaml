@@ -1,4 +1,0 @@
-interface:
-  display_name: "Design workflow"
-  short_description: "Designs what a Sidecut plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it."
-  default_prompt: "Use $design-workflow to design what a Sidecut plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it."
