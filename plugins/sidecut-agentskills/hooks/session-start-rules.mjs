@@ -4,12 +4,14 @@
 // --init to opt in, which first moves an existing file aside. It reads two local places, writes one
 // file, prints nothing as a hook and never stops a session.
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
@@ -21,12 +23,34 @@ export const GENERATED =
 const BACKUP = 'AGENTS.md.before-sidecut-rules';
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/;
 
+/** The patterns in a `paths:` key, written on one line or as a `- ` list under it. */
+function pathsOf(frontmatter) {
+  const lines = frontmatter.split(/\r?\n/);
+  const at = lines.findIndex((line) => /^paths:/.test(line));
+  if (at < 0) return [];
+  const clean = (value) => value.trim().replace(/^["']|["']$/g, '');
+  const inline = lines[at].replace(/^paths:[ \t]*/, '').trim();
+  if (inline)
+    return inline
+      .replace(/^\[|\]$/g, '')
+      .split(',')
+      .map(clean)
+      .filter(Boolean);
+  const items = [];
+  for (const line of lines.slice(at + 1)) {
+    const item = /^\s+-\s+(.+)$/.exec(line);
+    if (!item) break;
+    items.push(clean(item[1]));
+  }
+  return items;
+}
+
 /** A rule file's text for Codex. A path-scoped rule says which files it is for, as it does in Claude Code. */
 function ruleText(text) {
   const front = FRONTMATTER.exec(text);
   const body = text.replace(FRONTMATTER, '').trim();
-  const paths = front?.[1]?.match(/^paths:\s*(.+)$/m)?.[1]?.trim();
-  return paths ? `When working on files matching ${paths}:\n\n${body}` : body;
+  const paths = pathsOf(front?.[1] ?? '');
+  return paths.length ? `When working on files matching ${paths.join(', ')}:\n\n${body}` : body;
 }
 
 /** The Codex file built from the rule files in `rulesDir`, or null when there are none. */
@@ -48,11 +72,14 @@ export function build(rulesDir) {
 }
 
 /** Writes `text` to `path` through a temporary file, so a reader never sees it half written. */
-function writeWhole(path, text) {
+function writeWhole(path, text, modeFrom = path) {
   const target = existsSync(path) ? realpathSync(path) : path;
   mkdirSync(dirname(target), { recursive: true });
   const temp = `${target}.${process.pid}.tmp`;
-  writeFileSync(temp, text);
+  // Keep the file's permissions, so a private file stays private.
+  const mode = existsSync(modeFrom) ? statSync(modeFrom).mode & 0o777 : 0o644;
+  writeFileSync(temp, text, { mode });
+  chmodSync(temp, mode);
   renameSync(temp, target);
 }
 
@@ -69,7 +96,7 @@ export function run(home, init = false) {
     const backup = join(home, '.codex', BACKUP);
     if (existsSync(backup))
       throw new Error(`${backup} already exists; move it before running --init again.`);
-    writeWhole(backup, current);
+    writeWhole(backup, current, target);
   }
   writeWhole(target, next);
   return init && current !== null && !optedIn
@@ -87,9 +114,8 @@ const invoked = process.argv[1]
   : '';
 if (invoked === realpathSync(self)) {
   const init = process.argv.includes('--init');
-  const home = process.env.HOME || homedir();
   try {
-    const result = run(home, init);
+    const result = run(process.env.HOME || homedir(), init);
     if (init) console.log(result);
   } catch (error) {
     // A hook never stops a session; --init is run by hand, so it says what went wrong.

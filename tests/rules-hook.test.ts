@@ -1,11 +1,13 @@
 import { afterAll, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -129,4 +131,18 @@ test('importing the script runs nothing', () => {
   );
   expect(result.status).toBe(0);
   expect(existsSync(join(dir, '.codex', 'AGENTS.md'))).toBe(false);
+});
+
+test('a paths list keeps every pattern, and a private Codex file stays private', () => {
+  const dir = home(
+    { 'a.md': '---\npaths:\n  - "src/**/*.ts"\n  - lib/**\ndescription: x\n---\n# A\n' },
+    '# Mine\n',
+  );
+  chmodSync(join(dir, '.codex', 'AGENTS.md'), 0o600);
+  hook(dir, '--init');
+  expect(codex(dir)).toBe(
+    `${GENERATED}\n\nWhen working on files matching src/**/*.ts, lib/**:\n\n# A\n`,
+  );
+  for (const name of ['AGENTS.md', 'AGENTS.md.before-sidecut-rules'])
+    expect(statSync(join(dir, '.codex', name)).mode & 0o777).toBe(0o600);
 });
