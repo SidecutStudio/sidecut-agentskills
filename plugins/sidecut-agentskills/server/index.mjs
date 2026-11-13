@@ -23201,14 +23201,19 @@ function checkRepo(root, report) {
   try {
     repository = String(JSON.parse(readFileSync5(manifestPath, "utf8")).repository);
   } catch {}
-  if (!only || repository !== `https://github.com/SidecutStudio/${only}`) {
+  let packageName = "";
+  try {
+    packageName = String(JSON.parse(readFileSync5(join6(root, "package.json"), "utf8")).name);
+  } catch {}
+  const repoName = /^https:\/\/github\.com\/SidecutStudio\/([\w.-]+)$/.exec(repository)?.[1] ?? "";
+  if (!only || !repoName || repoName !== only && packageName !== only) {
     for (const id of plugins)
       checkPlugin(join6(pluginsDir, id), root, report, null);
     return;
   }
   const id = only;
   const pluginDir = join6(pluginsDir, id);
-  const { version } = checkPlugin(pluginDir, root, report, id);
+  const { version } = checkPlugin(pluginDir, root, report, repoName);
   checkTopLevel(root, report);
   checkFixedFiles(root, id, report);
   const scripts = checkPackage(root, id, version, report);

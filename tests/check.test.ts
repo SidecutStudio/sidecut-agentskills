@@ -582,6 +582,20 @@ test('a freshly generated repo has no problems', () => {
   expect(codes(base)).toEqual([]);
 });
 
+test('a repo that kept an older name still gets the repo checks when its package names the plugin', () => {
+  const repo = copy();
+  repo.json(`${P}/.claude-plugin/plugin.json`, (v) =>
+    Object.assign(v, { repository: 'https://github.com/SidecutStudio/demo' }),
+  );
+  repo.json(`${P}/.codex-plugin/plugin.json`, (v) =>
+    Object.assign(v, { repository: 'https://github.com/SidecutStudio/demo' }),
+  );
+  repo.write('.gitignore', 'node_modules/\n');
+  expect(codes(repo.root)).toEqual(['REPO_GITIGNORE']);
+  repo.json('package.json', (v) => Object.assign(v, { name: 'demo-tools' }));
+  expect(codes(repo.root)).not.toContain('REPO_GITIGNORE');
+});
+
 test('a public repo whose jobs all run on ubuntu-24.04 passes the runner rule', () => {
   const repo = copy();
   repo.write(
