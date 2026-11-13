@@ -208,6 +208,8 @@ const cases: [string, (repo: Repo) => void][] = [
     (r) => r.edit(skillMd, (t) => t.replace('\n---\n\n#', '\nuser-invocable: true\n---\n\n#')),
   ],
   ['SKILL_FILE_UNEXPECTED', (r) => r.write(`${SKILL}/notes.txt`, 'notes\n')],
+  // A folder inside references/ is reported, not read as a file.
+  ['SKILL_FILE_UNEXPECTED', (r) => r.write(`${SKILL}/references/qa/notes.md`, '# Notes\n')],
   [
     'SKILL_OPENAI_YAML',
     (r) => r.edit(`${SKILL}/agents/openai.yaml`, (t) => t.replace('Check status', 'Status check')),
