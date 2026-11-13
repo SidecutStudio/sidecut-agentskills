@@ -25,7 +25,7 @@ const REQUIRED_ENTRIES = [
   'tests',
   'tsconfig.json',
 ];
-const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml'];
+const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml', 'docs'];
 const CHECK_STEPS = [
   'biome check .',
   'tsc --noEmit',

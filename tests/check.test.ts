@@ -579,6 +579,12 @@ const cases: [string, (repo: Repo) => void][] = [
   ['REPO_COPY', (r) => r.append('README.md', '\nExtra line.\n')],
 ];
 
+test('a docs folder is part of the layout', () => {
+  const repo = copy();
+  repo.write('docs/specification.md', '# Specification\n\nWhat it does.\n');
+  expect(codes(repo.root)).not.toContain('REPO_ENTRY_UNEXPECTED');
+});
+
 test('a freshly generated repo has no problems', () => {
   expect(codes(base)).toEqual([]);
 });
