@@ -12,9 +12,12 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkRepo } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
+import { checkRepo, jobsOf } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
 import { Report } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
-import { scaffoldPlugin } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
+import {
+  displayNameOf,
+  scaffoldPlugin,
+} from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
 const ID = 'sidecut-demo';
 const P = `plugins/${ID}`;
@@ -566,4 +569,28 @@ describe('each rule catches its problem', () => {
       expect(codes(repo.root)).toContain(code);
     });
   }
+});
+
+test('jobs are read from any indentation, with comments and blocks after jobs', () => {
+  const workflow = [
+    'jobs: # all of them',
+    '    check: # the gate',
+    '        runs-on: ubuntu-24.04',
+    '        steps:',
+    '            - run: bun run check',
+    '    other:',
+    "        runs-on: 'ubuntu-24.04'",
+    'on:',
+    '    push:',
+    '    pull_request:',
+  ].join('\n');
+  expect(jobsOf(workflow)).toEqual([
+    { name: 'check', runsOn: 'ubuntu-24.04' },
+    { name: 'other', runsOn: 'ubuntu-24.04' },
+  ]);
+});
+
+test('display names put common acronyms in capitals', () => {
+  expect(displayNameOf('sidecut-ai-tools')).toBe('Sidecut AI Tools');
+  expect(displayNameOf('sidecut-sql-ui')).toBe('Sidecut SQL UI');
 });

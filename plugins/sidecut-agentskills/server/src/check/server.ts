@@ -123,7 +123,10 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
       );
       const packages = [
         ...new Set(
-          inputs.flatMap((p) => /node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(p)?.[1] ?? []),
+          // The last node_modules folder in a path, so nested and isolated-store copies count as themselves.
+          inputs.flatMap(
+            (p) => [...p.matchAll(/node_modules\/((?:@[^/]+\/)?[^/]+)\//g)].at(-1)?.[1] ?? [],
+          ),
         ),
       ];
       const notices = join(pluginDir, 'server', 'THIRD_PARTY_LICENSES.txt');

@@ -21573,7 +21573,31 @@ function checkSkillInput(input) {
   }
   return problems;
 }
-var ACRONYMS = new Set(["mcp", "cli", "ci", "pr", "url", "api"]);
+var ACRONYMS = new Set([
+  "ai",
+  "api",
+  "aws",
+  "cdn",
+  "ci",
+  "cli",
+  "css",
+  "dns",
+  "gpu",
+  "html",
+  "http",
+  "json",
+  "llm",
+  "mcp",
+  "pdf",
+  "pr",
+  "sdk",
+  "sql",
+  "ssh",
+  "ui",
+  "url",
+  "ux",
+  "yaml"
+]);
 function displayNameOf(id) {
   return id.split("-").map((word) => ACRONYMS.has(word) ? word.toUpperCase() : (word[0] ?? "").toUpperCase() + word.slice(1)).join(" ");
 }
@@ -22153,7 +22177,7 @@ function checkServer(pluginDir, root, report) {
     if (result.status === 0) {
       const inputs = Object.keys(JSON.parse(readFileSync2(join3(out, "meta.json"), "utf8")).inputs);
       const packages = [
-        ...new Set(inputs.flatMap((p) => /node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(p)?.[1] ?? []))
+        ...new Set(inputs.flatMap((p) => [...p.matchAll(/node_modules\/((?:@[^/]+\/)?[^/]+)\//g)].at(-1)?.[1] ?? []))
       ];
       const notices = join3(pluginDir, "server", "THIRD_PARTY_LICENSES.txt");
       const text = existsSync3(notices) ? readFileSync2(notices, "utf8") : "";
@@ -22922,7 +22946,7 @@ var REQUIRED_ENTRIES = [
   "tsconfig.json"
 ];
 var OPTIONAL_ENTRIES = [".git", "node_modules", "bunfig.toml"];
-var CHECK_SCRIPT = "biome check . && tsc --noEmit && bun run style && bun test";
+var CHECK_SCRIPT = "biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check";
 var AGENTS_SECTIONS = ["Commands", "Layout", "Rules"];
 function ignoredBy(patterns, name) {
   return patterns.some((p) => {
@@ -23057,13 +23081,38 @@ function checkCi(root, report) {
     });
   }
   const check = existsSync6(join6(dir, "check.yml")) ? readFileSync5(join6(dir, "check.yml"), "utf8") : "";
-  const runsOn = [...check.matchAll(/^\s*runs-on:\s*(.+)$/gm)].map((m) => m[1]?.trim());
-  const jobsBlock = check.split(/^jobs:\s*$/m)[1] ?? "";
-  const jobs = [...jobsBlock.matchAll(/^ {2}[A-Za-z0-9_-]+:\s*$/gm)].length;
-  const hostedOnly = jobs > 0 && runsOn.length === jobs && runsOn.every((r) => r === "ubuntu-24.04");
+  const jobs = jobsOf(check);
+  const hostedOnly = jobs.length > 0 && jobs.every((job) => job.runsOn === "ubuntu-24.04");
   if (check && !check.includes("/pick-runner@") && !hostedOnly) {
     report.add("CI_PICKER", ".github/workflows/check.yml", undefined, "check.yml neither uses the runner picker nor runs every job on ubuntu-24.04.", "Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.");
   }
+}
+function jobsOf(workflow) {
+  const lines = workflow.split(`
+`).map((line) => line.replace(/\s+#.*$/, ""));
+  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  if (start < 0)
+    return [];
+  const jobs = [];
+  let jobIndent = -1;
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === "")
+      continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0)
+      break;
+    if (jobIndent < 0)
+      jobIndent = indent;
+    const key = /^\s*([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+    if (indent === jobIndent && key?.[1]) {
+      jobs.push({ name: key[1], runsOn: undefined });
+    } else if (indent > jobIndent && key?.[1] === "runs-on") {
+      const job = jobs.at(-1);
+      if (job && job.runsOn === undefined)
+        job.runsOn = key[2]?.trim().replace(/^['"]|['"]$/g, "");
+    }
+  }
+  return jobs;
 }
 function checkSolo(root, report) {
   const path = join6(root, "solo-workflow.toml");

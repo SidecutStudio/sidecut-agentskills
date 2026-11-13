@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "bun scripts/build-server.ts",
-    "check": "biome check . && tsc --noEmit && bun run style && bun test",
+    "check": "biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check",
     "fix": "biome check --write .",
     "new": "bun scripts/new.ts",
     "style": "bun scripts/check.ts",

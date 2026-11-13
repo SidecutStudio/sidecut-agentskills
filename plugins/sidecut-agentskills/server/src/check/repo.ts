@@ -25,7 +25,8 @@ const REQUIRED_ENTRIES = [
   'tsconfig.json',
 ];
 const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml'];
-const CHECK_SCRIPT = 'biome check . && tsc --noEmit && bun run style && bun test';
+const CHECK_SCRIPT =
+  'biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check';
 const AGENTS_SECTIONS = ['Commands', 'Layout', 'Rules'];
 
 function ignoredBy(patterns: string[], name: string): boolean {
@@ -318,12 +319,9 @@ function checkCi(root: string, report: Report): void {
     ? readFileSync(join(dir, 'check.yml'), 'utf8')
     : '';
   // A public repo runs every job on GitHub-hosted Linux and never reaches the self-hosted runners.
-  const runsOn = [...check.matchAll(/^\s*runs-on:\s*(.+)$/gm)].map((m) => m[1]?.trim());
   // Every job has to say where it runs; a job that calls another workflow can't count as hosted.
-  const jobsBlock = check.split(/^jobs:\s*$/m)[1] ?? '';
-  const jobs = [...jobsBlock.matchAll(/^ {2}[A-Za-z0-9_-]+:\s*$/gm)].length;
-  const hostedOnly =
-    jobs > 0 && runsOn.length === jobs && runsOn.every((r) => r === 'ubuntu-24.04');
+  const jobs = jobsOf(check);
+  const hostedOnly = jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
   if (check && !check.includes('/pick-runner@') && !hostedOnly) {
     report.add(
       'CI_PICKER',
@@ -333,6 +331,29 @@ function checkCi(root: string, report: Report): void {
       'Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.',
     );
   }
+}
+
+/** Each job in a workflow and its `runs-on` value, read from the indentation of the `jobs:` block. */
+export function jobsOf(workflow: string): { name: string; runsOn: string | undefined }[] {
+  const lines = workflow.split('\n').map((line) => line.replace(/\s+#.*$/, ''));
+  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  if (start < 0) return [];
+  const jobs: { name: string; runsOn: string | undefined }[] = [];
+  let jobIndent = -1;
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '') continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) break;
+    if (jobIndent < 0) jobIndent = indent;
+    const key = /^\s*([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+    if (indent === jobIndent && key?.[1]) {
+      jobs.push({ name: key[1], runsOn: undefined });
+    } else if (indent > jobIndent && key?.[1] === 'runs-on') {
+      const job = jobs.at(-1);
+      if (job && job.runsOn === undefined) job.runsOn = key[2]?.trim().replace(/^['"]|['"]$/g, '');
+    }
+  }
+  return jobs;
 }
 
 function checkSolo(root: string, report: Report): void {

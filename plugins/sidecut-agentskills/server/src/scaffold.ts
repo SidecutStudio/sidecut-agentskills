@@ -84,7 +84,31 @@ export function checkSkillInput(input: SkillInput): Problem[] {
 }
 
 /** Words written in capitals wherever a name becomes a title. */
-const ACRONYMS = new Set(['mcp', 'cli', 'ci', 'pr', 'url', 'api']);
+const ACRONYMS = new Set([
+  'ai',
+  'api',
+  'aws',
+  'cdn',
+  'ci',
+  'cli',
+  'css',
+  'dns',
+  'gpu',
+  'html',
+  'http',
+  'json',
+  'llm',
+  'mcp',
+  'pdf',
+  'pr',
+  'sdk',
+  'sql',
+  'ssh',
+  'ui',
+  'url',
+  'ux',
+  'yaml',
+]);
 
 /** The plugin id with hyphens as spaces, each word capitalized and acronyms in capitals. */
 export function displayNameOf(id: string): string {

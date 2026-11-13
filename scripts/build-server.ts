@@ -2,7 +2,7 @@
 // bundle inlines to server/THIRD_PARTY_LICENSES.txt. `--check` builds into a temporary folder and
 // fails when either committed file differs. Every Sidecut plugin repo has this file unchanged.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,13 +12,31 @@ const check = process.argv.includes('--check');
 const output = check ? mkdtempSync(join(tmpdir(), 'build-server-')) : server;
 const meta = mkdtempSync(join(tmpdir(), 'build-meta-'));
 
-function licence(pkg: string): string {
-  const dir = join('node_modules', pkg);
-  const name = ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'license'].find((f) =>
-    existsSync(join(dir, f)),
-  );
-  if (!name) throw new Error(`${pkg} has no licence file in node_modules.`);
-  return `${pkg}\n\n${readFileSync(join(dir, name), 'utf8').trim()}\n`;
+// Each bundled package and the folder it was read from: the last node_modules folder in a path, so
+// a nested copy or Bun's isolated store (node_modules/.bun/<pkg>@<version>/node_modules/<pkg>)
+// counts as itself.
+function packagesOf(inputs: string[]): Map<string, string> {
+  const found = new Map<string, string>();
+  for (const path of inputs) {
+    const last = [...path.matchAll(/node_modules\/((?:@[^/]+\/)?[^/]+)\//g)].at(-1);
+    if (last?.[1] && !found.has(last[1])) {
+      found.set(last[1], path.slice(0, (last.index ?? 0) + last[0].length));
+    }
+  }
+  return new Map([...found].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+// The package's licence file, whatever its case or name; otherwise the licence its package.json names.
+function licence(pkg: string, dir: string): string {
+  const file = readdirSync(dir).find((f) => /^(licen[cs]e|copying)/i.test(f));
+  if (file) return `${pkg}\n\n${readFileSync(join(dir, file), 'utf8').trim()}\n`;
+  const manifest = join(dir, 'package.json');
+  const named = existsSync(manifest)
+    ? JSON.parse(readFileSync(manifest, 'utf8')).license
+    : undefined;
+  if (typeof named !== 'string')
+    throw new Error(`${pkg} has neither a licence file nor a license field.`);
+  return `${pkg}\n\nLicensed under ${named}. The package ships no licence file.\n`;
 }
 
 try {
@@ -39,10 +57,8 @@ try {
   const inputs = Object.keys(
     JSON.parse(readFileSync(join(meta, 'meta.json'), 'utf8')).inputs as object,
   );
-  const packages = [
-    ...new Set(inputs.flatMap((p) => /node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(p)?.[1] ?? [])),
-  ].sort();
-  writeFileSync(join(output, 'THIRD_PARTY_LICENSES.txt'), packages.map(licence).join('\n---\n\n'));
+  const notices = [...packagesOf(inputs)].map(([pkg, dir]) => licence(pkg, dir));
+  writeFileSync(join(output, 'THIRD_PARTY_LICENSES.txt'), notices.join('\n---\n\n'));
   if (check) {
     for (const file of ['index.mjs', 'THIRD_PARTY_LICENSES.txt']) {
       if (!readFileSync(join(output, file)).equals(readFileSync(join(server, file)))) {

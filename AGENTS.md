@@ -7,7 +7,7 @@ This repo ships the Sidecut Agentskills plugin, the template every Sidecut plugi
 | Command | Does |
 | --- | --- |
 | `bun run build` | Bundles the MCP server into `plugins/sidecut-agentskills/server/index.mjs` |
-| `bun run check` | Runs everything CI runs: Biome, types, the house-style checker and tests |
+| `bun run check` | Runs everything CI runs: Biome, types, the house-style checker, tests and the stale-bundle check |
 | `bun run fix` | Formats and fixes what Biome can |
 | `bun run new` | Creates a new plugin repo from the template, for example `bun run new plugin sidecut-notes --description ... --long-description ... --keywords a,b,c` |
 | `bun run style` | Checks this repo against the house style |

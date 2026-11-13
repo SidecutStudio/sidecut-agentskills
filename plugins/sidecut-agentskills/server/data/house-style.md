@@ -8,7 +8,7 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 | --- | --- | --- |
 | Repo | `sidecut-<name>`, lowercase kebab-case | yes |
 | Plugin id | `sidecut-<name>`, lowercase kebab-case, at most 64 characters; the same as the repo name when the repo exists to ship it | yes |
-| Plugin display name | The id with hyphens as spaces, each word capitalized and acronyms in capitals: `sidecut-agentskills` is `Sidecut Agentskills`, `sidecut-ci` is `Sidecut CI` | yes |
+| Plugin display name | The id with hyphens as spaces, each word capitalized and acronyms in capitals: `sidecut-agentskills` is `Sidecut Agentskills`, `sidecut-ci` is `Sidecut CI`. The acronyms are ai, api, aws, cdn, ci, cli, css, dns, gpu, html, http, json, llm, mcp, pdf, pr, sdk, sql, ssh, ui, url, ux and yaml | yes |
 | Skill | Verb then object, 2 or 3 words, singular object, kebab-case, no plugin or product prefix: `write-skill`, `build-mcp-server` | yes |
 | Router skill | `start`, present only in plugins with 4 or more skills | yes |
 | Subagent | A role noun, one word: `reviewer`, `verifier` | yes |
@@ -313,7 +313,7 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| `bun run check` | Exactly `biome check . && tsc --noEmit && bun run style && bun test` | yes |
+| `bun run check` | Exactly `biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check`; the last step fails when the bundle or its licence notices are stale | yes |
 | `bun run style` | `sidecut-check`, from the `sidecut-agentskills` dev dependency pinned to a tag; it includes the bundle drift check | yes |
 | Checker output | One line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
 | Network | Checks pass offline | review |
