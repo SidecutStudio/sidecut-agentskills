@@ -116,7 +116,9 @@ async function auto() {
         );
     }
   }
-  console.error(needed ? `${plan.tag} is not published yet.` : `${plan.tag} is already published.`);
+  if (needed) console.error(`${plan.tag} is not published yet.`);
+  else if (existing.found) console.error(`${plan.tag} is already published.`);
+  else console.error(`${plan.tag} is not released and won't be; bump the version to release.`);
   console.log(`version=${plan.version}\nneeded=${needed}`);
 }
 
