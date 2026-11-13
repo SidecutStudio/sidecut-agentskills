@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "{{id}}",
+  "version": "{{version}}",
+  "description": "{{description}}",
+  "author": {
+    "name": "Sidecut Studio",
+    "url": "https://sidecut.dev"
+  },
+  "homepage": "https://sidecut.dev",
+  "repository": "https://github.com/SidecutStudio/{{id}}",
+  "license": "MIT",
+  "keywords": {{keywordsJson}},
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "{{displayName}}",
+        "shortDescription": "{{description}}",
+        "longDescription": "{{longDescription}}",
+        "developerName": "Sidecut Studio",
+        "category": "Developer Tools",
+        "capabilities": ["Read"],
+        "websiteURL": "https://sidecut.dev",
+        "defaultPrompt": ["Check that {{displayName}} is working"],
+        "brandColor": "{{brandColor}}",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      }
+    }
+  }
+}

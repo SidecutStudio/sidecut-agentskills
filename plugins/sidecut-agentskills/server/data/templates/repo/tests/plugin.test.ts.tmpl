@@ -1,0 +1,74 @@
+import { expect, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const root = join(import.meta.dir, '..', 'plugins', '{{id}}');
+const manifest = JSON.parse(readFileSync(join(root, 'plugin.json'), 'utf8'));
+
+function callServer(messages: object[]): Record<string, unknown>[] {
+  const input = `${messages.map((m) => JSON.stringify({ jsonrpc: '2.0', ...m })).join('\n')}\n`;
+  const result = spawnSync('node', [join(root, 'server', 'index.mjs')], {
+    input,
+    timeout: 10_000,
+    encoding: 'utf8',
+  });
+  return result.stdout
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+test('get_status returns the plugin name and version', () => {
+  const replies = callServer([
+    {
+      id: 1,
+      method: 'initialize',
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } },
+    },
+    { method: 'notifications/initialized' },
+    { id: 2, method: 'tools/call', params: { name: 'get_status', arguments: {} } },
+  ]);
+  const call = replies.find((r) => r.id === 2) as { result: { structuredContent: Record<string, string> } };
+  expect(call.result.structuredContent.plugin).toBe(manifest.name);
+  expect(call.result.structuredContent.version).toBe(manifest.version);
+});
+
+function runSkillLog(env: Record<string, string>, skill: string): string {
+  const home = mkdtempSync(join(tmpdir(), 'skill-log-'));
+  try {
+    spawnSync('node', [join(root, 'hooks', 'post-tool-use-skill-log.mjs')], {
+      input: JSON.stringify({ tool_name: 'Skill', tool_input: { skill } }),
+      env: { PATH: process.env.PATH ?? '', HOME: home, ...env },
+      timeout: 5_000,
+    });
+    try {
+      return readFileSync(join(home, '.sidecut', 'skill-log.jsonl'), 'utf8');
+    } catch {
+      return '';
+    }
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+}
+
+test('the usage log stays off unless SIDECUT_SKILL_LOG=1', () => {
+  expect(runSkillLog({}, `${manifest.name}:check-status`)).toBe('');
+});
+
+test('the usage log records one line for this plugin\'s skill', () => {
+  const lines = runSkillLog({ SIDECUT_SKILL_LOG: '1' }, `${manifest.name}:check-status`).trim().split('\n');
+  expect(lines).toHaveLength(1);
+  expect(Object.keys(JSON.parse(lines[0] ?? '{}'))).toEqual(['time', 'plugin', 'skill', 'host']);
+});
+
+test('DO_NOT_TRACK and CI turn the usage log off', () => {
+  expect(runSkillLog({ SIDECUT_SKILL_LOG: '1', DO_NOT_TRACK: '1' }, `${manifest.name}:check-status`)).toBe('');
+  expect(runSkillLog({ SIDECUT_SKILL_LOG: '1', CI: 'true' }, `${manifest.name}:check-status`)).toBe('');
+});
+
+test('the usage log ignores other plugins and unknown skills', () => {
+  expect(runSkillLog({ SIDECUT_SKILL_LOG: '1' }, 'other-plugin:check-status')).toBe('');
+  expect(runSkillLog({ SIDECUT_SKILL_LOG: '1' }, `${manifest.name}:no-such-skill`)).toBe('');
+});

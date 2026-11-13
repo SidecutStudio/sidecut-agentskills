@@ -1,0 +1,23 @@
+{
+  "name": "{{id}}",
+  "version": "{{version}}",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "scripts": {
+    "build": "bun build plugins/{{id}}/server/src/index.ts --target=node --format=esm --outfile=plugins/{{id}}/server/index.mjs",
+    "check": "biome check . && tsc --noEmit && bun run style && bun test",
+    "fix": "biome check --write .",
+    "style": "sidecut-check",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7",
+    "@modelcontextprotocol/server": "2.4.0",
+    "@types/bun": "1.4.4",
+    "lefthook": "2.2.2",
+    "sidecut-agentskills": "{{checkerSource}}",
+    "typescript": "7.0.2",
+    "zod": "4.6.7"
+  }
+}

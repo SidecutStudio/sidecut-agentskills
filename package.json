@@ -1,0 +1,26 @@
+{
+  "name": "sidecut-agentskills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "bin": {
+    "sidecut-check": "scripts/check.ts"
+  },
+  "scripts": {
+    "build": "bun build plugins/sidecut-agentskills/server/src/index.ts --target=node --format=esm --outfile=plugins/sidecut-agentskills/server/index.mjs",
+    "check": "biome check . && tsc --noEmit && bun run style && bun test",
+    "fix": "biome check --write .",
+    "new": "bun scripts/new.ts",
+    "style": "bun scripts/check.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.7",
+    "@modelcontextprotocol/server": "2.4.0",
+    "@types/bun": "1.4.4",
+    "lefthook": "2.2.2",
+    "typescript": "7.0.2",
+    "zod": "4.6.7"
+  }
+}

@@ -1,0 +1,29 @@
+# {{id}}
+
+This repo ships the {{displayName}} plugin for Claude Code and Codex. It follows the Sidecut house style, which `bun run style` checks.
+
+## Commands
+
+| Command | Does |
+| --- | --- |
+| `bun run build` | Bundles the MCP server into `plugins/{{id}}/server/index.mjs` |
+| `bun run check` | Runs everything CI runs: Biome, types, the house-style checker and tests |
+| `bun run fix` | Formats and fixes what Biome can |
+| `bun run style` | Checks the repo against the Sidecut house style |
+| `bun run test` | Runs the tests |
+
+## Layout
+
+```text
+plugins/{{id}}/   the plugin; the only folder that gets installed
+tests/                 tests for the plugin and its MCP server
+.github/workflows/     CI, using sidecut-ops' runner picker
+```
+
+## Rules
+
+- Run `bun run build` after changing anything in `plugins/{{id}}/server/src/`, and commit the bundle.
+- Any change under `plugins/{{id}}/` bumps the version in both manifests and `package.json` and adds a CHANGELOG entry.
+
+<!-- solo-workflow:start -->
+<!-- solo-workflow:end -->

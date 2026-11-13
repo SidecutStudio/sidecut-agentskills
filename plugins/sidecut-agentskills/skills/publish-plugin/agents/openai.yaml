@@ -1,0 +1,4 @@
+interface:
+  display_name: "Publish plugin"
+  short_description: "Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step."
+  default_prompt: "Use $publish-plugin to publish a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step."
