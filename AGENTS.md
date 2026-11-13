@@ -35,23 +35,7 @@ tests/                     checker and template tests
 <!-- solo-workflow:start -->
 ## Solo Workflow
 
-This project uses Solo Workflow (settings in `solo-workflow.toml`). The owner describes what they
-want in plain words and doesn't name skills. Look at the request and the project first, then load
-the Solo skill that fits before starting the work:
-
-- `solo-workflow`: a goal with several steps, or it's unclear where to start
-- `decide`: choosing between options, or whether an idea is worth doing
-- `research`: looking things up: docs, how others do it, what a tool offers
-- `plan`: steps for a change that's already decided
-- `build`: changing code or how the product behaves
-- `troubleshoot`: why something is broken or slow
-- `status`: where the work stands, and what's safe to remove
-- `review`: a second look at a change before it goes live
-- `design-review`: feedback on a screen or page
-- `verify`: whether something actually works
-- `finish`: any merge, shipping, or picking up unfinished work
-- `setup`: changing these settings
-- `improve-workflow`: a mistake that keeps happening here
-
-A one-line answer needs no skill. `explore` and `investigate` are older names for these.
+This project uses Solo Workflow (settings in `solo-workflow.toml`). The owner asks in plain words
+and doesn't name skills: load the Solo skill that fits before starting the work, or the
+`solo-workflow` skill when it's unclear which one fits.
 <!-- solo-workflow:end -->
