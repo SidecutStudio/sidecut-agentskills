@@ -23065,7 +23065,7 @@ function mergeBlocks(current, template, file) {
     const covered = new Set(body.filter((line) => line.trim() !== ""));
     const keepAll = file === ".gitignore" && have.some((line) => line.startsWith("!"));
     if (!keepAll) {
-      const code = fenced(rest);
+      const code = fenced(have).slice(at + 1);
       rest = rest.filter((line, i) => code[i] || !covered.has(line));
     }
     const spaced = file === ".gitignore" ? body : ["", ...body, ""];

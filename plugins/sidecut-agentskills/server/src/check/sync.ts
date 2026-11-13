@@ -94,7 +94,8 @@ export function mergeBlocks(
     const covered = new Set(body.filter((line) => line.trim() !== ''));
     const keepAll = file === '.gitignore' && have.some((line) => line.startsWith('!'));
     if (!keepAll) {
-      const code = fenced(rest);
+      // Fences are read over the whole file, so one that opens above the anchor still counts.
+      const code = fenced(have).slice(at + 1);
       rest = rest.filter((line, i) => code[i] || !covered.has(line));
     }
     const spaced = file === '.gitignore' ? body : ['', ...body, ''];

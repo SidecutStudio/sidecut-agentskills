@@ -7,7 +7,9 @@ import { identify } from '../plugins/sidecut-agentskills/server/src/check/repo.t
 import { keepCovers } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
 import {
   applySync,
+  BLOCK_FILES,
   newer,
+  OWNED_FILES,
   planSync,
 } from '../plugins/sidecut-agentskills/server/src/check/sync.ts';
 import { ownVersion } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
@@ -56,6 +58,33 @@ function latestRelease(): string | null {
   return tags.reduce<string | null>((best, tag) => (!best || newer(tag, best) ? tag : best), null);
 }
 
+// Never overwrite work that isn't committed yet: git couldn't bring it back. This runs once, before
+// anything changes, so the move to a newer release below doesn't count as someone's edit.
+if (!values.check && !values.force) {
+  // A git hook sets GIT_DIR and friends; drop them so git looks at this folder, not the hook's repo.
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+  );
+  const touched = [...OWNED_FILES, ...BLOCK_FILES, 'package.json', 'bun.lock'];
+  const dirty = spawnSync('git', ['status', '--porcelain', '--', ...touched], {
+    cwd: root,
+    encoding: 'utf8',
+    env,
+  });
+  if (dirty.status !== 0) {
+    console.error(
+      'This folder is not a git repo, so a change could not be undone. Pass --force to sync anyway.',
+    );
+    process.exit(1);
+  }
+  if (dirty.stdout.trim() !== '') {
+    console.error(
+      `These files have uncommitted changes, so nothing was changed:\n${dirty.stdout}Commit or stash them first, or pass --force.`,
+    );
+    process.exit(1);
+  }
+}
+
 const pkgPath = join(root, 'package.json');
 const pinned = existsSync(pkgPath)
   ? String(
@@ -87,7 +116,8 @@ if (!values.offline && !values.check && pinned.startsWith(CHECKER)) {
       );
       process.exit(1);
     }
-    const passOn = [root, '--offline', ...(values.force ? ['--force'] : [])];
+    // This run already checked for uncommitted work, before it moved package.json.
+    const passOn = [root, '--offline', '--force'];
     const next = spawnSync(bin, passOn, { stdio: 'inherit' });
     process.exit(next.status ?? 1);
   }
@@ -103,26 +133,6 @@ if (changes.length === 0) {
 }
 if (values.check) {
   for (const change of changes) console.log(`Would change ${change.file}: ${change.what}`);
-  process.exit(1);
-}
-// Never overwrite work that isn't committed yet: git couldn't bring it back.
-// A git hook sets GIT_DIR and friends; drop them so git looks at this folder, not the hook's repo.
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
-const dirty = spawnSync('git', ['status', '--porcelain', '--', ...changes.map((c) => c.file)], {
-  cwd: root,
-  encoding: 'utf8',
-  env,
-});
-if (!values.force && dirty.status !== 0) {
-  console.error(
-    '\nThis folder is not a git repo, so a change could not be undone. Pass --force to sync anyway.',
-  );
-  process.exit(1);
-}
-if (!values.force && dirty.stdout.trim() !== '') {
-  console.error(
-    `\nThese files have uncommitted changes, so nothing was changed:\n${dirty.stdout}Commit or stash them first, or pass --force.`,
-  );
   process.exit(1);
 }
 const left = applySync(root, changes);
