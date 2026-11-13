@@ -22,7 +22,7 @@
   },
   "sidecut": {
     "keep": {
-      "scripts": "Mine."
+      "REPO_SYNC": "Mine."
     }
   }
 }
