@@ -26,10 +26,17 @@ function packagesOf(inputs: string[]): Map<string, string> {
   return new Map([...found].sort(([a], [b]) => a.localeCompare(b)));
 }
 
-// The package's licence file, whatever its case or name; otherwise the licence its package.json names.
+// The package's licence files (names starting with licence, license or copying, in any case, sorted
+// so every system picks the same ones); otherwise the licence its package.json names.
 function licence(pkg: string, dir: string): string {
-  const file = readdirSync(dir).find((f) => /^(licen[cs]e|copying)/i.test(f));
-  if (file) return `${pkg}\n\n${readFileSync(join(dir, file), 'utf8').trim()}\n`;
+  const files = readdirSync(dir, { withFileTypes: true })
+    .filter((f) => f.isFile() && /^(licen[cs]e|copying)/i.test(f.name))
+    .map((f) => f.name)
+    .sort();
+  if (files.length > 0) {
+    const texts = files.map((f) => readFileSync(join(dir, f), 'utf8').trim());
+    return `${pkg}\n\n${texts.join('\n\n')}\n`;
+  }
   const manifest = join(dir, 'package.json');
   const named = existsSync(manifest)
     ? JSON.parse(readFileSync(manifest, 'utf8')).license

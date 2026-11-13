@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
+import { sentences } from './check/report.ts';
 
 // The data folder sits next to the bundled server/index.mjs, or one level up from server/src/.
 const here = dirname(fileURLToPath(import.meta.url));
@@ -43,6 +44,13 @@ export function checkPluginInput(input: PluginInput): Problem[] {
       code: 'MANIFEST_DESCRIPTION',
       message:
         'The description must be one sentence of at most 120 characters ending with a full stop.',
+    });
+  }
+  const long = sentences(input.longDescription).length;
+  if (long < 2 || long > 3) {
+    problems.push({
+      code: 'MANIFEST_INTERFACE',
+      message: 'The long description must be 2 or 3 sentences.',
     });
   }
   const badKeyword = input.keywords.some((k) => k !== k.toLowerCase() || k === input.id);

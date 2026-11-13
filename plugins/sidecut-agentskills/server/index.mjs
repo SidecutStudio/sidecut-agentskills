@@ -21521,6 +21521,26 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
+
+// plugins/sidecut-agentskills/server/src/check/report.ts
+class Report {
+  problems = [];
+  add(code, file, line, message, fix) {
+    this.problems.push({ code, file, line, message, fix });
+  }
+  format() {
+    return this.problems.map((p) => `${p.code} ${p.file}${p.line ? `:${p.line}` : ""} ${p.message} Fix: ${p.fix}`).join(`
+`);
+  }
+}
+function sentences(text) {
+  return text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+}
+function sameJson(a, b) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+// plugins/sidecut-agentskills/server/src/scaffold.ts
 var here = dirname(fileURLToPath(import.meta.url));
 var dataRoot = existsSync(join(here, "data")) ? join(here, "data") : join(here, "..", "data");
 var templatesRoot = join(dataRoot, "templates");
@@ -21540,6 +21560,13 @@ function checkPluginInput(input) {
     problems.push({
       code: "MANIFEST_DESCRIPTION",
       message: "The description must be one sentence of at most 120 characters ending with a full stop."
+    });
+  }
+  const long = sentences(input.longDescription).length;
+  if (long < 2 || long > 3) {
+    problems.push({
+      code: "MANIFEST_INTERFACE",
+      message: "The long description must be 2 or 3 sentences."
     });
   }
   const badKeyword = input.keywords.some((k) => k !== k.toLowerCase() || k === input.id);
@@ -21745,26 +21772,6 @@ function addSkill(pluginDir, input) {
 // plugins/sidecut-agentskills/server/src/check/markdown.ts
 import { existsSync as existsSync2 } from "node:fs";
 import { dirname as dirname2, join as join2, relative as relative2 } from "node:path";
-
-// plugins/sidecut-agentskills/server/src/check/report.ts
-class Report {
-  problems = [];
-  add(code, file, line, message, fix) {
-    this.problems.push({ code, file, line, message, fix });
-  }
-  format() {
-    return this.problems.map((p) => `${p.code} ${p.file}${p.line ? `:${p.line}` : ""} ${p.message} Fix: ${p.fix}`).join(`
-`);
-  }
-}
-function sentences(text) {
-  return text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
-}
-function sameJson(a, b) {
-  return JSON.stringify(a) === JSON.stringify(b);
-}
-
-// plugins/sidecut-agentskills/server/src/check/markdown.ts
 var FENCE_TAGS = new Set(["bash", "ts", "js", "json", "yaml", "toml", "text", "markdown"]);
 var BANNED = [
   "ultimate",
@@ -23089,12 +23096,13 @@ function checkCi(root, report) {
 }
 function jobsOf(workflow) {
   const lines = workflow.split(`
-`).map((line) => line.replace(/\s+#.*$/, ""));
+`).map((line) => line.replace(/(^|\s+)#.*$/, ""));
   const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
   if (start < 0)
     return [];
   const jobs = [];
   let jobIndent = -1;
+  let keyIndent = -1;
   for (const line of lines.slice(start + 1)) {
     if (line.trim() === "")
       continue;
@@ -23103,13 +23111,17 @@ function jobsOf(workflow) {
       break;
     if (jobIndent < 0)
       jobIndent = indent;
-    const key = /^\s*([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
-    if (indent === jobIndent && key?.[1]) {
-      jobs.push({ name: key[1], runsOn: undefined });
-    } else if (indent > jobIndent && key?.[1] === "runs-on") {
+    const key = /^\s*(["']?)([A-Za-z0-9_-]+)\1:\s*(.*)$/.exec(line);
+    if (indent === jobIndent) {
+      jobs.push({ name: key?.[2] ?? line.trim(), runsOn: undefined });
+      keyIndent = -1;
+    } else if (indent > jobIndent) {
+      if (keyIndent < 0)
+        keyIndent = indent;
       const job = jobs.at(-1);
-      if (job && job.runsOn === undefined)
-        job.runsOn = key[2]?.trim().replace(/^['"]|['"]$/g, "");
+      if (indent === keyIndent && key?.[2] === "runs-on" && job) {
+        job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, "");
+      }
     }
   }
   return jobs;

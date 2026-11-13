@@ -333,24 +333,32 @@ function checkCi(root: string, report: Report): void {
   }
 }
 
-/** Each job in a workflow and its `runs-on` value, read from the indentation of the `jobs:` block. */
+/**
+ * Each job in a workflow and its `runs-on` value, read from the indentation of the `jobs:` block.
+ * Only a `runs-on` directly under the job counts, so one inside a called workflow's `with:` doesn't.
+ */
 export function jobsOf(workflow: string): { name: string; runsOn: string | undefined }[] {
-  const lines = workflow.split('\n').map((line) => line.replace(/\s+#.*$/, ''));
+  const lines = workflow.split('\n').map((line) => line.replace(/(^|\s+)#.*$/, ''));
   const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
   if (start < 0) return [];
   const jobs: { name: string; runsOn: string | undefined }[] = [];
   let jobIndent = -1;
+  let keyIndent = -1;
   for (const line of lines.slice(start + 1)) {
     if (line.trim() === '') continue;
     const indent = line.length - line.trimStart().length;
     if (indent === 0) break;
     if (jobIndent < 0) jobIndent = indent;
-    const key = /^\s*([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
-    if (indent === jobIndent && key?.[1]) {
-      jobs.push({ name: key[1], runsOn: undefined });
-    } else if (indent > jobIndent && key?.[1] === 'runs-on') {
+    const key = /^\s*(["']?)([A-Za-z0-9_-]+)\1:\s*(.*)$/.exec(line);
+    if (indent === jobIndent) {
+      jobs.push({ name: key?.[2] ?? line.trim(), runsOn: undefined });
+      keyIndent = -1;
+    } else if (indent > jobIndent) {
+      if (keyIndent < 0) keyIndent = indent;
       const job = jobs.at(-1);
-      if (job && job.runsOn === undefined) job.runsOn = key[2]?.trim().replace(/^['"]|['"]$/g, '');
+      if (indent === keyIndent && key?.[2] === 'runs-on' && job) {
+        job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, '');
+      }
     }
   }
   return jobs;

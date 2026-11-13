@@ -590,6 +590,26 @@ test('jobs are read from any indentation, with comments and blocks after jobs', 
   ]);
 });
 
+test('a comment at the start of a line, a quoted job name or a nested runs-on hides no job', () => {
+  const workflow = [
+    'jobs:',
+    '  a:',
+    '    runs-on: ubuntu-24.04',
+    '# deploy',
+    '  "b":',
+    '    runs-on: [self-hosted, linux]',
+    '  c:',
+    '    uses: ./.github/workflows/x.yml',
+    '    with:',
+    '      runs-on: ubuntu-24.04',
+  ].join('\n');
+  expect(jobsOf(workflow)).toEqual([
+    { name: 'a', runsOn: 'ubuntu-24.04' },
+    { name: 'b', runsOn: '[self-hosted, linux]' },
+    { name: 'c', runsOn: undefined },
+  ]);
+});
+
 test('display names put common acronyms in capitals', () => {
   expect(displayNameOf('sidecut-ai-tools')).toBe('Sidecut AI Tools');
   expect(displayNameOf('sidecut-sql-ui')).toBe('Sidecut SQL UI');
