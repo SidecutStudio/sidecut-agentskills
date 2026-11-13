@@ -1,9 +1,10 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { renderTree, templatesRoot } from '../scaffold.ts';
+import { ownVersion } from '../scaffold.ts';
 import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { checkPlugin } from './plugin.ts';
 import type { Report } from './report.ts';
+import { planSync } from './sync.ts';
 
 const REQUIRED_ENTRIES = [
   '.github',
@@ -25,8 +26,20 @@ const REQUIRED_ENTRIES = [
   'tsconfig.json',
 ];
 const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml'];
-const CHECK_SCRIPT =
-  'biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check';
+const CHECK_STEPS = [
+  'biome check .',
+  'tsc --noEmit',
+  'bun run style',
+  'bun test',
+  'bun scripts/build-server.ts --check',
+];
+
+/** Whether the `&&` steps of `script` include every one of `steps`, in that order. */
+function inOrder(script: string, steps: string[]): boolean {
+  let at = 0;
+  for (const step of script.split('&&').map((s) => s.trim())) if (step === steps[at]) at++;
+  return at === steps.length;
+}
 const AGENTS_SECTIONS = ['Commands', 'Layout', 'Rules'];
 
 function ignoredBy(patterns: string[], name: string): boolean {
@@ -77,38 +90,7 @@ function checkTopLevel(root: string, report: Report): void {
   }
 }
 
-function checkFixedFiles(root: string, id: string, report: Report): void {
-  const templates = renderTree('repo', {
-    id,
-    key: id.replace(/^sidecut-/, ''),
-    displayName: '',
-    version: '',
-    checkerSource: '',
-  });
-  if (
-    existsSync(join(root, 'CLAUDE.md')) &&
-    readFileSync(join(root, 'CLAUDE.md'), 'utf8') !== '@AGENTS.md\n'
-  ) {
-    report.add(
-      'REPO_CLAUDE_MD',
-      'CLAUDE.md',
-      1,
-      'CLAUDE.md is not the single line `@AGENTS.md`.',
-      'Make it `@AGENTS.md`; put guidance in AGENTS.md.',
-    );
-  }
-  if (
-    existsSync(join(root, '.gitignore')) &&
-    readFileSync(join(root, '.gitignore'), 'utf8') !== templates.get('.gitignore')
-  ) {
-    report.add(
-      'REPO_GITIGNORE',
-      '.gitignore',
-      undefined,
-      ".gitignore doesn't match the template.",
-      `Make it exactly:\n${templates.get('.gitignore')}`,
-    );
-  }
+function checkLicense(root: string, report: Report): void {
   const license = existsSync(join(root, 'LICENSE'))
     ? readFileSync(join(root, 'LICENSE'), 'utf8')
     : '';
@@ -159,13 +141,13 @@ function checkPackage(
     );
   }
   const scripts = (pkg.scripts ?? {}) as Record<string, string>;
-  if (scripts.check !== CHECK_SCRIPT) {
+  if (!inOrder(scripts.check ?? '', CHECK_STEPS)) {
     report.add(
       'REPO_CHECK_SCRIPT',
       'package.json',
       undefined,
-      '`check` is not the standard sequence.',
-      `Set it to \`${CHECK_SCRIPT}\`.`,
+      '`check` leaves out a standard step or changes their order.',
+      `Run these in this order, adding the repo's own steps anywhere: \`${CHECK_STEPS.join(' && ')}\`.`,
     );
   }
   if (!scripts.style)
@@ -176,39 +158,13 @@ function checkPackage(
       'There is no `style` script.',
       'Add `"style": "sidecut-check"`.',
     );
-  if (scripts.build !== 'bun scripts/build-server.ts')
+  if (!inOrder(scripts.build ?? '', ['bun scripts/build-server.ts']))
     report.add(
       'REPO_BUILD_SCRIPT',
       'package.json',
       undefined,
-      '`build` is not `bun scripts/build-server.ts`.',
-      'Set it, so the bundle and its licences are built the same way everywhere.',
-    );
-  const buildScript = join(root, 'scripts', 'build-server.ts');
-  const canonical = readFileSync(
-    join(templatesRoot, 'repo', 'scripts', 'build-server.ts.tmpl'),
-    'utf8',
-  );
-  if (!existsSync(buildScript) || readFileSync(buildScript, 'utf8') !== canonical)
-    report.add(
-      'REPO_BUILD_SCRIPT',
-      'scripts/build-server.ts',
-      undefined,
-      'scripts/build-server.ts is missing or differs from the Sidecut copy.',
-      'Copy it again from the sidecut-agentskills template.',
-    );
-  const releaseScript = join(root, 'scripts', 'release.ts');
-  const releaseCanonical = readFileSync(
-    join(templatesRoot, 'repo', 'scripts', 'release.ts.tmpl'),
-    'utf8',
-  );
-  if (!existsSync(releaseScript) || readFileSync(releaseScript, 'utf8') !== releaseCanonical)
-    report.add(
-      'REPO_RELEASE_SCRIPT',
-      'scripts/release.ts',
-      undefined,
-      'scripts/release.ts is missing or differs from the Sidecut copy.',
-      'Copy it again from the sidecut-agentskills template.',
+      '`build` does not run `bun scripts/build-server.ts`.',
+      'Add it, so the bundle and its licences are built the same way everywhere.',
     );
   for (const [name, spec] of Object.entries({
     ...(pkg.dependencies as object),
@@ -418,6 +374,53 @@ function checkSolo(root: string, report: Report): void {
   }
 }
 
+/** The repo's own facts sync and the checker share. */
+export type Identity = {
+  plugins: string[];
+  /** The one plugin the repo exists to ship, or null when it only holds plugins. */
+  id: string | null;
+  /** The GitHub repo name from the plugin's manifest. */
+  repo: string;
+  /** What gets checked, and why. */
+  scope: string;
+  keep: Record<string, string>;
+};
+
+function readJson(path: string): Record<string, unknown> {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+  } catch {
+    // A missing or broken file is reported by the checks that read it.
+    return {};
+  }
+}
+
+/**
+ * A repo exists to ship its plugin when it holds one plugin whose manifest points at a SidecutStudio
+ * repo named after the plugin, or after anything else when the repo's package is named after it.
+ */
+export function identify(root: string): Identity {
+  const pluginsDir = join(root, 'plugins');
+  const plugins = existsSync(pluginsDir)
+    ? readdirSync(pluginsDir).filter((n) => n !== '.DS_Store')
+    : [];
+  const only = plugins.length === 1 ? (plugins[0] ?? '') : '';
+  const manifest = readJson(join(pluginsDir, only, '.claude-plugin', 'plugin.json'));
+  const pkg = readJson(join(root, 'package.json'));
+  const repo =
+    /^https:\/\/github\.com\/SidecutStudio\/([\w.-]+)$/.exec(
+      String(manifest.repository ?? ''),
+    )?.[1] ?? '';
+  const keep = ((pkg.sidecut as { keep?: Record<string, string> } | undefined)?.keep ??
+    {}) as Record<string, string>;
+  if (only && repo && (repo === only || pkg.name === only))
+    return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
+  const scope = !only
+    ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? 'none' : 'more than one'}.`
+    : `Checked the plugin only: its manifest points at ${repo || 'no SidecutStudio repo'} and the package isn't named ${only}.`;
+  return { plugins, id: null, repo, scope, keep };
+}
+
 /** Runs every house-style check that applies to the repo at `root`. */
 export function checkRepo(root: string, report: Report): void {
   const pluginsDir = join(root, 'plugins');
@@ -431,29 +434,9 @@ export function checkRepo(root: string, report: Report): void {
     );
     return;
   }
-  const plugins = readdirSync(pluginsDir).filter((n) => n !== '.DS_Store');
-  // A repo exists to ship its plugin when that plugin's manifest names this repo after the plugin.
-  const only = plugins.length === 1 ? (plugins[0] ?? '') : '';
-  const manifestPath = join(pluginsDir, only, '.claude-plugin', 'plugin.json');
-  let repository = '';
-  try {
-    repository = String(
-      (JSON.parse(readFileSync(manifestPath, 'utf8')) as { repository?: string }).repository,
-    );
-  } catch {
-    // A missing or broken manifest is reported by the plugin checks.
-  }
-  // A repo that kept an older name still ships its plugin when its package is named after the plugin.
-  let packageName = '';
-  try {
-    packageName = String(
-      (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { name?: string }).name,
-    );
-  } catch {
-    // A missing or broken package.json is reported by the package checks.
-  }
-  const repoName = /^https:\/\/github\.com\/SidecutStudio\/([\w.-]+)$/.exec(repository)?.[1] ?? '';
-  if (!only || !repoName || (repoName !== only && packageName !== only)) {
+  const { plugins, id: only, repo: repoName, scope, keep } = identify(root);
+  report.scope = scope;
+  if (!only) {
     for (const id of plugins) checkPlugin(join(pluginsDir, id), root, report, null);
     return;
   }
@@ -461,7 +444,7 @@ export function checkRepo(root: string, report: Report): void {
   const pluginDir = join(pluginsDir, id);
   const { version } = checkPlugin(pluginDir, root, report, repoName);
   checkTopLevel(root, report);
-  checkFixedFiles(root, id, report);
+  checkLicense(root, report);
   const scripts = checkPackage(root, id, version, report);
   checkAgents(root, id, scripts, report);
   checkCi(root, report);
@@ -479,9 +462,19 @@ export function checkRepo(root: string, report: Report): void {
       );
     }
   }
+  // Kept files still get a REPO_SYNC problem here, so applyKeep can tell a stale keep from a live one.
+  for (const change of planSync(root, { id, repo: repoName, version: ownVersion }))
+    report.add(
+      'REPO_SYNC',
+      change.file,
+      undefined,
+      change.what,
+      'Run `bunx sidecut-sync`. If this repo got it right, change the template in sidecut-agentskills instead.',
+    );
   const security = join(root, 'SECURITY.md');
   if (existsSync(security)) {
     const text = readFileSync(security, 'utf8');
     checkMarkdown(parseMarkdown(security, text), text, root, report);
   }
+  report.applyKeep(keep);
 }

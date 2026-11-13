@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0] - 2026-11-13
+
+### Added
+
+- `bunx sidecut-sync` keeps a plugin repo up to date with sidecut-agentskills. It moves the repo to the latest release, then rewrites the files the house style owns (`CLAUDE.md`, `scripts/build-server.ts`, `scripts/release.ts`), the blocks marked `sidecut:start house-style` in `.gitignore`, `AGENTS.md` and `SECURITY.md`, and raises the shared tool versions in `package.json`. Everything outside the blocks stays the repo's. `--check` lists the changes without making them.
+- A repo lists deliberate differences under `sidecut.keep` in `package.json`, each with its reason. The checker shows them as kept and fails a key with no reason or one that no longer covers anything.
+- The checker's first line says whether it checked the whole repo or only its plugins, and why. `check_plugin` returns the same, plus the kept differences.
+
+### Changed
+
+- `REPO_SYNC` replaces `REPO_CLAUDE_MD`, `REPO_GITIGNORE`, `REPO_RELEASE_SCRIPT` and the build-script copy check.
+- `check` and `build` may add the repo's own steps, as long as the standard ones run in order.
+- The template's `.gitignore` also ignores `solo-workflow.local.toml` and `.claude/settings.local.json`, which every Solo Workflow repo needs.
+
 ## [0.5.1] - 2026-11-13
 
 ### Fixed

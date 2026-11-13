@@ -1,6 +1,6 @@
 {
   "name": "sidecut-agentskills",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.",
   "author": {
     "name": "Sidecut Studio",

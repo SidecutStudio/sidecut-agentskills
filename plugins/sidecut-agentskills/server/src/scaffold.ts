@@ -10,6 +10,13 @@ export const dataRoot = existsSync(join(here, 'data'))
   : join(here, '..', 'data');
 export const templatesRoot = join(dataRoot, 'templates');
 
+/** This plugin's own version, from its manifest beside the data folder. */
+export const ownVersion = (
+  JSON.parse(readFileSync(join(dataRoot, '..', '..', '.claude-plugin', 'plugin.json'), 'utf8')) as {
+    version: string;
+  }
+).version;
+
 export type PluginInput = {
   id: string;
   description: string;
@@ -173,6 +180,11 @@ function render(text: string, vars: Record<string, string>): string {
   });
 }
 
+/** One template file, such as `repo/AGENTS.md.tmpl`, rendered with `vars`. */
+export function renderFile(path: string, vars: Record<string, string>): string {
+  return render(readFileSync(join(templatesRoot, path), 'utf8'), vars);
+}
+
 export function listFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
@@ -215,6 +227,7 @@ export function scaffoldPlugin(input: PluginInput, out: string): string[] {
   const version = '0.1.0';
   const vars: Record<string, string> = {
     id: input.id,
+    repo: input.id,
     key: input.id.replace(/^sidecut-/, ''),
     displayName,
     description: input.description,

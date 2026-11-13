@@ -1,4 +1,8 @@
+# sidecut:start house-style
 node_modules/
 .DS_Store
 *.log
 .env*
+solo-workflow.local.toml
+.claude/settings.local.json
+# sidecut:end house-style
