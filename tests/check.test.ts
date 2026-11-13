@@ -591,6 +591,23 @@ test('a public repo whose jobs all run on ubuntu-24.04 passes the runner rule', 
   expect(codes(repo.root)).not.toContain('CI_PICKER');
 });
 
+test("a public repo can't release on the self-hosted runners", () => {
+  const repo = copy();
+  repo.write(
+    '.github/workflows/check.yml',
+    'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: bun run check\n',
+  );
+  expect(codes(repo.root)).toContain('CI_RELEASE');
+  repo.write(
+    '.github/workflows/release.yml',
+    repo
+      .read('.github/workflows/release.yml')
+      .replace(/ {4}runs-on:\n {6}group: .*\n {6}labels: .*\n/, '    runs-on: ubuntu-24.04\n')
+      .replace(/ {6}- uses: SidecutStudio\/sidecut-ops\/.*\n {8}with:\n {10}tools: gh\n/, ''),
+  );
+  expect(codes(repo.root)).not.toContain('CI_RELEASE');
+});
+
 test('a hosted-only workflow with a job that calls another workflow still needs the picker', () => {
   const repo = copy();
   repo.write(

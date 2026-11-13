@@ -350,6 +350,18 @@ function checkCi(root: string, report: Report): void {
   // Every job has to say where it runs; a job that calls another workflow can't count as hosted.
   const jobs = jobsOf(check);
   const hostedOnly = jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
+  const release = existsSync(join(dir, 'release.yml'))
+    ? readFileSync(join(dir, 'release.yml'), 'utf8')
+    : '';
+  if (hostedOnly && /self-hosted|SidecutStudio\/sidecut-ops\/\.github\/actions\//.test(release)) {
+    report.add(
+      'CI_RELEASE',
+      '.github/workflows/release.yml',
+      undefined,
+      'A public repo releases on a self-hosted runner or with a private sidecut-ops action.',
+      'Run the release job on `ubuntu-24.04` and drop the setup-ci-tools step; gh is already there.',
+    );
+  }
   if (check && !check.includes('/pick-runner@') && !hostedOnly) {
     report.add(
       'CI_PICKER',

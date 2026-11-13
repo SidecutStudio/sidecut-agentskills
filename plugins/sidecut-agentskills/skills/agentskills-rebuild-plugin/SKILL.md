@@ -28,7 +28,7 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 9. Delete what the house style has no place for: extra manifests, duplicate MCP files, commands, unused scripts and stale docs.
 10. Run `bun run check` until it passes.
 11. Repeat the recording from step 1 on the new version and compare the two. Write down every difference and why it is there.
-12. Hand the rebuilt repo, its commit and the list of differences to the `sidecut-agentskills:reviewer` subagent, which reads it without your context. A rebuild is always a deep review, so it runs on your own model; the re-review of its fixes runs at the level their diff calls for. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Fix what it finds and run `bun run check` again.
+12. Hand the rebuilt repo, its commit and the list of differences to the `sidecut-agentskills:reviewer` subagent, which reads it without your context. A rebuild is always a deep review, so it runs on your own model, and so does the full re-review after its fixes. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Fix what it finds and run `bun run check` again.
 13. Merge and release through `agentskills-publish-plugin`, which also moves both marketplace entries to the new tag. If the name or path changed, set those in the same marketplace change. Then fix each other repo step 3 found in its own PR.
 
 ## Rules

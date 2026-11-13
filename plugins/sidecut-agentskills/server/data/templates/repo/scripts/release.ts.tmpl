@@ -97,16 +97,24 @@ async function auto() {
   const { codex, claude, changelog } = await manifests();
   const plan = releasePlan(codex.version, codex, claude, changelog);
   const repo = githubRepo();
-  const needed = releaseNeeded(await releaseState(plan.tag, repo));
+  const existing = await releaseState(plan.tag, repo);
+  let needed = releaseNeeded(existing);
   if (needed) {
-    // An unfinished release tagged on an older commit can't be finished from here.
     const { commit } = await tagCommit(repo, plan.tag);
     const head = (await $`git rev-parse HEAD`.cwd(root).text()).trim();
-    if (commit !== undefined && commit !== head)
-      throw new Error(
-        `${plan.tag} is tagged on ${commit || 'a non-commit'} but its release is unfinished. ` +
-          'Bump the version to release from main; the old tag and draft stay as they are.',
-      );
+    if (commit !== undefined && commit !== head) {
+      // A tag made by hand before this workflow existed: leave it, and release the next version.
+      if (!existing.found) {
+        console.error(
+          `${plan.tag} was tagged by hand on ${commit}; the next version bump releases.`,
+        );
+        needed = false;
+      } else
+        throw new Error(
+          `${plan.tag} is tagged on ${commit || 'a non-commit'} but its release is unfinished. ` +
+            'Bump the version to release from main; the old tag and draft stay as they are.',
+        );
+    }
   }
   console.error(needed ? `${plan.tag} is not published yet.` : `${plan.tag} is already published.`);
   console.log(`version=${plan.version}\nneeded=${needed}`);
@@ -133,7 +141,12 @@ async function main() {
     const remote = await $`gh api repos/${repo}/git/ref/heads/main`.json();
     if (remote.object.sha !== head) throw new Error('Main moved on; the next Check run releases.');
   };
-  await assertMain();
+  // A newer push has its own Check and Release run, which publishes this version if it's still due.
+  const tip = (await $`gh api repos/${repo}/git/ref/heads/main`.json()).object.sha;
+  if (tip !== head) {
+    console.log(`Main moved on to ${tip}; its own Release run publishes ${plan.tag}.`);
+    return;
+  }
   const policy = Bun.TOML.parse(await Bun.file(join(root, 'solo-workflow.toml')).text()) as {
     required_checks: string[];
   };
