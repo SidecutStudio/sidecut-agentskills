@@ -22555,6 +22555,7 @@ function checkSkills(pluginDir, root, report, tools, plugin, brandColor) {
 var PLUGIN_ENTRIES = new Set([
   ".claude-plugin",
   ".codex-plugin",
+  ".app.json",
   ".mcp.json",
   "mcp.json",
   "CHANGELOG.md",
@@ -22688,6 +22689,8 @@ function checkManifests(pluginDir, id, repoName, root, report) {
   const paths = { skills: "./skills/" };
   if (existsSync5(join5(pluginDir, "mcp.json")))
     paths.mcpServers = "./mcp.json";
+  if (existsSync5(join5(pluginDir, ".app.json")))
+    paths.apps = "./.app.json";
   if (existsSync5(join5(pluginDir, "hooks", "codex-hooks.json")))
     paths.hooks = "./hooks/codex-hooks.json";
   checkKeys(portable, [...SHARED_FIELDS, ...Object.keys(paths), "interface"], portableFile, report, "MANIFEST_FIELDS");
@@ -22750,6 +22753,38 @@ function checkManifests(pluginDir, id, repoName, root, report) {
     report.add("MANIFEST_INTERFACE", portableFile, undefined, `brandColor isn't Sidecut Builder's orange.`, `Use ${BRAND_COLOR}.`);
   }
   return claude;
+}
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function checkApps(pluginDir, id, root, report) {
+  const path = join5(pluginDir, ".app.json");
+  if (!existsSync5(path))
+    return;
+  const file = relative5(root, path);
+  const config = readJson(path, root, report);
+  const apps = config?.apps;
+  if (!isRecord(config) || Object.keys(config).join() !== "apps" || !isRecord(apps) || Object.keys(apps).length === 0) {
+    report.add("APP_DECLARATION", file, undefined, "The app file must contain a nonempty apps object.", 'Use { "apps": { "<name>": { "id": "<verified connector id>" } } }.');
+    return;
+  }
+  const key = id.replace(/^sidecut-/, "");
+  if (Object.keys(apps).join() !== key) {
+    report.add("APP_KEY", file, undefined, `The app must be named "${key}", matching its direct MCP fallback.`, `Use "${key}" as the app declaration key.`);
+  }
+  for (const [name, app] of Object.entries(apps)) {
+    if (!isRecord(app) || typeof app.id !== "string" || !app.id.trim() || /\s|:\/\/|^plugin[_-]|^gpt-/.test(app.id) || Object.keys(app).some((field) => !["id", "category"].includes(field)) || app.category !== undefined && typeof app.category !== "string") {
+      report.add("APP_DECLARATION", file, undefined, `App "${name}" needs a connector id and may have a category string.`, "Copy the verified connector id, not a plugin id or server URL; keep credentials out of the declaration.");
+    }
+  }
+  const mcpPath = join5(pluginDir, "mcp.json");
+  if (!existsSync5(mcpPath))
+    return;
+  const mcp = readJson(mcpPath, root, report);
+  const fallback = isRecord(mcp?.mcpServers) ? mcp.mcpServers[key] : undefined;
+  if (!isRecord(fallback) || fallback.type !== "http" || typeof fallback.url !== "string") {
+    report.add("APP_MCP_ROUTE", relative5(root, mcpPath), undefined, `The app's direct fallback must be a remote HTTP server named "${key}".`, "Use the same declaration name for the managed app and its hosted MCP fallback; do not shadow a local server.");
+  }
 }
 function checkMcp(pluginDir, id, root, report) {
   const claudePath = join5(pluginDir, ".mcp.json");
@@ -22979,6 +23014,7 @@ function checkPlugin(pluginDir, root, report, repoName) {
   const id = relative5(join5(pluginDir, ".."), pluginDir);
   checkLayout2(pluginDir, root, report);
   const manifest = checkManifests(pluginDir, id, repoName, root, report);
+  checkApps(pluginDir, id, root, report);
   const tools = checkMcp(pluginDir, id, root, report);
   const skills = checkSkills(pluginDir, root, report, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report);
