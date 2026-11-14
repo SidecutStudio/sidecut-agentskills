@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.2] - 2026-11-14
+
+### Changed
+
+- `agentskills-publish-plugin` also publishes a plugin that lives inside another product's repo, such as Next Role. That kind is pinned in sidecut-plugins to one commit of `main` by its `sha`, not to a release tag. The skill says how to tell the two apart from the marketplace entry.
+
 ## [0.7.1] - 2026-11-14
 
 ### Fixed

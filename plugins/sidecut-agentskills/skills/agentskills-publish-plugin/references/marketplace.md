@@ -1,6 +1,6 @@
 # Marketplace entries
 
-Read this when adding a plugin to the sidecut-plugins marketplace or pointing it at a new version. The marketplace lists each plugin twice, once per host, and both entries fetch the plugin folder from its own repo at a tag.
+Read this when adding a plugin to the sidecut-plugins marketplace or pointing it at a new version. The marketplace lists each plugin twice, once per host, and both entries fetch the plugin folder from its repo at the same pin. A plugin in its own repo is pinned to a release tag; a plugin inside another product's repo is pinned to one commit of `main`.
 
 ## Claude Code
 
@@ -43,9 +43,25 @@ In `.agents/plugins/marketplace.json`, the same plugin:
 }
 ```
 
+## Commit pin
+
+A plugin inside another product's repo, such as Next Role in `next-role-lovable`, has no release tags. Both entries keep `"ref": "main"` and add the full 40-character `sha` of a `main` commit; both hosts check out that commit:
+
+```json
+"source": {
+  "source": "git-subdir",
+  "url": "https://github.com/SidecutStudio/next-role-lovable.git",
+  "path": "plugins/next-role",
+  "ref": "main",
+  "sha": "958f065cb9007a90d8406f0111e067533bbc4e3a"
+}
+```
+
+The rest of each entry is the same as above. When the repo isn't named after the plugin, add it to the `REPOS` map in `scripts/validate.ts`.
+
 ## Updating to a new version
 
-Change `ref` in both entries to the new tag, in one commit. Nothing else changes unless the description did.
+For a tag release, change `ref` in both entries to the new tag. For a commit pin, change `sha` in both entries to the merge commit and leave `ref` as `main`. Do it in one commit, run `sh scripts/check.sh`, and change nothing else unless the description did.
 
 ## Removing a plugin
 
