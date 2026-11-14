@@ -604,6 +604,42 @@ test('a repo that kept an older name still gets the repo checks when its package
   expect(codes(repo.root)).not.toContain('REPO_SYNC');
 });
 
+/** Makes the copy an app repo: the package names the plugin, but the repo is named after the app. */
+function appRepo(): Repo {
+  const repo = copy();
+  for (const host of ['.claude-plugin', '.codex-plugin'])
+    repo.json(`${P}/${host}/plugin.json`, (v) =>
+      Object.assign(v, { repository: `https://github.com/SidecutStudio/${ID}-app` }),
+    );
+  repo.write('src/main.ts', 'export {};\n');
+  repo.rm('CLAUDE.md');
+  return repo;
+}
+
+test('an app repo whose package names the plugin gets the plugin checks only', () => {
+  const repo = appRepo();
+  const report = new Report();
+  checkRepo(repo.root, report);
+  expect(report.scope).toBe(
+    `Checked the plugin only: its manifest points at ${ID}-app, not a repo that exists only for ${ID}.`,
+  );
+  expect(report.problems.map((p) => p.code)).toEqual([]);
+});
+
+test('sidecut.keep is honoured in plugin-only scope, and a stale key still fails', () => {
+  const repo = appRepo();
+  repo.write(`${P}/NOTES.md`, '# Notes\n');
+  repo.json('package.json', (v) =>
+    Object.assign(v, { sidecut: { keep: { [`${P}/NOTES.md`]: 'Mine.', 'CLAUDE.md': 'Old.' } } }),
+  );
+  const report = new Report();
+  checkRepo(repo.root, report);
+  expect(report.kept.map((p) => `${p.file} ${p.reason}`)).toEqual([`${P}/NOTES.md Mine.`]);
+  expect(report.problems.map((p) => `${p.code} ${p.message}`)).toEqual([
+    'KEEP_UNUSED sidecut.keep lists "CLAUDE.md", which no longer differs.',
+  ]);
+});
+
 test('a public repo whose jobs all run on ubuntu-24.04 passes the runner rule', () => {
   const repo = copy();
   repo.write(

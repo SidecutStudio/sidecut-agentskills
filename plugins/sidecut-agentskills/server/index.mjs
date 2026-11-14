@@ -21522,14 +21522,17 @@ import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // plugins/sidecut-agentskills/server/src/check/report.ts
+function keepCovers(key, code, file) {
+  return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
+}
+
 class Report {
   problems = [];
   kept = [];
   scope = "";
   applyKeep(keep) {
-    const covers = (key, p) => key === p.code || key === p.file || p.file.startsWith(`${key}/`) || key === `${p.code} ${p.file}`;
     for (const [key, reason] of Object.entries(keep)) {
-      const hit = this.problems.filter((p) => covers(key, p));
+      const hit = this.problems.filter((p) => keepCovers(key, p.code, p.file));
       if (!String(reason).trim())
         this.add("KEEP_REASON", "package.json", undefined, `"${key}" has no reason.`, "Say why it differs.");
       else if (hit.length === 0)
@@ -23409,9 +23412,10 @@ function identify(root) {
   const pkg = readJson2(join7(root, "package.json"));
   const repo = /^https:\/\/github\.com\/SidecutStudio\/([\w.-]+)$/.exec(String(manifest.repository ?? ""))?.[1] ?? "";
   const keep = pkg.sidecut?.keep ?? {};
-  if (only && repo && (repo === only || pkg.name === only))
+  const olderName = only === `sidecut-${repo}` && pkg.name === only;
+  if (only && repo && (repo === only || olderName))
     return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
-  const scope = !only ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? "none" : "more than one"}.` : `Checked the plugin only: its manifest points at ${repo || "no SidecutStudio repo"} and the package isn't named ${only}.`;
+  const scope = !only ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? "none" : "more than one"}.` : `Checked the plugin only: its manifest points at ${repo || "no SidecutStudio repo"}, not a repo that exists only for ${only}.`;
   return { plugins, id: null, repo, scope, keep };
 }
 function checkRepo(root, report) {
@@ -23425,6 +23429,7 @@ function checkRepo(root, report) {
   if (!only) {
     for (const id of plugins)
       checkPlugin(join7(pluginsDir, id), root, report, null);
+    report.applyKeep(keep);
     return;
   }
   const id = only;

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1] - 2026-11-14
+
+### Fixed
+
+- An app repo that ships a plugin next to its own code gets the plugin checks only, even when its `package.json` is named after the plugin. The whole repo is checked only when the manifest's `repository` is named after the plugin, or after the plugin without `sidecut-` and the package is named after the plugin.
+- `sidecut.keep` works when only the plugins are checked, and a key that no longer covers anything fails there too.
+
 ## [0.7.0] - 2026-11-13
 
 ### Added

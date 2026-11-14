@@ -24,13 +24,8 @@ export class Report {
    * problem, so a difference that was fixed doesn't stay listed.
    */
   applyKeep(keep: Record<string, string>): void {
-    const covers = (key: string, p: Problem) =>
-      key === p.code ||
-      key === p.file ||
-      p.file.startsWith(`${key}/`) ||
-      key === `${p.code} ${p.file}`;
     for (const [key, reason] of Object.entries(keep)) {
-      const hit = this.problems.filter((p) => covers(key, p));
+      const hit = this.problems.filter((p) => keepCovers(key, p.code, p.file));
       if (!String(reason).trim())
         this.add(
           'KEEP_REASON',
