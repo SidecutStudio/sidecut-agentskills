@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.4] - 2026-11-14
+
+### Changed
+
+- `agentskills-publish-plugin` ships a plugin built in another repo by bundling the released tag or `main` commit into sidecut-plugins with `bun scripts/bundle.ts`, since claude.ai can't install straight from a private plugin repo. It no longer edits `git-subdir` pins in both marketplace files.
+
 ## [0.8.3] - 2026-11-14
 
 ### Fixed
