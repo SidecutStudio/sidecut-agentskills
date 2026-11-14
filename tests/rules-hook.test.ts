@@ -146,3 +146,24 @@ test('a paths list keeps every pattern, and a private Codex file stays private',
   for (const name of ['AGENTS.md', 'AGENTS.md.before-sidecut-rules'])
     expect(statSync(join(dir, '.codex', name)).mode & 0o777).toBe(0o600);
 });
+
+test('brace patterns stay whole and unindented paths lists are read', () => {
+  const dir = home({
+    'a.md': '---\npaths: "src/**/*.{ts,tsx}"\n---\n# A\n',
+    'b.md': '---\npaths:\n- "lib/**"\n---\n# B\n',
+    'c.md': '---\npaths: [x/**, "y/*.{md,mdx}"]\n---\n# C\n',
+  });
+  hook(dir, '--init');
+  const text = codex(dir);
+  expect(text).toContain('matching src/**/*.{ts,tsx}:');
+  expect(text).toContain('matching lib/**:');
+  expect(text).toContain('matching x/**, y/*.{md,mdx}:');
+});
+
+test('a new Codex file follows the umask', () => {
+  const dir = home({ 'a.md': '# A\n' });
+  spawnSync('sh', ['-c', `umask 077 && node "${SCRIPT}" --init`], {
+    env: { HOME: dir, PATH: process.env.PATH ?? '' },
+  });
+  expect(statSync(join(dir, '.codex', 'AGENTS.md')).mode & 0o777).toBe(0o600);
+});

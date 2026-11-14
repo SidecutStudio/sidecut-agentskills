@@ -30,15 +30,18 @@ function pathsOf(frontmatter) {
   if (at < 0) return [];
   const clean = (value) => value.trim().replace(/^["']|["']$/g, '');
   const inline = lines[at].replace(/^paths:[ \t]*/, '').trim();
-  if (inline)
+  if (inline) {
+    // Only a [a, b] list splits on commas, and never inside a {ts,tsx} brace pattern.
+    if (!/^\[.*\]$/.test(inline)) return [clean(inline)];
     return inline
-      .replace(/^\[|\]$/g, '')
-      .split(',')
+      .slice(1, -1)
+      .split(/,(?![^{]*\})/)
       .map(clean)
       .filter(Boolean);
+  }
   const items = [];
   for (const line of lines.slice(at + 1)) {
-    const item = /^\s+-\s+(.+)$/.exec(line);
+    const item = /^\s*-\s+(.+)$/.exec(line);
     if (!item) break;
     items.push(clean(item[1]));
   }
@@ -76,10 +79,10 @@ function writeWhole(path, text, modeFrom = path) {
   const target = existsSync(path) ? realpathSync(path) : path;
   mkdirSync(dirname(target), { recursive: true });
   const temp = `${target}.${process.pid}.tmp`;
-  // Keep the file's permissions, so a private file stays private.
-  const mode = existsSync(modeFrom) ? statSync(modeFrom).mode & 0o777 : 0o644;
-  writeFileSync(temp, text, { mode });
-  chmodSync(temp, mode);
+  writeFileSync(temp, text);
+  // Keep the file's permissions, so a private file stays private. A new file gets the user's usual
+  // permissions (their umask).
+  if (existsSync(modeFrom)) chmodSync(temp, statSync(modeFrom).mode & 0o777);
   renameSync(temp, target);
 }
 
