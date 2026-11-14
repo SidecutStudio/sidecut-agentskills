@@ -19838,7 +19838,7 @@ var AjvJsonSchemaValidator = class {
 var Ajv = import_ajv.Ajv;
 
 // node_modules/@modelcontextprotocol/server/dist/shimsNode.mjs
-import process from "node:process";
+import process2 from "node:process";
 
 // node_modules/@modelcontextprotocol/server/dist/mcp-oHn3ureC.mjs
 var COMPLETABLE_SYMBOL = Symbol.for("mcp.completable");
@@ -21408,7 +21408,7 @@ var StdioServerTransport = class {
   _readBuffer;
   _started = false;
   _closed = false;
-  constructor(_stdin = process.stdin, _stdout = process.stdout, options) {
+  constructor(_stdin = process2.stdin, _stdout = process2.stdout, options) {
     this._stdin = _stdin;
     this._stdout = _stdout;
     this._readBuffer = new ReadBuffer({ maxBufferSize: options?.maxBufferSize });
@@ -21513,7 +21513,8 @@ var StdioServerTransport = class {
 };
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
-import { existsSync as existsSync7, readdirSync as readdirSync4, readFileSync as readFileSync6 } from "node:fs";
+import { spawnSync as spawnSync2 } from "node:child_process";
+import { existsSync as existsSync7, lstatSync, readdirSync as readdirSync4, readFileSync as readFileSync6, realpathSync } from "node:fs";
 import { join as join7 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
@@ -23268,10 +23269,39 @@ function ignoredBy(patterns, name) {
     return clean === name;
   });
 }
+function git(root, ...args) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
+  const result = spawnSync2("git", args, { cwd: root, env, encoding: "utf8" });
+  return result.status === 0 ? result.stdout : undefined;
+}
+var isRealDir = (path) => {
+  const stat = lstatSync(path);
+  return stat.isDirectory() && !stat.isSymbolicLink();
+};
+function onlyHostState(root) {
+  const dir = join7(root, ".claude");
+  if (!isRealDir(dir))
+    return false;
+  const top = git(root, "rev-parse", "--show-toplevel")?.trim();
+  if (!top || realpathSync(top) !== realpathSync(root))
+    return false;
+  if (git(root, "ls-files", "-z", "--", ".claude") !== "")
+    return false;
+  const registered = new Set((git(root, "worktree", "list", "--porcelain", "-z") ?? "").split("\x00").filter((line) => line.startsWith("worktree ")).flatMap((line) => {
+    const path = line.slice("worktree ".length);
+    return existsSync7(path) ? [realpathSync(path)] : [];
+  }));
+  return readdirSync4(dir).every((name) => {
+    const path = join7(dir, name);
+    if (name === "worktrees" && isRealDir(path))
+      return readdirSync4(path).every((tree) => isRealDir(join7(path, tree)) && registered.has(realpathSync(join7(path, tree))));
+    return git(root, "check-ignore", "-q", "--", `.claude/${name}`) !== undefined;
+  });
+}
 function checkTopLevel(root, report) {
   const gitignore = existsSync7(join7(root, ".gitignore")) ? readFileSync6(join7(root, ".gitignore"), "utf8").split(`
 `).filter(Boolean) : [];
-  const entries = readdirSync4(root).filter((n) => !ignoredBy(gitignore, n));
+  const entries = readdirSync4(root).filter((n) => !ignoredBy(gitignore, n) && !(n === ".claude" && onlyHostState(root)));
   for (const name of entries) {
     if (!REQUIRED_ENTRIES.includes(name) && !OPTIONAL_ENTRIES.includes(name)) {
       report.add("REPO_ENTRY_UNEXPECTED", name, undefined, `"${name}" isn't part of the repo layout.`, "Move it into the plugin, tests/ or scripts/, or remove it.");

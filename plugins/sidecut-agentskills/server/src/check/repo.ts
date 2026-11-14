@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { ownVersion } from '../scaffold.ts';
 import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.ts';
@@ -51,11 +52,57 @@ function ignoredBy(patterns: string[], name: string): boolean {
   });
 }
 
+/** Runs git in `root` without a hook's GIT_* overrides; undefined when it fails. */
+function git(root: string, ...args: string[]): string | undefined {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
+  );
+  const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+const isRealDir = (path: string) => {
+  const stat = lstatSync(path);
+  return stat.isDirectory() && !stat.isSymbolicLink();
+};
+
+/**
+ * Whether `.claude` holds only what Claude Code leaves in a checkout: git worktrees it registered
+ * under `.claude/worktrees/` and files the repo's .gitignore ignores, with nothing tracked.
+ */
+function onlyHostState(root: string): boolean {
+  const dir = join(root, '.claude');
+  if (!isRealDir(dir)) return false;
+  const top = git(root, 'rev-parse', '--show-toplevel')?.trim();
+  if (!top || realpathSync(top) !== realpathSync(root)) return false;
+  if (git(root, 'ls-files', '-z', '--', '.claude') !== '') return false;
+  const registered = new Set(
+    (git(root, 'worktree', 'list', '--porcelain', '-z') ?? '')
+      .split('\0')
+      .filter((line) => line.startsWith('worktree '))
+      .flatMap((line) => {
+        // A registered worktree whose folder was deleted can't be the one found here.
+        const path = line.slice('worktree '.length);
+        return existsSync(path) ? [realpathSync(path)] : [];
+      }),
+  );
+  return readdirSync(dir).every((name) => {
+    const path = join(dir, name);
+    if (name === 'worktrees' && isRealDir(path))
+      return readdirSync(path).every(
+        (tree) => isRealDir(join(path, tree)) && registered.has(realpathSync(join(path, tree))),
+      );
+    return git(root, 'check-ignore', '-q', '--', `.claude/${name}`) !== undefined;
+  });
+}
+
 function checkTopLevel(root: string, report: Report): void {
   const gitignore = existsSync(join(root, '.gitignore'))
     ? readFileSync(join(root, '.gitignore'), 'utf8').split('\n').filter(Boolean)
     : [];
-  const entries = readdirSync(root).filter((n) => !ignoredBy(gitignore, n));
+  const entries = readdirSync(root).filter(
+    (n) => !ignoredBy(gitignore, n) && !(n === '.claude' && onlyHostState(root)),
+  );
   for (const name of entries) {
     if (!REQUIRED_ENTRIES.includes(name) && !OPTIONAL_ENTRIES.includes(name)) {
       report.add(
