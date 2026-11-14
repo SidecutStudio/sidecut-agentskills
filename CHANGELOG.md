@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.1] - 2026-11-14
+
+### Changed
+
+- Guidance and checker messages use Sidecut Solo's shorter `solo-*` skill names.
+
 ## [0.8.0] - 2026-11-14
 
 ### Added

@@ -23335,12 +23335,12 @@ function checkAgents(root, id, scripts, report) {
   if (h1?.text !== id)
     report.add("AGENTS_TITLE", "AGENTS.md", h1?.line, `H1 is not "${id}".`, `Use \`# ${id}\`.`);
   const found = sections(doc).map((h) => h.text);
-  const before = found.filter((s) => s !== "Solo Workflow");
+  const before = found.filter((s) => s !== "Sidecut Solo" && s !== "Solo Workflow");
   if (before.join("|") !== AGENTS_SECTIONS.join("|")) {
-    report.add("AGENTS_SECTIONS", "AGENTS.md", undefined, "Sections are not Commands, Layout, Rules.", "Use exactly those, then the Solo Workflow section.");
+    report.add("AGENTS_SECTIONS", "AGENTS.md", undefined, "Sections are not Commands, Layout, Rules.", "Use exactly those, then the Sidecut Solo section.");
   }
   if (!/<!-- solo-workflow:start -->[\s\S]*<!-- solo-workflow:end -->\n$/.test(text)) {
-    report.add("AGENTS_SOLO", "AGENTS.md", undefined, "AGENTS.md does not end with the Solo Workflow markers.", "Run solo-workflow-configure-project.");
+    report.add("AGENTS_SOLO", "AGENTS.md", undefined, "AGENTS.md does not end with the Sidecut Solo markers.", "Run solo-configure-project.");
   }
   const commands = sections(doc).find((h) => h.text === "Commands");
   if (commands) {

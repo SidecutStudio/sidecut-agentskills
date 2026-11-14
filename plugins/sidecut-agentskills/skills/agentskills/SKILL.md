@@ -29,7 +29,7 @@ When a request spans several, start with the one whose result the others need: `
 
 - Using a plugin that is already installed: follow that plugin's own skills.
 - Adding an MCP server to the user's own Claude Code or Codex settings: edit that client's config directly.
-- Changes to an app's code, merges and releases of apps: use Solo Workflow.
+- Changes to an app's code, merges and releases of apps: use Sidecut Solo.
 
 ## Done when
 

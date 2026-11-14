@@ -67,7 +67,7 @@ export function parseMarkdown(path: string, text: string): MarkdownDoc {
   let solo = false;
   for (let i = start; i < lines.length; i++) {
     const line = lines[i] ?? '';
-    // Solo Workflow owns the text between its markers and rewrites it on setup.
+    // Sidecut Solo owns the text between its markers and rewrites it on setup.
     if (line === '<!-- solo-workflow:start -->') solo = true;
     if (solo) {
       inCode[i] = true;

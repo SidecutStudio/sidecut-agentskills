@@ -12,7 +12,7 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 
 ## Before you start
 
-- Work on a new branch. Merge only through `solo-workflow-finish-change`, and only when the comparison holds.
+- Work on a new branch. Merge only through `solo-finish-change`, and only when the comparison holds.
 - Read the "Repo layout" and "Plugin layout" sections of `get_house_style`. A repo that ships a plugin next to other work, such as `sidecut-ops`, keeps its own top level; only `plugins/<plugin-id>/` changes.
 
 ## Steps

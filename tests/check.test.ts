@@ -857,3 +857,16 @@ test('the generator refuses a long description that is not 2 or 3 sentences', ()
     [],
   );
 });
+
+for (const heading of ['Solo Workflow', 'Sidecut Solo']) {
+  test(`Solo instruction heading ${heading} is accepted`, () => {
+    const r = copy();
+    r.edit('AGENTS.md', (text) =>
+      text.replace(
+        '<!-- solo-workflow:start -->',
+        `<!-- solo-workflow:start -->\n## ${heading}\n\nUse the solo skill.`,
+      ),
+    );
+    expect(codes(r.root)).not.toContain('AGENTS_SECTIONS');
+  });
+}

@@ -92,7 +92,7 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 | Opt-in marker file, `DO_NOT_TRACK` and CI turn it off | Expo | Adopt | The safest switch seen |
 | Default-on network telemetry, install IDs, user-agent tags, `generatedBy` written into user files | Apify, Vercel | Skip | Data leaves the machine without a yes |
 | Feedback sending folded into a skill's done criterion | Firecrawl | Skip | Mixes the vendor's goals into the user's task |
-| Eval-candidate report the user approves before it's sent | Expo | Adapt | Feeds Solo Workflow's dogfood log instead |
+| Eval-candidate report the user approves before it's sent | Expo | Adapt | Feeds Sidecut Solo's dogfood log instead |
 
 ## MCP servers
 
