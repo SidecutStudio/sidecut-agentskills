@@ -79,10 +79,11 @@ function writeWhole(path, text, modeFrom = path) {
   const target = existsSync(path) ? realpathSync(path) : path;
   mkdirSync(dirname(target), { recursive: true });
   const temp = `${target}.${process.pid}.tmp`;
-  writeFileSync(temp, text);
-  // Keep the file's permissions, so a private file stays private. A new file gets the user's usual
-  // permissions (their umask).
-  if (existsSync(modeFrom)) chmodSync(temp, statSync(modeFrom).mode & 0o777);
+  // Keep the file's permissions, from the moment the temporary file exists, so a private file stays
+  // private. A new file gets the user's usual permissions (their umask).
+  const mode = existsSync(modeFrom) ? statSync(modeFrom).mode & 0o777 : undefined;
+  writeFileSync(temp, text, mode === undefined ? {} : { mode });
+  if (mode !== undefined) chmodSync(temp, mode);
   renameSync(temp, target);
 }
 
