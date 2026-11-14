@@ -1,10 +1,22 @@
 # Changelog
 
-## [0.7.3] - 2026-11-14
+## [0.8.1] - 2026-11-14
 
 ### Changed
 
 - Guidance and checker messages use Sidecut Solo's shorter `solo-*` skill names.
+
+## [0.8.0] - 2026-11-14
+
+### Added
+
+- The MCP skill covers bundling an existing registered app connector, with verified identity, managed and direct connection routes, and separate installation, authentication and view checks.
+- The checker accepts `.app.json` and its Codex manifest reference, validates declarations and catches mismatched names or a managed app hiding a local server.
+
+### Changed
+
+- Hosted connections take their own path through the skill without local-server build steps. View checks use the intended host instead of assuming all Codex editions render text only.
+- Generated project guidance includes the managed connector and remote fallback rule.
 
 ## [0.7.2] - 2026-11-14
 

@@ -26,4 +26,5 @@ When neither is true, return text and structured data only.
 
 - Test the tool over stdio as usual, checking `structuredContent` and that `_meta.ui.resourceUri` names a resource the server lists.
 - Open the page in a browser through the ext-apps `AppBridge`, send it a recorded tool result, and check it at chat and phone widths in light and dark.
-- Check it in a chat app that draws views, such as Claude. Claude Code and Codex show the text summary instead.
+- Check one rendered tool result in the intended chat host, and the text fallback in a terminal client. Desktop and terminal editions of the same product can differ; report what actually rendered.
+- Adding a managed connector to a bundle does not build or deploy its views. Follow [remote-servers.md](remote-servers.md) for the connection; change the owning server only when the view itself needs work.

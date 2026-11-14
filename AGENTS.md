@@ -33,6 +33,7 @@ tests/                     checker and template tests
 - Run `bun run build` after changing anything in a plugin's `server/src/` or `agents/`, and commit what it writes.
 - Any change under `plugins/` bumps the version in both manifests and `package.json` and adds a CHANGELOG entry.
 - Blocks marked `sidecut:start` and the files sidecut-agentskills owns come from its templates. Change them there, then run `bunx sidecut-sync` here; list a deliberate difference under `sidecut.keep` in `package.json` with the reason.
+- A bundled registered connector uses `.app.json` and the Codex manifest's `apps` field; any direct MCP fallback uses the same declaration name and stays remote. Verify the connector id and endpoint from its registration.
 <!-- sidecut:end house-style -->
 
 - The house style lives in `plugins/sidecut-agentskills/server/data/house-style.md`. Change a rule there, in the checker and in the templates together, and add a test to `tests/check.test.ts` for any rule the checker enforces.
