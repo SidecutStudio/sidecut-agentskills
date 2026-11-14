@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.5] - 2026-11-14
+
+### Changed
+
+- `agentskills-publish-plugin` names the repo in every `gh` command and counts a release only when its repo, version and commit all match the merge.
+- `agentskills-rebuild-plugin` settles the whole rename with the user before building: plugin id, skill prefix, repo name, config and state file names, and how existing installs move over.
+
 ## [0.8.4] - 2026-11-14
 
 ### Changed

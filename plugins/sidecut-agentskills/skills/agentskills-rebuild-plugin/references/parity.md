@@ -12,7 +12,7 @@ Read this when recording a plugin before and after a rebuild. The same record, t
 | Hooks | Each event, matcher and script from `hooks.json`, then the decision each hook makes on fixed inputs: the cases in its tests, plus any spellings the old script handles specially, such as quotes, backslashes and line breaks |
 | Checks | The repo's `required_checks` and the result of its check command |
 | Hosts | Whether the plugin loads in Claude Code and in Codex, and how each skill can be started there |
-| Names | The plugin id, each skill and tool name and the plugin's path, and every file outside the repo that uses one: other repos, both marketplaces, README install commands |
+| Names | The plugin id, skill prefix, each skill and tool name, the plugin's path, the repo name and its config and state file names, and every file outside the repo that uses one: other repos, both marketplaces, README install commands |
 
 Save each record as JSON in the scratch folder, named `before.json` and `after.json`.
 

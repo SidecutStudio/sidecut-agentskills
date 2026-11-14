@@ -27,7 +27,7 @@ The change to publish is merged to `main` first.
 1. On a branch, set the new version in `plugins/<plugin-id>/.claude-plugin/plugin.json`, `plugins/<plugin-id>/.codex-plugin/plugin.json` and `package.json`.
 2. Add a CHANGELOG entry for it at the top, with today's date and one line per change under Added, Changed, Fixed or Removed. Copy it to the plugin's CHANGELOG so the two stay identical.
 3. Run `bun run check`, then merge through `solo-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
-4. Confirm the release: `gh release view v<version>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`. If the Release run failed, read its log and re-run it; never tag by hand.
+4. Confirm the release in the plugin's own repo: `gh release view v<version> --repo SidecutStudio/<repo>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`, and `gh api repos/SidecutStudio/<repo>/commits/v<version> --jq .sha` is the merge commit. If the Release run failed, read its log and re-run it; never tag by hand.
 5. In `sidecut-plugins`, run `bun scripts/bundle.ts <plugin-id> v<version>`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
 
 ### 3. Commit pin
@@ -35,7 +35,7 @@ The change to publish is merged to `main` first.
 The product repo has no plugin tags or Release workflow, so the merge commit on `main` is the release.
 
 1. With the change, or on its own branch, set the new version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` under `plugins/<plugin-id>/`. Add an entry to `plugins/<plugin-id>/CHANGELOG.md` in the same format.
-2. Merge to `main` through that repo's own flow and checks, read from its `AGENTS.md`. Take the full 40-character merge commit from the merged PR: `gh pr view <number> --json mergeCommit --jq .mergeCommit.oid`. Don't use the newest `main` commit, which a later sync may have moved past it.
+2. Merge to `main` through that repo's own flow and checks, read from its `AGENTS.md`. Take the full 40-character merge commit from the merged PR: `gh pr view <number> --repo SidecutStudio/<repo> --json mergeCommit --jq .mergeCommit.oid`. Don't use the newest `main` commit, which a later sync may have moved past it.
 3. In `sidecut-plugins`, run `bun scripts/bundle.ts <plugin-id> <merge-commit>`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change.
 
 ### 4. Confirm it arrived
@@ -46,6 +46,8 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 
 - Never install the plugin locally to try it; the marketplace copy is the one people get.
 - Release only from `main`, and only a commit whose checks passed. For a tag release the Release workflow enforces both; for a commit pin, check them before bundling the commit.
+- Name the repo in every `gh` command, with `--repo SidecutStudio/<repo>` or a `repos/SidecutStudio/<repo>/` path. Without it, `gh` uses whichever checkout it runs in.
+- A release counts only when its repo, version and commit all match. The same version number in another repo, or on another commit, isn't this release.
 - Never tag, replace a published asset or edit a published release by hand. A broken release is fixed by a new version.
 - Leave a commit-pinned plugin pinned by commit; it has no tags to point at.
 - Never edit a copy under `sidecut-plugins/bundled/` by hand. Change the plugin in its own repo, release it and bundle that version.
