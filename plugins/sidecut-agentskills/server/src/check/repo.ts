@@ -397,7 +397,9 @@ function readJson(path: string): Record<string, unknown> {
 
 /**
  * A repo exists to ship its plugin when it holds one plugin whose manifest points at a SidecutStudio
- * repo named after the plugin, or after anything else when the repo's package is named after it.
+ * repo named after the plugin. A repo that kept its older name, the plugin id without `sidecut-`,
+ * counts too when its package is named after the plugin. Any other repo, such as an app that ships a
+ * plugin next to its own code, gets the plugin checks only, whatever its package is called.
  */
 export function identify(root: string): Identity {
   const pluginsDir = join(root, 'plugins');
@@ -413,11 +415,12 @@ export function identify(root: string): Identity {
     )?.[1] ?? '';
   const keep = ((pkg.sidecut as { keep?: Record<string, string> } | undefined)?.keep ??
     {}) as Record<string, string>;
-  if (only && repo && (repo === only || pkg.name === only))
+  const olderName = only === `sidecut-${repo}` && pkg.name === only;
+  if (only && repo && (repo === only || olderName))
     return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
   const scope = !only
     ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? 'none' : 'more than one'}.`
-    : `Checked the plugin only: its manifest points at ${repo || 'no SidecutStudio repo'} and the package isn't named ${only}.`;
+    : `Checked the plugin only: its manifest points at ${repo || 'no SidecutStudio repo'}, not a repo that exists only for ${only}.`;
   return { plugins, id: null, repo, scope, keep };
 }
 
@@ -438,6 +441,7 @@ export function checkRepo(root: string, report: Report): void {
   report.scope = scope;
   if (!only) {
     for (const id of plugins) checkPlugin(join(pluginsDir, id), root, report, null);
+    report.applyKeep(keep);
     return;
   }
   const id = only;
