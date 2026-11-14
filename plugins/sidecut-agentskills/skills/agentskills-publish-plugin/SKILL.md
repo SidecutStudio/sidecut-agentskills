@@ -1,6 +1,6 @@
 ---
 name: agentskills-publish-plugin
-description: "Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. Use when the user says ship, release or publish a plugin, or wants it to show up in Claude Code or Codex. Not for merging a change to the plugin's code (use `solo-workflow-finish-change`)."
+description: "Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. Use when the user says ship, release or publish a plugin, or wants it to show up in Claude Code or Codex. Not for merging a change to the plugin's code (use `solo-finish-change`)."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
 ---
@@ -26,7 +26,7 @@ The change to publish is merged to `main` first.
 
 1. On a branch, set the new version in `plugins/<plugin-id>/.claude-plugin/plugin.json`, `plugins/<plugin-id>/.codex-plugin/plugin.json` and `package.json`.
 2. Add a CHANGELOG entry for it at the top, with today's date and one line per change under Added, Changed, Fixed or Removed. Copy it to the plugin's CHANGELOG so the two stay identical.
-3. Run `bun run check`, then merge through `solo-workflow-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
+3. Run `bun run check`, then merge through `solo-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
 4. Confirm the release: `gh release view v<version>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`. If the Release run failed, read its log and re-run it; never tag by hand.
 5. In `sidecut-plugins`, set `ref` to the new tag in both marketplace entries, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
 

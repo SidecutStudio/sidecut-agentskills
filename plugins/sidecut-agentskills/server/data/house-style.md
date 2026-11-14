@@ -210,7 +210,7 @@ Router skill, in this order: `# Start`, one paragraph, `## Pick a skill` (a tabl
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Frontmatter | `name` (the file name), `description` in the skill shape, `tools` as the narrowest list that works, `model: inherit` | review |
-| Model | A skill that starts a reviewer picks its model from the review level `solo-workflow-review-change` reports: no reviewer at light, a cheaper model such as `sonnet` at standard, the parent's at deep | review |
+| Model | A skill that starts a reviewer picks its model from the review level `solo-review-change` reports: no reviewer at light, a cheaper model such as `sonnet` at standard, the parent's at deep | review |
 | Body | `# <Role>`, one paragraph, `## Steps`, `## Return` | review |
 | Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `bun run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>` with the prefix's hyphens as underscores, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
 | Naming one in a skill | `<plugin id>:<role>` for Claude Code and `<prefix>_<role>` for Codex, both in backticks: `sidecut-agentskills:reviewer` (`agentskills_reviewer` in Codex). A `<plugin id>:<name>` pointer must name one of the plugin's skills or subagents | yes |
@@ -277,7 +277,7 @@ The only telemetry a Sidecut plugin has.
 | Bullets | `-` only | yes |
 | Numbered lists | `1.`, `2.` in order, only when order matters | yes |
 | Bold | Only for a lead term in a bullet: `- **Term:** text` | yes |
-| Italics, HTML, emoji, horizontal rules, blockquotes | None, except the two Solo Workflow marker comments in AGENTS.md | yes |
+| Italics, HTML, emoji, horizontal rules, blockquotes | None, except the two Sidecut Solo marker comments in AGENTS.md | yes |
 | Dashes | No em or en dashes; use a colon, comma or parentheses | yes |
 | Arrows | None in prose; write "then" | yes |
 | Quotes and apostrophes | Straight only | yes |
@@ -335,7 +335,7 @@ sidecut-agentskills owns part of every plugin repo, and `bunx sidecut-sync` keep
 
 ## AGENTS.md
 
-Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table with columns `Command` and `Does`), `## Layout` (a `text` tree of the top two levels), `## Rules` (the shared `house-style` block, then the repo's own rules), then the Solo Workflow markers. The generator writes the markers empty and `solo-workflow-configure-project` fills them; the checker skips the text between them, since Solo owns it.
+Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table with columns `Command` and `Does`), `## Layout` (a `text` tree of the top two levels), `## Rules` (the shared `house-style` block, then the repo's own rules), then the Sidecut Solo markers. The generator writes the markers empty and `solo-configure-project` fills them; the checker skips the text between them, since Solo owns it.
 
 | Item | Rule | Checked |
 | --- | --- | --- |

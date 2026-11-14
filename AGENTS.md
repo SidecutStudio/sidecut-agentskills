@@ -42,7 +42,7 @@ tests/                     checker and template tests
 <!-- solo-workflow:start -->
 ## Solo Workflow
 
-This project uses Solo Workflow (settings in `solo-workflow.toml`). The owner asks in plain words
+This project uses Sidecut Solo (settings in `solo-workflow.toml`). The owner asks in plain words
 and doesn't name skills: load the Solo skill that fits before starting the work, or the
-`solo-workflow` skill when it's unclear which one fits.
+`solo` skill when it's unclear which one fits.
 <!-- solo-workflow:end -->
