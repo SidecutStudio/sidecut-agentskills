@@ -23,6 +23,8 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 
 A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. A repo that kept its older name, the plugin id without `sidecut-`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bunfig.toml` when used and `docs/` for longer documentation, such as a specification.
 
+A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `sidecut.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
+
 A repo that ships a plugin next to other work, such as `sidecut-ops` or an app repo, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down, whatever its package is called. It can still list deliberate differences under `sidecut.keep`.
 
 ```text

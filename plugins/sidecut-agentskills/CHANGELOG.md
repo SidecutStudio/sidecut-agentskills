@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.2] - 2026-11-14
+
+### Fixed
+
+- Renamed plugins can retain their original repository URL through an explicit `REPO_PLUGIN_ID` exception. Full repository checks and template sync stay active instead of treating the repository as an app that merely contains a plugin.
+
 ## [0.8.1] - 2026-11-14
 
 ### Changed

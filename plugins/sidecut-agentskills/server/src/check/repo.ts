@@ -416,7 +416,8 @@ export function identify(root: string): Identity {
   const keep = ((pkg.sidecut as { keep?: Record<string, string> } | undefined)?.keep ??
     {}) as Record<string, string>;
   const olderName = only === `sidecut-${repo}` && pkg.name === only;
-  if (only && repo && (repo === only || olderName))
+  const renamed = pkg.name === only && Object.hasOwn(keep, 'REPO_PLUGIN_ID');
+  if (only && repo && (repo === only || olderName || renamed))
     return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
   const scope = !only
     ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? 'none' : 'more than one'}.`
@@ -446,6 +447,14 @@ export function checkRepo(root: string, report: Report): void {
   }
   const id = only;
   const pluginDir = join(pluginsDir, id);
+  if (repoName !== id && id !== `sidecut-${repoName}`)
+    report.add(
+      'REPO_PLUGIN_ID',
+      'package.json',
+      undefined,
+      `Plugin ${id} retains the repository name ${repoName}.`,
+      'Keep REPO_PLUGIN_ID with the reason for retaining the repository name.',
+    );
   const { version } = checkPlugin(pluginDir, root, report, repoName);
   checkTopLevel(root, report);
   checkLicense(root, report);

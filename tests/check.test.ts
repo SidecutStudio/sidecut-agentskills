@@ -12,7 +12,11 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkRepo, jobsOf } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
+import {
+  checkRepo,
+  identify,
+  jobsOf,
+} from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
 import { Report } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
 import {
   checkPluginInput,
@@ -870,3 +874,20 @@ for (const heading of ['Solo Workflow', 'Sidecut Solo']) {
     expect(codes(r.root)).not.toContain('AGENTS_SECTIONS');
   });
 }
+
+test('a renamed plugin explicitly retains full repo checks and sync identity', () => {
+  const r = appRepo();
+  r.json('package.json', (v) => {
+    v.sidecut = { keep: { REPO_PLUGIN_ID: 'Keep the original product repository URL.' } };
+  });
+  const report = new Report();
+  checkRepo(r.root, report);
+  expect(report.scope).toBe(`Checked the whole repo for ${ID}.`);
+  expect(report.kept.some((p) => p.code === 'REPO_PLUGIN_ID')).toBe(true);
+  expect(report.problems.some((p) => p.code === 'KEEP_UNUSED')).toBe(false);
+  expect(identify(r.root).id).toBe(ID);
+  r.rm('SECURITY.md');
+  expect(codes(r.root)).toContain('REPO_ENTRY_MISSING');
+  r.json('package.json', (v) => Object.assign(v, { name: 'another-app' }));
+  expect(identify(r.root).id).toBeNull();
+});

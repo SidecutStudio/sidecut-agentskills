@@ -23449,7 +23449,8 @@ function identify(root) {
   const repo = /^https:\/\/github\.com\/SidecutStudio\/([\w.-]+)$/.exec(String(manifest.repository ?? ""))?.[1] ?? "";
   const keep = pkg.sidecut?.keep ?? {};
   const olderName = only === `sidecut-${repo}` && pkg.name === only;
-  if (only && repo && (repo === only || olderName))
+  const renamed = pkg.name === only && Object.hasOwn(keep, "REPO_PLUGIN_ID");
+  if (only && repo && (repo === only || olderName || renamed))
     return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
   const scope = !only ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? "none" : "more than one"}.` : `Checked the plugin only: its manifest points at ${repo || "no SidecutStudio repo"}, not a repo that exists only for ${only}.`;
   return { plugins, id: null, repo, scope, keep };
@@ -23470,6 +23471,8 @@ function checkRepo(root, report) {
   }
   const id = only;
   const pluginDir = join7(pluginsDir, id);
+  if (repoName !== id && id !== `sidecut-${repoName}`)
+    report.add("REPO_PLUGIN_ID", "package.json", undefined, `Plugin ${id} retains the repository name ${repoName}.`, "Keep REPO_PLUGIN_ID with the reason for retaining the repository name.");
   const { version } = checkPlugin(pluginDir, root, report, repoName);
   checkTopLevel(root, report);
   checkLicense(root, report);
