@@ -18,7 +18,7 @@ Produces a new version of the plugin that the sidecut-plugins marketplace serves
 
 ### 1. Tell which kind of release it is
 
-Open the plugin's entry in `sidecut-plugins`' `.claude-plugin/marketplace.json`. A `ref` such as `v0.7.1` is a tag release: follow step 2. `"ref": "main"` with a `sha` is a commit pin, used when the plugin lives inside another product's repo, such as Next Role's `plugins/next-role/` in `next-role-lovable`: follow step 3. A plugin not listed yet is a tag release when its repo has a Release workflow, and a commit pin otherwise.
+Open the plugin's entry in `sidecut-plugins`' `.claude-plugin/marketplace.json`. A `ref` such as `v0.7.1` is a tag release (step 2), and `"ref": "main"` with a `sha` is a commit pin (step 3). A commit pin is for a plugin inside another product's repo, such as Next Role's `plugins/next-role/` in `next-role-lovable`. A plugin not listed yet is a tag release when its repo has a Release workflow, and a commit pin otherwise.
 
 ### 2. Tag release
 
@@ -34,8 +34,8 @@ The change to publish is merged to `main` first.
 
 The product repo has no plugin tags or Release workflow, so the merge commit on `main` is the release.
 
-1. With the change, or on its own branch, set the new version in `plugins/<plugin-id>/.claude-plugin/plugin.json` and `plugins/<plugin-id>/.codex-plugin/plugin.json`, and add an entry to `plugins/<plugin-id>/CHANGELOG.md` in the same format.
-2. Merge to `main` through that repo's own flow and checks, read from its `AGENTS.md`. Note the full 40-character merge commit: `git rev-parse origin/main` right after the merge.
+1. With the change, or on its own branch, set the new version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` under `plugins/<plugin-id>/`. Add an entry to `plugins/<plugin-id>/CHANGELOG.md` in the same format.
+2. Merge to `main` through that repo's own flow and checks, read from its `AGENTS.md`. Take the full 40-character merge commit from the merged PR: `gh pr view <number> --json mergeCommit --jq .mergeCommit.oid`. Don't use the newest `main` commit, which a later sync may have moved past it.
 3. In `sidecut-plugins`, set `sha` to that commit in both marketplace entries and keep `"ref": "main"`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change.
 
 ### 4. Confirm it arrived
@@ -55,12 +55,14 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 - **`REPO_SYNC`:** the repo is behind sidecut-agentskills. Run `bunx sidecut-sync` and commit what it changes with the release.
 - **`CI_RELEASE` or `REPO_SYNC` on `scripts/release.ts`:** the repo predates automatic releases. Run `bunx sidecut-sync` and copy `release.yml` from the template, together with the next version bump, so the first run publishes it. Remove any old release job from `check.yml`, such as one that calls `./.github/workflows/release.yml`, and any old release script and its tests. The ZIP is now named `<plugin-id>-<version>.zip`. A public repo runs the job on `ubuntu-24.04` without sidecut-ops' setup action.
 - **The Release run says the tag is on another commit:** a hand-made tag got there first. Bump to the next version instead of moving it.
-- **`scripts/check.sh` says the entry needs a pinned ref:** the `sha` is short or `ref` isn't `main`. Use the full 40-character commit.
+- **`scripts/check.sh` says the entry needs a pinned ref:** a tag release needs `ref` set to `v<version>` and no `sha`. A commit pin needs `"ref": "main"` and the full 40-character `sha`.
 - **The new version doesn't appear:** confirm the tag or commit exists on GitHub and both marketplace entries name it, then wait for the next sync.
 
 ## Done when
 
-Both marketplace entries name the new tag or commit, a tag release is published with its ZIP and checksum, and a new session shows the plugin at the new version.
+- Both marketplace entries name the new tag or merge commit.
+- A tag release is published with its ZIP and checksum.
+- A new session shows the plugin at the new version.
 
 ## References
 
