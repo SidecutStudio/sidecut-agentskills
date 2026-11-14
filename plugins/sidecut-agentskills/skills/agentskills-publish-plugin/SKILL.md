@@ -7,7 +7,7 @@ allowed-tools:
 
 # Publish plugin
 
-Produces a new version of the plugin that the sidecut-plugins marketplace serves to Claude Code and Codex. A plugin in its own repo ships as a tagged release; a plugin inside another product's repo ships as one pinned commit of `main`.
+Produces a new version of the plugin that the sidecut-plugins marketplace serves to Claude Code and Codex. A plugin in its own repo ships as a tagged release; a plugin inside another product's repo ships as one pinned commit of `main`. Either way, sidecut-plugins then copies that version into its `bundled/` folder, because claude.ai can read the private marketplace but not the plugin's own repo.
 
 ## Before you start
 
@@ -18,7 +18,7 @@ Produces a new version of the plugin that the sidecut-plugins marketplace serves
 
 ### 1. Tell which kind of release it is
 
-Open the plugin's entry in `sidecut-plugins`' `.claude-plugin/marketplace.json`. A `ref` such as `v0.7.1` is a tag release (step 2), and `"ref": "main"` with a `sha` is a commit pin (step 3). A commit pin is for a plugin inside another product's repo, such as Next Role's `plugins/next-role/` in `next-role-lovable`. A plugin not listed yet is a tag release when its repo has a Release workflow, and a commit pin otherwise.
+Open the plugin's entry in `sidecut-plugins`' `bundled/sources.json`. A `ref` such as `v0.7.1` is a tag release (step 2), and a 40-character commit `ref` is a commit pin (step 3). A commit pin is for a plugin inside another product's repo, such as Next Role's `plugins/next-role/` in `next-role-lovable`. A plugin not listed yet is a tag release when its repo has a Release workflow, and a commit pin otherwise.
 
 ### 2. Tag release
 
@@ -28,7 +28,7 @@ The change to publish is merged to `main` first.
 2. Add a CHANGELOG entry for it at the top, with today's date and one line per change under Added, Changed, Fixed or Removed. Copy it to the plugin's CHANGELOG so the two stay identical.
 3. Run `bun run check`, then merge through `solo-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
 4. Confirm the release: `gh release view v<version>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`. If the Release run failed, read its log and re-run it; never tag by hand.
-5. In `sidecut-plugins`, set `ref` to the new tag in both marketplace entries, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
+5. In `sidecut-plugins`, run `bun scripts/bundle.ts <plugin-id> v<version>`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
 
 ### 3. Commit pin
 
@@ -36,7 +36,7 @@ The product repo has no plugin tags or Release workflow, so the merge commit on 
 
 1. With the change, or on its own branch, set the new version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` under `plugins/<plugin-id>/`. Add an entry to `plugins/<plugin-id>/CHANGELOG.md` in the same format.
 2. Merge to `main` through that repo's own flow and checks, read from its `AGENTS.md`. Take the full 40-character merge commit from the merged PR: `gh pr view <number> --json mergeCommit --jq .mergeCommit.oid`. Don't use the newest `main` commit, which a later sync may have moved past it.
-3. In `sidecut-plugins`, set `sha` to that commit in both marketplace entries and keep `"ref": "main"`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change.
+3. In `sidecut-plugins`, run `bun scripts/bundle.ts <plugin-id> <merge-commit>`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change.
 
 ### 4. Confirm it arrived
 
@@ -45,9 +45,10 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 ## Rules
 
 - Never install the plugin locally to try it; the marketplace copy is the one people get.
-- Release only from `main`, and only a commit whose checks passed. For a tag release the Release workflow enforces both; for a commit pin, check them before moving the `sha`.
+- Release only from `main`, and only a commit whose checks passed. For a tag release the Release workflow enforces both; for a commit pin, check them before bundling the commit.
 - Never tag, replace a published asset or edit a published release by hand. A broken release is fixed by a new version.
-- Leave a commit-pinned plugin pinned by `sha`; it has no tags to point at.
+- Leave a commit-pinned plugin pinned by commit; it has no tags to point at.
+- Never edit a copy under `sidecut-plugins/bundled/` by hand. Change the plugin in its own repo, release it and bundle that version.
 
 ## When it goes wrong
 
@@ -55,12 +56,14 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 - **`REPO_SYNC`:** the repo is behind sidecut-agentskills. Run `bunx sidecut-sync` and commit what it changes with the release.
 - **`CI_RELEASE` or `REPO_SYNC` on `scripts/release.ts`:** the repo predates automatic releases. Run `bunx sidecut-sync` and copy `release.yml` from the template, together with the next version bump, so the first run publishes it. Remove any old release job from `check.yml`, such as one that calls `./.github/workflows/release.yml`, and any old release script and its tests. The ZIP is now named `<plugin-id>-<version>.zip`. A public repo runs the job on `ubuntu-24.04` without sidecut-ops' setup action.
 - **The Release run says the tag is on another commit:** a hand-made tag got there first. Bump to the next version instead of moving it.
-- **`scripts/check.sh` says the entry needs a pinned ref:** a tag release needs `ref` set to `v<version>` and no `sha`. A commit pin needs `"ref": "main"` and the full 40-character `sha`.
-- **The new version doesn't appear:** confirm the tag or commit exists on GitHub and both marketplace entries name it, then wait for the next sync.
+- **`bundle.ts` fails to clone:** `gh` isn't signed in, or the account can't read the plugin's repo. Check `gh auth status`.
+- **`bundle.ts` says the commit isn't on `main`:** use the merge commit from the merged PR, not one from a branch.
+- **`scripts/check.sh` says a copy differs from its pin:** someone edited `bundled/<plugin-id>/` by hand. Run `bun scripts/bundle.ts <plugin-id> <ref>` again to restore it.
+- **The new version doesn't appear:** confirm the sidecut-plugins change merged and `bundled/sources.json` names the new tag or commit, then sync the marketplace again.
 
 ## Done when
 
-- Both marketplace entries name the new tag or merge commit.
+- `bundled/sources.json` in sidecut-plugins names the new tag or merge commit, and that change is merged.
 - A tag release is published with its ZIP and checksum.
 - A new session shows the plugin at the new version.
 
@@ -68,4 +71,4 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 
 | Read | When |
 | --- | --- |
-| [marketplace.md](references/marketplace.md) | Adding or updating a marketplace entry |
+| [marketplace.md](references/marketplace.md) | Adding, updating or removing a plugin in the marketplace |
