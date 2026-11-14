@@ -677,6 +677,73 @@ test('a docs folder is part of the layout', () => {
   expect(codes(repo.root)).not.toContain('REPO_ENTRY_UNEXPECTED');
 });
 
+describe('host-created worktrees', () => {
+  function fixture(name = 'task') {
+    const repo = copy();
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
+    );
+    const git = (...args: string[]) => {
+      const result = spawnSync(
+        'git',
+        ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args],
+        { cwd: repo.root, env, encoding: 'utf8' },
+      );
+      if (result.status !== 0) throw new Error(result.stderr);
+      return result.stdout.trim();
+    };
+    git('init', '-q');
+    git('add', 'AGENTS.md');
+    git('commit', '-qm', 'Fixture');
+    const relative = `.claude/worktrees/${name}`;
+    git('worktree', 'add', '--detach', join(repo.root, relative), 'HEAD');
+    return { repo, git, relative };
+  }
+
+  test('registered untracked worktrees do not change a clean source layout', () => {
+    const { repo } = fixture('task with space\nand newline');
+    expect(codes(repo.root)).toEqual([]);
+  });
+
+  test('ignored local settings may sit beside registered worktrees', () => {
+    const { repo } = fixture();
+    repo.write('.claude/settings.local.json', '{}\n');
+    expect(codes(repo.root)).toEqual([]);
+  });
+
+  test('shared config beside a worktree is still checked', () => {
+    const { repo } = fixture();
+    repo.write('.claude/settings.json', '{}\n');
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+
+  test('a tracked worktree path is source rather than host state', () => {
+    const { repo, git, relative } = fixture();
+    git('update-index', '--add', '--cacheinfo', `160000,${git('rev-parse', 'HEAD')},${relative}`);
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+
+  test('a folder named worktrees does not hide ordinary files', () => {
+    const repo = copy();
+    repo.write('.claude/worktrees/notes.md', '# Notes\n');
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+
+  test('an unregistered nested repository is still checked', () => {
+    const { repo, git } = fixture();
+    git('init', '-q', '.claude/worktrees/another');
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+
+  test('a symlinked host container is still checked', () => {
+    const repo = copy();
+    const elsewhere = copy();
+    elsewhere.write('worktrees/notes.md', '# Notes\n');
+    symlinkSync(elsewhere.root, join(repo.root, '.claude'), 'dir');
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+});
+
 test('a freshly generated repo has no problems', () => {
   expect(codes(base)).toEqual([]);
 });

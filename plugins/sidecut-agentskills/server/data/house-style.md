@@ -21,7 +21,7 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 
 ## Repo layout
 
-A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. A repo that kept its older name, the plugin id without `sidecut-`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bunfig.toml` when used and `docs/` for longer documentation, such as a specification.
+A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. A repo that kept its older name, the plugin id without `sidecut-`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bunfig.toml` when used, `docs/` for longer documentation, such as a specification, and a `.claude/` folder that holds only worktrees Claude Code registered under `.claude/worktrees/` and files `.gitignore` ignores.
 
 A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `sidecut.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
 

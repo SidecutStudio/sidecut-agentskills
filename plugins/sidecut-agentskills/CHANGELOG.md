@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.3] - 2026-11-14
+
+### Fixed
+
+- The repo layout check no longer fails a checkout where Claude Code keeps its worktrees in `.claude/worktrees/` next to ignored local settings. Anything else in `.claude/`, a tracked or unregistered worktree, or a symlinked `.claude/` still fails.
+
 ## [0.8.2] - 2026-11-14
 
 ### Fixed
