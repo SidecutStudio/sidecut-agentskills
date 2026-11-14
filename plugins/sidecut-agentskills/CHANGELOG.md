@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0] - 2026-11-13
+
+### Added
+
+- A session-start hook keeps your personal rules the same in both hosts. It rebuilds `~/.codex/AGENTS.md` from `~/.claude/rules/*.md`, so you only edit the rules folder. It does nothing until you run it once with `--init`.
+
 ## [0.6.1] - 2026-11-13
 
 ### Changed
