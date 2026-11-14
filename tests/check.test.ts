@@ -100,6 +100,94 @@ function codes(root: string): string[] {
   return report.problems.map((p) => p.code);
 }
 
+function managedConnector(): Repo {
+  const repo = copy();
+  for (const path of ['.mcp.json', 'mcp.json']) {
+    repo.write(
+      `${P}/${path}`,
+      JSON.stringify({ mcpServers: { demo: { type: 'http', url: 'https://example.com/mcp' } } }),
+    );
+  }
+  repo.write(`${P}/.app.json`, JSON.stringify({ apps: { demo: { id: 'connector_test' } } }));
+  repo.json(`${P}/.codex-plugin/plugin.json`, (value) => {
+    const { hooks, interface: ui, ...fields } = value;
+    for (const key of Object.keys(value)) delete value[key];
+    Object.assign(value, fields, { apps: './.app.json', hooks, interface: ui });
+  });
+  return repo;
+}
+
+describe('managed connectors', () => {
+  test('an app declaration and matching remote fallback pass without exceptions', () => {
+    expect(codes(managedConnector().root)).toEqual([]);
+  });
+
+  test('a managed connector may omit the direct MCP fallback', () => {
+    const repo = managedConnector();
+    repo.rm(`${P}/.mcp.json`);
+    repo.rm(`${P}/mcp.json`);
+    repo.json(`${P}/.codex-plugin/plugin.json`, (value) => {
+      delete value.mcpServers;
+    });
+    expect(codes(repo.root)).toEqual([]);
+  });
+
+  test('the Codex manifest must discover the app file at its contained path', () => {
+    const repo = managedConnector();
+    repo.json(`${P}/.codex-plugin/plugin.json`, (value) => {
+      value.apps = '../.app.json';
+    });
+    expect(codes(repo.root)).toContain('MANIFEST_CODEX_PATH');
+  });
+
+  test('an app manifest reference must have a packaged file', () => {
+    const repo = managedConnector();
+    repo.rm(`${P}/.app.json`);
+    expect(codes(repo.root)).toContain('MANIFEST_FIELDS');
+  });
+
+  test('the app file must have a manifest reference', () => {
+    const repo = managedConnector();
+    repo.json(`${P}/.codex-plugin/plugin.json`, (value) => {
+      delete value.apps;
+    });
+    expect(codes(repo.root)).toContain('MANIFEST_CODEX_PATH');
+  });
+
+  for (const config of [
+    null,
+    [],
+    'connector_test',
+    { apps: null },
+    { apps: [] },
+    { apps: {} },
+    { apps: { demo: null } },
+    { apps: { demo: {} } },
+    { apps: { demo: { id: '' } } },
+    { apps: { demo: { id: 1 } } },
+    { apps: { demo: { id: 'https://example.com/mcp' } } },
+    { apps: { demo: { id: 'plugin_asdk_app_test' } } },
+  ]) {
+    test(`rejects an invalid declaration ${JSON.stringify(config)}`, () => {
+      const repo = managedConnector();
+      repo.write(`${P}/.app.json`, JSON.stringify(config));
+      expect(codes(repo.root)).toContain('APP_DECLARATION');
+    });
+  }
+
+  test('the app name must match the direct MCP route', () => {
+    const repo = managedConnector();
+    repo.write(`${P}/.app.json`, JSON.stringify({ apps: { other: { id: 'connector_test' } } }));
+    expect(codes(repo.root)).toContain('APP_KEY');
+  });
+
+  test('an app cannot shadow a local MCP server', () => {
+    const repo = copy();
+    repo.write(`${P}/.app.json`, JSON.stringify({ apps: { demo: { id: 'connector_test' } } }));
+    expect(codes(repo.root)).toContain('APP_MCP_ROUTE');
+  });
+});
+
 const md = (repo: Repo, text: string) => repo.append('SECURITY.md', `\n${text}\n`);
 const skillMd = `${SKILL}/SKILL.md`;
 const support = (repo: Repo, folder: string, name: string, text: string) => {

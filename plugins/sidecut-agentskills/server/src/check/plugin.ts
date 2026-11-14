@@ -16,6 +16,7 @@ import { checkSkills } from './skills.ts';
 const PLUGIN_ENTRIES = new Set([
   '.claude-plugin',
   '.codex-plugin',
+  '.app.json',
   '.mcp.json',
   'mcp.json',
   'CHANGELOG.md',
@@ -229,6 +230,7 @@ function checkManifests(
   // Codex finds each part through a path in its manifest, and only what exists is listed.
   const paths: Json = { skills: './skills/' };
   if (existsSync(join(pluginDir, 'mcp.json'))) paths.mcpServers = './mcp.json';
+  if (existsSync(join(pluginDir, '.app.json'))) paths.apps = './.app.json';
   if (existsSync(join(pluginDir, 'hooks', 'codex-hooks.json')))
     paths.hooks = './hooks/codex-hooks.json';
   checkKeys(
@@ -385,6 +387,76 @@ function checkManifests(
     );
   }
   return claude;
+}
+
+function isRecord(value: unknown): value is Json {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function checkApps(pluginDir: string, id: string, root: string, report: Report): void {
+  const path = join(pluginDir, '.app.json');
+  if (!existsSync(path)) return;
+  const file = relative(root, path);
+  const config = readJson(path, root, report);
+  const apps = config?.apps;
+  if (
+    !isRecord(config) ||
+    Object.keys(config).join() !== 'apps' ||
+    !isRecord(apps) ||
+    Object.keys(apps).length === 0
+  ) {
+    report.add(
+      'APP_DECLARATION',
+      file,
+      undefined,
+      'The app file must contain a nonempty apps object.',
+      'Use { "apps": { "<name>": { "id": "<verified connector id>" } } }.',
+    );
+    return;
+  }
+  const key = id.replace(/^sidecut-/, '');
+  if (Object.keys(apps).join() !== key) {
+    report.add(
+      'APP_KEY',
+      file,
+      undefined,
+      `The app must be named "${key}", matching its direct MCP fallback.`,
+      `Use "${key}" as the app declaration key.`,
+    );
+  }
+  for (const [name, app] of Object.entries(apps)) {
+    if (
+      !isRecord(app) ||
+      typeof app.id !== 'string' ||
+      !app.id.trim() ||
+      /\s|:\/\/|^plugin[_-]|^gpt-/.test(app.id) ||
+      Object.keys(app).some((field) => !['id', 'category'].includes(field)) ||
+      (app.category !== undefined && typeof app.category !== 'string')
+    ) {
+      report.add(
+        'APP_DECLARATION',
+        file,
+        undefined,
+        `App "${name}" needs a connector id and may have a category string.`,
+        'Copy the verified connector id, not a plugin id or server URL; keep credentials out of the declaration.',
+      );
+    }
+  }
+  const mcpPath = join(pluginDir, 'mcp.json');
+  if (!existsSync(mcpPath)) return;
+  const mcp = readJson(mcpPath, root, report);
+  const fallback = isRecord(mcp?.mcpServers) ? mcp.mcpServers[key] : undefined;
+  // Codex suppresses this named direct route when it uses the managed app.
+  // A local server here would lose its tools in ChatGPT-backed sessions.
+  if (!isRecord(fallback) || fallback.type !== 'http' || typeof fallback.url !== 'string') {
+    report.add(
+      'APP_MCP_ROUTE',
+      relative(root, mcpPath),
+      undefined,
+      `The app's direct fallback must be a remote HTTP server named "${key}".`,
+      'Use the same declaration name for the managed app and its hosted MCP fallback; do not shadow a local server.',
+    );
+  }
 }
 
 function checkMcp(pluginDir: string, id: string, root: string, report: Report): Set<string> | null {
@@ -836,6 +908,7 @@ export function checkPlugin(
   const id = relative(join(pluginDir, '..'), pluginDir);
   checkLayout(pluginDir, root, report);
   const manifest = checkManifests(pluginDir, id, repoName, root, report);
+  checkApps(pluginDir, id, root, report);
   const tools = checkMcp(pluginDir, id, root, report);
   const skills = checkSkills(pluginDir, root, report, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report);

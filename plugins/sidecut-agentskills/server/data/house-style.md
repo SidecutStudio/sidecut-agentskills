@@ -64,6 +64,7 @@ tsconfig.json
 plugins/<plugin-id>/
   .claude-plugin/plugin.json  Claude Code manifest
   .codex-plugin/plugin.json   Codex manifest
+  .app.json                   registered app connector, only when bundled
   .mcp.json                   Claude Code MCP config, only with an MCP server
   mcp.json                    Codex MCP config, only with an MCP server
   CHANGELOG.md                copy of the repo's, kept identical
@@ -106,7 +107,7 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/
 | `license` | `MIT` | yes |
 | `keywords` | 3 to 8, lowercase, no plugin name | yes |
 | Claude extra fields | None; skills, agents and hooks are found by folder | yes |
-| Codex extra fields | After the shared fields: `skills` (`./skills/`), `mcpServers` (`./mcp.json`) with an MCP server, `hooks` (`./hooks/codex-hooks.json`) with hooks, then `interface` last | yes |
+| Codex extra fields | After the shared fields: `skills` (`./skills/`), `mcpServers` (`./mcp.json`) with an MCP server, `apps` (`./.app.json`) with a registered connector, `hooks` (`./hooks/codex-hooks.json`) with hooks, then `interface` last | yes |
 | `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`Sidecut Studio`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (`#FF6B00`, Sidecut Builder's orange), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
 | Unknown fields | None | yes |
 
@@ -118,6 +119,10 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/
 | Local server in `.mcp.json` | `"command": "node"`, `"args": ["${CLAUDE_PLUGIN_ROOT}/server/index.mjs"]`, no `env` block, no `PATH` | yes |
 | Local server in `mcp.json` | `"command": "node"`, `"args": ["server/index.mjs"]`, `"cwd": "."`. Codex fills in no root variable for MCP servers, but resolves `cwd` from the plugin's folder | yes |
 | Remote server | `"type": "http"` and `"url"`, the same in both files; nothing else; auth handled by the host | yes |
+| Registered app | Optional `.app.json` has an `apps` object with one entry named after the MCP server key; its `id` is a nonempty connector id, and `category` is an optional string; credentials, plugin ids and server URLs do not belong there | yes |
+| App identity | Verify the connector id, endpoint and intended users' access from its registration or installed metadata; the offline checker cannot prove them | review |
+| App routing | A direct MCP fallback uses the same declaration key and a remote HTTP server; it must not shadow a local stdio server; an app can omit the direct fallback | yes |
+| Connection and views | App declarations package a registered connection; building, deploying, authenticating and rendering MCP Apps views are separate outcomes | review |
 | Finding its own files | The server resolves paths from `import.meta.url`, never from the working directory, which is the user's project in Claude Code | yes |
 | Source and build | TypeScript in `server/src/`, bundled to `server/index.mjs` with every dependency inlined, built file committed; CI rebuilds and fails on any difference | yes |
 | Build script | `bun run build` is `bun scripts/build-server.ts`, the same file in every plugin repo; it also writes `server/THIRD_PARTY_LICENSES.txt` with the licence of every package the bundle inlines, and the Codex profile of each subagent | yes |
