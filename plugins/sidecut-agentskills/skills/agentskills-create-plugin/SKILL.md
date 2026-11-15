@@ -25,6 +25,8 @@ Produces a new plugin repo that passes `bun run check` on its first commit and l
 6. Ask the user before creating the GitHub repo. On a yes, create `SidecutStudio/<plugin-id>` as a private repo, push `main`, then run `solo-configure-project` to fill the Sidecut Solo section of `AGENTS.md`.
 7. Add the plugin's real skills with `agentskills-write-skill` and its real tools with `agentskills-build-mcp-server`. Keep `check-status` while the status tool is the server's only tool.
 
+Use `server/data/visual-reports.md` from the loaded plugin root when plugin or design alternatives need a visible comparison. Keep a routine scaffold result in chat.
+
 ## Rules
 
 - Never install the plugin into the user's Claude Code; `--plugin-dir` loads it for one session and changes nothing.

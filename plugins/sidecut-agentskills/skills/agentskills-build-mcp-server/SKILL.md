@@ -36,6 +36,8 @@ For an existing hosted server or registered app connector, follow [remote-server
 3. For a hosted connection, check installation and connector authentication separately in the intended host. Use a harmless read or a test account; preserve unrelated connections and permissions.
 4. If views changed, verify one rendered tool result in the intended chat host. Report structural checks, installed version, authentication and rendered views separately; name any part that could not be exercised.
 
+Use `server/data/visual-reports.md` from the loaded plugin root for useful architecture comparisons, design reports and proposed views. Keep building and verifying a live MCP App separate from saving an HTML report.
+
 ## Rules
 
 - A tool that changes anything sets `readOnlyHint` to false, and `destructiveHint` to true when the change can't be undone.

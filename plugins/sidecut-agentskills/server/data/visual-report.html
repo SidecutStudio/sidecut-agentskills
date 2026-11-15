@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sidecut Agentskills report layout example</title>
+  <link rel="stylesheet" href="visual-report.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to report</a>
+  <div class="wrap">
+    <header class="masthead">
+      <a class="wordmark" href="https://sidecut.dev">sidecut<span>.</span></a>
+      <nav aria-label="Report sections"><a href="#comparison">Compare</a><a href="#findings">Findings</a><a href="#sources">Sources</a></nav>
+    </header>
+    <main id="main">
+      <section class="hero" aria-labelledby="title">
+        <div>
+          <div class="eyebrow">Sidecut Agentskills / Layout example</div>
+          <h1>Compare the reading order.</h1>
+          <p class="lede">A report starts with the decision, shows the alternatives and puts the details within reach.</p>
+          <p class="label">Illustrative layouts. No product review or measured results.</p>
+        </div>
+        <aside class="verdict" aria-label="Report guidance">
+          <div class="label">Start here</div>
+          <h2>Show what changes.</h2>
+          <p>Use this space for the recommendation and its strongest reason. In a blind bakeoff, ask for a ranking instead.</p>
+        </aside>
+      </section>
+      <section class="section" id="comparison" aria-labelledby="compare-title">
+        <div class="section-head"><h2 id="compare-title">Put options side by side.</h2><p>Matched frames make differences easier to see.</p></div>
+        <div class="comparison">
+          <figure>
+            <div class="frame"><div class="sample">
+              <div class="label">Illustrative draft A</div>
+              <h3>A place for the main idea</h3>
+              <p>The description sits below the headline. The action follows the explanation.</p>
+              <span class="sample-link">Action label example</span>
+            </div></div>
+            <figcaption><h3>Option A</h3><p>Replace the illustration with a captured screen. Describe the relevant difference below it.</p></figcaption>
+          </figure>
+          <figure>
+            <div class="frame"><div class="sample sample-b">
+              <div class="label">Illustrative draft B</div>
+              <h3>A place for the main idea</h3>
+              <span class="sample-link">Action label example</span>
+              <p>The same content with the action before the supporting explanation.</p>
+            </div></div>
+            <figcaption><h3>Option B</h3><p>Keep the viewport, scale, content and state comparable. Preserve each product's own design.</p></figcaption>
+          </figure>
+        </div>
+      </section>
+      <section class="section" aria-labelledby="criteria-title">
+        <div class="section-head"><h2 id="criteria-title">Make the trade-off visible.</h2><p>Use observations before scores.</p></div>
+        <!-- biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users need to scroll wide comparison tables. -->
+        <section class="table-wrap" aria-label="Comparison criteria" tabindex="0">
+          <table>
+            <caption>Example criteria for the two illustrative layouts</caption>
+            <thead><tr><th scope="col">Criterion</th><th scope="col">Option A</th><th scope="col">Option B</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Reading order</th><td>Explanation, then action</td><td>Action, then explanation</td></tr>
+              <tr><th scope="row">What to test</th><td>Can readers find the action?</td><td>Do readers understand the action?</td></tr>
+              <tr><th scope="row">User outcome</th><td>Not tested</td><td>Not tested</td></tr>
+            </tbody>
+          </table>
+        </section>
+      </section>
+      <section class="section" id="findings" aria-labelledby="findings-title">
+        <div class="section-head"><h2 id="findings-title">Explain what matters.</h2><p>A finding earns its place with a visible reason.</p></div>
+        <article class="finding">
+          <div class="label">Finding structure</div>
+          <div><h3>Name what the reader notices.</h3><p>Show the relevant screen or crop, explain the effect and give a concrete fix. Keep severity next to the finding.</p>
+            <details><summary>Implementation details</summary><p>Record the source, viewport, theme, component, observed state and completion check here. Replace this guidance with the reviewed facts.</p></details>
+          </div>
+        </article>
+        <article class="finding">
+          <div class="label">Next step</div>
+          <div><h3>End with a useful decision.</h3><p>Name the selected option, the first change to make or the observation that would resolve the remaining question.</p></div>
+        </article>
+      </section>
+      <section class="section" id="sources" aria-labelledby="sources-title">
+        <div class="section-head"><h2 id="sources-title">Keep the sources close.</h2><p>Readers should be able to check a claim.</p></div>
+        <p>This page demonstrates report composition. It contains no research conclusions or product findings.</p>
+        <p>In a finished report, link each material claim to its source and include the applicable version or observation date.</p>
+      </section>
+    </main>
+    <footer>Sidecut Studio · Sidecut Agentskills report layout example</footer>
+  </div>
+</body>
+</html>

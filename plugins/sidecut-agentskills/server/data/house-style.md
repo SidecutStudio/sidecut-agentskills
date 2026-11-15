@@ -275,6 +275,18 @@ The only telemetry a Sidecut plugin has.
 | Dates | Only in CHANGELOG entries | yes |
 | Jargon | Explained in plain words the first time it appears | review |
 
+## Visual reports
+
+| Item | Rule | Checked |
+| --- | --- | --- |
+| When to use HTML | Use visual reports when comparisons, diagrams, observed screens or measured trends make the answer clearer; keep short factual answers in chat | review |
+| Method and assets | Read [visual-reports.md](visual-reports.md); the sibling HTML, CSS and licensed Geist fonts provide the Sidecut layout | review |
+| Design and voice | Use the shared Sidecut Builder tokens and Plainspoken Editorial voice; preserve the subject product's own design inside the report | review |
+| Authored skills | Give skills that benefit from visual outputs their own procedure and necessary packaged assets; don't depend on a maintainer checkout or another installed plugin | review |
+| Output boundaries | Save read-only reports outside the reviewed repository; an artifact doesn't grant implementation, publication or production-write permission | review |
+| Verification | Inspect the saved report in a browser, including narrow layouts, themes, focus, refresh and print; keep source links and untested states visible | review |
+| Markdown scope | The Markdown rules apply to instruction and documentation files; generated HTML reports and their packaged HTML/CSS assets use their own formats | review |
+
 ## Markdown
 
 | Item | Rule | Checked |

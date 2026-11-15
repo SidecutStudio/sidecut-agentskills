@@ -25,6 +25,8 @@ When the request doesn't say what the result is for, ask before handing over; th
 
 When a request spans several, start with the one whose result the others need: `agentskills-create-plugin` before `agentskills-write-skill`, and `agentskills-review-plugin` before `agentskills-rebuild-plugin`.
 
+For work that benefits from visual explanation, read `server/data/visual-reports.md` from the loaded plugin root. Use the packaged Sidecut layout and tokens.
+
 ## Not this plugin
 
 - Using a plugin that is already installed: follow that plugin's own skills.

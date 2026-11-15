@@ -31,6 +31,8 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 12. Hand the rebuilt repo, its commit and the list of differences to the `sidecut-agentskills:reviewer` subagent, which reads it without your context. A rebuild is always a deep review, so it runs on your own model, and so does the full re-review after its fixes. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Fix what it finds and run `bun run check` again.
 13. Merge and release through `agentskills-publish-plugin`, which also bundles the new tag into the marketplace. If the plugin id changed, bundle it under the new id and remove the old copy and entries in the same marketplace change. Then fix each other repo step 3 found in its own PR.
 
+Use `server/data/visual-reports.md` from the loaded plugin root for substantial before-and-after comparisons. Show observed parity results and unresolved differences without replacing the checks.
+
 ## Rules
 
 - Nothing is copied over as it was; text, layout and names follow the house style.

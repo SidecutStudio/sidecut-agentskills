@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.0] - 2026-11-15
+
+### Added
+
+- Added visual-report guidance, a Sidecut HTML/CSS layout and licensed offline Geist fonts for useful comparisons, diagrams and reports.
+- Added the Visual reports house-style section, available through `get_house_style`.
+
+### Changed
+
+- Plugin reviews, rebuilds, workflow designs and tool comparisons used visual reports where helpful. Skill authoring covered visual-output procedures and packaged assets when applicable.
+
 ## [0.8.5] - 2026-11-14
 
 ### Changed

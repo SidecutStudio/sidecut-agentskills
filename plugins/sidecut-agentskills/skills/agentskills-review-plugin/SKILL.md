@@ -24,9 +24,11 @@ Produces a short report of everything in a plugin repo that breaks the house sty
 5. When someone else will act on the review, or it's about to ship, take the review level that `solo-review-change` picks for the change. At light, stop here. At standard, also hand the repo, its commit and what changed to the `sidecut-agentskills:reviewer` subagent on a cheaper model, `sonnet` unless the project's `review_model` says otherwise; at deep, on your own model. Ask it for problems with evidence, not a general opinion. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Merge its findings into the groups, dropping duplicates.
 6. End with one line: ready to publish, or the number of problems left.
 
+Use `server/data/visual-reports.md` from the loaded plugin root when examples or visual structure make the review easier to act on. Preserve the three groups and verdict. A read-only review may save a report artifact in a task-owned folder; leave the reviewed repository unchanged.
+
 ## Rules
 
-- Change nothing. When the user asks for fixes, make them, run `bun run check`, and report what changed.
+- Leave the reviewed repository unchanged. When the user asks for fixes, make them, run `bun run check`, and report what changed.
 - Report each problem once, even when the checker finds it in both copies of a file.
 
 ## Done when
