@@ -32,6 +32,8 @@ Produces the smallest mechanism that makes the behavior happen every time, in th
 | A self-contained job that needs its own context or a narrower tool set | A subagent |
 | A check that has to pass before a merge | A CI job |
 
+Use `server/data/visual-reports.md` from the loaded plugin root when a flow or architecture diagram clarifies the mechanism. Show roles, permission boundaries and failure paths. Keep proposed behavior distinct from observed behavior.
+
 ## Rules
 
 - A hook is never a safety boundary; when it fails or is missing, everything carries on.

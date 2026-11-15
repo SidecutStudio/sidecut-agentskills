@@ -26,6 +26,10 @@ Produces one skill folder that passes `check_plugin` and has trigger evals that 
 6. Add trigger evals as described in [evals.md](references/evals.md): one case per trigger request and one per near miss.
 7. Run `bun run style`, fix every problem it names, then run the evals.
 
+When choosing the output format, read `server/data/visual-reports.md` from the loaded plugin root. For skills that benefit from visual outputs, write the procedure and package its needed assets with that plugin. Preserve any other product's own design. Don't require another installed plugin or a maintainer checkout.
+
+Keep the skill instructions in Markdown.
+
 ## Rules
 
 - A step tells the agent what to do; background and explanation go in references.

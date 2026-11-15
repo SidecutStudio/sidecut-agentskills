@@ -1,0 +1,397 @@
+/* Preserve the accompanying Geist and Geist Mono SIL Open Font License notices when embedding fonts. */
+@font-face {
+  font-family: "Geist Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("visual-report-geist.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono Variable";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("visual-report-geist-mono.woff2") format("woff2");
+}
+/* Sidecut Builder role tokens from src/tailwind.css and design.json.
+   Report layout below uses the same type, spacing, radius and color roles. */
+:root {
+  color-scheme: light dark;
+  --bg: light-dark(#f5f4f2, #121211);
+  --bg-deep: light-dark(#eeece8, #252422);
+  --surface: light-dark(#ffffff, #1b1b19);
+  --surface-2: light-dark(#fbfaf8, #171715);
+  --ink: light-dark(#0a0a0a, #f2f1ee);
+  --ink-2: light-dark(#535353, #b5b3ad);
+  --line: light-dark(rgba(10, 10, 10, 0.08), rgba(255, 255, 255, 0.09));
+  --line-2: light-dark(rgba(10, 10, 10, 0.15), rgba(255, 255, 255, 0.17));
+  --accent: #ff6b00;
+  --accent-ink: light-dark(#b84a00, #ff8a3d);
+  --accent-soft: light-dark(#f8eee3, #2c1c10);
+  --accent-line: light-dark(#efcdb0, #5c3517);
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+  --leading-tight: 1.05;
+  --leading-snug: 1.25;
+  --leading-base: 1.5;
+  --leading-relaxed: 1.65;
+  --tracking-tight: -0.04em;
+  --tracking-snug: -0.02em;
+  --w-medium: 500;
+  --w-semibold: 600;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 48px;
+  --sp-10: 64px;
+  --sp-11: 80px;
+  --r-2: 10px;
+  --r-3: 14px;
+  --border: 1px;
+}
+
+* {
+  box-sizing: border-box;
+}
+html {
+  scroll-padding-top: var(--sp-6);
+}
+body {
+  margin: 0;
+  overflow-wrap: anywhere;
+  background: var(--bg);
+  color: var(--ink);
+  font: var(--text-base) / var(--leading-relaxed) var(--font-sans);
+}
+a {
+  color: var(--accent-ink);
+  text-underline-offset: 0.2em;
+}
+a:hover {
+  text-decoration-thickness: 2px;
+}
+:focus-visible {
+  outline: 3px solid var(--accent-ink);
+  outline-offset: 4px;
+}
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.wrap {
+  max-width: 1240px;
+  margin-inline: auto;
+  padding-inline: var(--sp-8);
+}
+.masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  padding-block: var(--sp-6);
+  border-bottom: var(--border) solid var(--line-2);
+}
+.wordmark {
+  color: var(--ink);
+  font-size: var(--text-xl);
+  font-weight: var(--w-semibold);
+  letter-spacing: var(--tracking-tight);
+  text-decoration: none;
+}
+.wordmark span {
+  color: var(--accent);
+}
+.eyebrow,
+.label {
+  font: var(--w-medium) var(--text-xs) / var(--leading-base) var(--font-mono);
+  color: var(--ink-2);
+}
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-5);
+}
+nav a {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 0.7fr);
+  gap: var(--sp-10);
+  padding-block: var(--sp-11);
+  align-items: end;
+}
+h1 {
+  margin: var(--sp-5) 0;
+  max-width: 18ch;
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--w-semibold);
+  text-wrap: balance;
+}
+h2 {
+  margin: 0;
+  font-size: var(--text-3xl);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-snug);
+  font-weight: var(--w-semibold);
+}
+h3 {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  font-weight: var(--w-semibold);
+}
+p {
+  margin: var(--sp-3) 0 0;
+  max-width: 68ch;
+}
+.lede {
+  font-size: var(--text-lg);
+  color: var(--ink-2);
+  max-width: 55ch;
+}
+.verdict {
+  padding: var(--sp-6);
+  background: var(--accent-soft);
+  border: var(--border) solid var(--accent-line);
+  border-radius: var(--r-3);
+}
+.verdict .label {
+  color: var(--accent-ink);
+}
+.verdict h2 {
+  margin-top: var(--sp-3);
+  font-size: var(--text-2xl);
+}
+.section {
+  padding-block: var(--sp-9);
+  border-top: var(--border) solid var(--line-2);
+}
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--sp-6);
+  margin-bottom: var(--sp-6);
+}
+figcaption p {
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+.section-head p {
+  margin: 0;
+  color: var(--ink-2);
+}
+.comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-6);
+}
+figure {
+  margin: 0;
+  min-width: 0;
+}
+.frame {
+  padding: var(--sp-7);
+  background: var(--surface);
+  border: var(--border) solid var(--line-2);
+  border-radius: var(--r-3);
+}
+.frame img,
+.frame svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+figcaption {
+  padding-top: var(--sp-4);
+}
+
+.sample {
+  min-height: 220px;
+  padding: var(--sp-6);
+  background: var(--surface-2);
+  border: var(--border) solid var(--line);
+  border-radius: var(--r-2);
+}
+.sample h3 {
+  margin-top: var(--sp-4);
+}
+.sample p {
+  color: var(--ink-2);
+}
+.sample-link {
+  display: inline-block;
+  margin-top: var(--sp-6);
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+.sample-b {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-4);
+}
+.sample-b h3,
+.sample-b p {
+  margin: 0;
+}
+.sample-b .sample-link {
+  margin-top: var(--sp-2);
+}
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--text-md);
+}
+caption {
+  text-align: left;
+  color: var(--ink-2);
+  margin-bottom: var(--sp-4);
+}
+th,
+td {
+  padding: var(--sp-4);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: var(--border) solid var(--line-2);
+}
+th {
+  font-weight: var(--w-medium);
+}
+thead {
+  background: var(--bg-deep);
+}
+.finding {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: var(--sp-7);
+  padding-block: var(--sp-6);
+  border-bottom: var(--border) solid var(--line);
+}
+.finding p {
+  color: var(--ink-2);
+}
+.finding .label {
+  padding-top: var(--sp-1);
+}
+details {
+  margin-top: var(--sp-5);
+  padding: var(--sp-5);
+  background: var(--surface-2);
+  border: var(--border) solid var(--line-2);
+  border-radius: var(--r-2);
+}
+summary {
+  cursor: pointer;
+  font-weight: var(--w-medium);
+}
+ul,
+ol {
+  padding-left: var(--sp-6);
+}
+li + li {
+  margin-top: var(--sp-2);
+}
+footer {
+  padding-block: var(--sp-7);
+  border-top: var(--border) solid var(--line-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+.skip {
+  position: absolute;
+  left: var(--sp-4);
+  top: -100px;
+  padding: var(--sp-3);
+  background: var(--surface);
+}
+.skip:focus {
+  top: var(--sp-4);
+}
+@media (max-width: 760px) {
+  .wrap {
+    padding-inline: var(--sp-5);
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    gap: var(--sp-6);
+    padding-block: var(--sp-9);
+  }
+  .comparison {
+    grid-template-columns: 1fr;
+  }
+  .section-head {
+    display: block;
+  }
+  .section-head p {
+    margin-top: var(--sp-3);
+  }
+  .finding {
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+  }
+  .frame {
+    padding: var(--sp-4);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+@media print {
+  :root {
+    color-scheme: light;
+  }
+  .wrap {
+    max-width: none;
+    padding-inline: 0;
+  }
+  nav,
+  .skip {
+    display: none;
+  }
+  .hero {
+    padding-block: var(--sp-6);
+  }
+  .section {
+    padding-block: var(--sp-6);
+  }
+  .comparison {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  figure,
+  .finding,
+  .verdict {
+    break-inside: avoid;
+  }
+  details::details-content {
+    content-visibility: visible;
+  }
+  details > * {
+    display: block;
+  }
+  a {
+    color: var(--ink);
+  }
+}
