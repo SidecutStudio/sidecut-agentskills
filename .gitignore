@@ -5,4 +5,5 @@ node_modules/
 .env*
 solo-workflow.local.toml
 .claude/settings.local.json
+.codex/agents/
 # sidecut:end house-style
