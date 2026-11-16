@@ -20,6 +20,7 @@ Picks the one skill in this plugin that fits the request and hands over to it. E
 | A check of a plugin against the house style, changing nothing | `agentskills-review-plugin` |
 | An older plugin brought into the house style without losing anything | `agentskills-rebuild-plugin` |
 | A new version released to the Sidecut marketplace | `agentskills-publish-plugin` |
+| Which Sidecut skills ran, in which host, and whether the log is on | `agentskills-show-usage` |
 
 When the request doesn't say what the result is for, ask before handing over; the answer often changes what gets built.
 
