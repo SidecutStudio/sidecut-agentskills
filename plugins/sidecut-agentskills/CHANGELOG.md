@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.2] - 2026-11-16
+
+### Fixed
+
+- The `agentskills-unsure` router eval counted any Agentskills skill as the router, because `input_match` is a regular expression and every skill name starts with the router's. It now anchors on the closing quote, and `agentskills-write-skill`'s eval reference says how to do the same for any router.
+
 ## [0.9.1] - 2026-11-16
 
 ### Added

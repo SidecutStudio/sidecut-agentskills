@@ -32,6 +32,12 @@ arm: with-only
 ---
 ```
 
+`input_match` is a regular expression searched in the tool's input, so it also matches any longer skill name that starts the same way. For the router, whose name starts every other skill's name, anchor it on the closing quote:
+
+```markdown
+input_match: '"skill"\s*:\s*"<plugin-id>:<prefix>"'
+```
+
 ## A near-miss case
 
 Use the same `prompt.md` shape with `tags: [negative]` and the close request that belongs elsewhere. Its grader sets `min: 0` and `max: 0` and `arm: both`, with `input_match` naming the skill that should stay quiet, or the plugin id for a `negative-` case.
