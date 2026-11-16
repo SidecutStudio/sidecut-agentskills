@@ -192,7 +192,7 @@ Task skill, in this order:
 7. `## Done when` (required): one sentence or a short list the agent can verify.
 8. `## References` (required when supporting files exist): a table with columns `Read` and `When`.
 
-Router skill, in this order: `# Start`, one paragraph, `## Pick a skill` (a table with columns `Need` and `Skill`), `## Not this plugin` (requests that look close but belong elsewhere), `## Done when`.
+Router skill, in this order: `# <Display name>`, one paragraph, `## Pick a skill` (a table with columns `Need` and `Skill`), `## Not this plugin` (requests that look close but belong elsewhere), `## Done when`.
 
 | Item | Rule | Checked |
 | --- | --- | --- |

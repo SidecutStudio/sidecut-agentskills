@@ -19,8 +19,10 @@ import {
 } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
 import { Report } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
 import {
+  addSkill,
   checkPluginInput,
   displayNameOf,
+  ownVersion,
   scaffoldPlugin,
 } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
@@ -957,4 +959,48 @@ test('a renamed plugin explicitly retains full repo checks and sync identity', (
   expect(codes(r.root)).toContain('REPO_ENTRY_MISSING');
   r.json('package.json', (v) => Object.assign(v, { name: 'another-app' }));
   expect(identify(r.root).id).toBeNull();
+});
+
+test('a scaffold without a checker source pins sidecut-check to this release', () => {
+  const root = mkdtempSync(join(tmpdir(), 'sidecut-pin-'));
+  scratch.push(root);
+  scaffoldPlugin(
+    {
+      id: ID,
+      description: 'Shows how a Sidecut plugin is put together.',
+      longDescription: 'A small example plugin. It exists to test the generator.',
+      keywords: ['example', 'template', 'mcp'],
+      date: '2026-11-12',
+    },
+    root,
+  );
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  expect(pkg.devDependencies['sidecut-agentskills']).toBe(
+    `github:SidecutStudio/sidecut-agentskills#v${ownVersion}`,
+  );
+});
+
+test('add_skill writes a router whose display-name title passes the checker', () => {
+  const r = copy();
+  for (const name of ['demo-write-note', 'demo-read-note', 'demo-list-notes']) {
+    addSkill(join(r.root, P), { name, does: 'Writes a note for the demo.' });
+  }
+  const files = addSkill(join(r.root, P), {
+    name: 'demo',
+    does: 'Routes a demo request to the right Sidecut Demo skill.',
+  });
+  expect(files).toContain('skills/demo/SKILL.md');
+  const skill = r.read(`${P}/skills/demo/SKILL.md`);
+  expect(skill).toContain('# Sidecut Demo');
+  expect(skill).toContain('## Pick a skill');
+  const found = codes(r.root);
+  for (const code of [
+    'NAME_SKILL',
+    'SKILL_TITLE',
+    'SKILL_SECTIONS',
+    'MD_HEADING_CASE',
+    'SKILL_ROUTER',
+  ]) {
+    expect(found).not.toContain(code);
+  }
 });

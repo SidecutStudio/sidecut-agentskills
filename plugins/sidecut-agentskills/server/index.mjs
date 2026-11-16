@@ -21605,10 +21605,10 @@ function checkPluginInput(input) {
 }
 function checkSkillInput(input, prefix) {
   const problems = [];
-  if (input.name === prefix || !isSkillName(input.name, prefix)) {
+  if (input.name !== prefix && !isSkillName(input.name, prefix)) {
     problems.push({
       code: "NAME_SKILL",
-      message: `Skill name "${input.name}" must be ${prefix}- then a verb and an object, 2 or 3 words in kebab-case.`
+      message: `Skill name "${input.name}" must be ${prefix}- then a verb and an object, 2 or 3 words in kebab-case, or ${prefix} alone for the router.`
     });
   }
   if (!/^[A-Z][a-z]+s /.test(input.does) || !input.does.endsWith(".") || input.does.split(". ").length > 1) {
@@ -21726,7 +21726,7 @@ function scaffoldPlugin(input, out) {
     year: date.slice(0, 4),
     skillDoes,
     skillPrompt: defaultPromptOf(skillDoes),
-    checkerSource: input.checkerSource ?? `${DEFAULT_CHECKER}#v${version}`
+    checkerSource: input.checkerSource ?? `${DEFAULT_CHECKER}#v${ownVersion}`
   };
   const files = new Map;
   for (const [path, text] of renderTree("repo", vars))
@@ -21765,7 +21765,8 @@ function addSkill(pluginDir, input) {
     brandColor: brandColorOf(pluginDir)
   };
   const files = new Map;
-  for (const [path, text] of renderTree("skill", vars))
+  const template = input.name === prefix ? "router" : "skill";
+  for (const [path, text] of renderTree(template, vars))
     files.set(join(skillDir, path), text);
   return writeAll(pluginDir, files);
 }
@@ -22395,7 +22396,7 @@ function checkSections(dir, name, root, report, tools, skills, plugin) {
   const file = relative4(root, path);
   const text = readFileSync3(path, "utf8");
   const doc = parseMarkdown(path, text);
-  checkMarkdown(doc, text, root, report);
+  checkMarkdown(doc, text, root, report, { skipH1Case: true });
   if (doc.lines.length > 200) {
     report.add("SKILL_LENGTH", file, 201, `SKILL.md has ${doc.lines.length} lines.`, "Move detail into references/ to stay at 200 or fewer.");
   }
@@ -23637,7 +23638,7 @@ server.registerTool("add_skill", {
   description: "Writes a skill skeleton with SKILL.md and agents/openai.yaml into a plugin folder and returns the files it wrote. Use it to start a new skill, then replace every TODO.",
   inputSchema: object({
     plugin: string2().describe("Absolute path to plugins/<plugin-id>"),
-    name: string2().describe("Verb then object in kebab-case, such as agentskills-write-skill"),
+    name: string2().describe("Prefix, verb and object in kebab-case, such as agentskills-write-skill, or the prefix alone for the router"),
     does: string2().describe("One sentence starting with a third-person verb")
   }),
   annotations: writes
