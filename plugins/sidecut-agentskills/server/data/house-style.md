@@ -110,11 +110,13 @@ codex plugin add <plugin-id>@<plugin-id>
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Both files | Present in a public repo, and nothing else under `.claude-plugin/` or `.agents/` | yes |
+| Both files | Present in a public repo | yes |
+| Root `.claude-plugin/` and `.agents/` | Hold nothing but these two files, in any repo; files `.gitignore` ignores don't count | yes |
 | Contents | `name` is the plugin id and `plugins` holds one entry for the plugin at `./plugins/<plugin-id>` | yes |
 | README install steps | In a public repo, both hosts add the marketplace from `SidecutStudio/<repo>` and install `<plugin-id>@<plugin-id>`; no step names a marketplace the repo doesn't provide | yes |
 | Proof | Before a public repo's install steps are published anywhere, they run from a clean Claude Code profile and a clean Codex home, or `claude plugin validate .` passes and the gap is named | review |
-| Private repo | No marketplace files; the README installs from `sidecut-plugins` | yes |
+| Private repo | No marketplace files | yes |
+| Private repo README | Installs from `sidecut-plugins` | review |
 
 ## Plugin layout
 

@@ -23444,25 +23444,28 @@ function isHostedOnly(workflow) {
   const jobs = jobsOf(workflow);
   return jobs.length > 0 && jobs.every((job) => job.runsOn === "ubuntu-24.04");
 }
-function filesUnder(root, dir) {
+function filesUnder(root, dir, ignored) {
   const path = join7(root, dir);
   if (!existsSync7(path))
     return [];
   if (!lstatSync(path).isDirectory())
     return [dir];
-  return readdirSync4(path).flatMap((name) => filesUnder(root, `${dir}/${name}`));
+  return readdirSync4(path).filter((name) => name !== ".DS_Store" && !ignoredBy(ignored, name)).flatMap((name) => filesUnder(root, `${dir}/${name}`, ignored));
 }
 function checkInstallSource(root, id, repo, report) {
   const check = join7(root, ".github", "workflows", "check.yml");
   const isPublic = existsSync7(check) && isHostedOnly(readFileSync6(check, "utf8"));
-  const found = [".claude-plugin", ".agents"].flatMap((dir) => filesUnder(root, dir));
+  const gitignore = existsSync7(join7(root, ".gitignore")) ? readFileSync6(join7(root, ".gitignore"), "utf8").split(`
+`).filter(Boolean) : [];
+  const found = [".claude-plugin", ".agents"].flatMap((dir) => filesUnder(root, dir, gitignore));
+  const extra = found.filter((f) => !MARKETPLACES.includes(f));
+  for (const file of extra)
+    report.add("REPO_MARKETPLACE", file, undefined, `"${file}" isn't part of the repo layout; the root .claude-plugin/ and .agents/ hold only a public repo's marketplace files.`, "Move it into the plugin, or remove it.");
   if (!isPublic) {
-    for (const file of found)
+    for (const file of found.filter((f) => MARKETPLACES.includes(f)))
       report.add("REPO_MARKETPLACE", file, undefined, "A private repo has its own marketplace.", "List the plugin from the sidecut-plugins marketplace only; a public repo, whose jobs all run on ubuntu-24.04, keeps one.");
     return;
   }
-  for (const file of found.filter((f) => !MARKETPLACES.includes(f)))
-    report.add("REPO_MARKETPLACE", file, undefined, `"${file}" isn't part of the install source.`, "Keep only .claude-plugin/marketplace.json and .agents/plugins/marketplace.json there.");
   const [claudeFile, codexFile] = MARKETPLACES;
   const how = "Write it as the house style's Install source section shows.";
   for (const file of MARKETPLACES) {
@@ -23488,6 +23491,11 @@ function checkInstallSource(root, id, repo, report) {
   const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(readme)?.[1] ?? "";
   const add = `marketplace add SidecutStudio/${repo}`;
   const named = new Set([...install.matchAll(/plugin (?:install|add) [\w.-]+@([\w.-]+)/g)].map((m) => m[1]));
+  const added = new Set([...install.matchAll(/plugin marketplace add (\S+)/g)].map((m) => m[1]?.replace(/`$/, "")));
+  for (const source of added) {
+    if (source !== `SidecutStudio/${repo}`)
+      report.add("README_INSTALL", "README.md", undefined, `The Install section adds the marketplace ${source}, which isn't this repo.`, `Add \`SidecutStudio/${repo}\` instead.`);
+  }
   for (const marketplace of named) {
     if (marketplace !== id)
       report.add("README_INSTALL", "README.md", undefined, `The Install section installs from ${marketplace}, a marketplace this public repo doesn't provide.`, `Install ${id}@${id} after \`/plugin ${add}\` in Claude Code and \`codex plugin ${add}\` in Codex.`);
@@ -23498,7 +23506,9 @@ function checkInstallSource(root, id, repo, report) {
     `codex plugin ${add}`,
     `codex plugin add ${id}@${id}`
   ];
-  const missing = steps.filter((step) => !install.includes(step));
+  const lines = new Set(install.split(`
+`).map((line) => line.trim()));
+  const missing = steps.filter((step) => !lines.has(step));
   if (missing.length > 0)
     report.add("README_INSTALL", "README.md", undefined, `The Install section is missing ${missing.map((step) => `\`${step}\``).join(", ")}.`, "Use the public install steps from the house style's Install source section.");
 }

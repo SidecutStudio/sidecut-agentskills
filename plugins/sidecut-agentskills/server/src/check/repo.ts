@@ -413,12 +413,14 @@ function isHostedOnly(workflow: string): boolean {
   return jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
 }
 
-/** Every file under `dir`, relative to `root`. */
-function filesUnder(root: string, dir: string): string[] {
+/** Every file under `dir`, relative to `root`, leaving out names `.gitignore` ignores. */
+function filesUnder(root: string, dir: string, ignored: string[]): string[] {
   const path = join(root, dir);
   if (!existsSync(path)) return [];
   if (!lstatSync(path).isDirectory()) return [dir];
-  return readdirSync(path).flatMap((name) => filesUnder(root, `${dir}/${name}`));
+  return readdirSync(path)
+    .filter((name) => name !== '.DS_Store' && !ignoredBy(ignored, name))
+    .flatMap((name) => filesUnder(root, `${dir}/${name}`, ignored));
 }
 
 /**
@@ -429,9 +431,21 @@ function filesUnder(root: string, dir: string): string[] {
 function checkInstallSource(root: string, id: string, repo: string, report: Report): void {
   const check = join(root, '.github', 'workflows', 'check.yml');
   const isPublic = existsSync(check) && isHostedOnly(readFileSync(check, 'utf8'));
-  const found = ['.claude-plugin', '.agents'].flatMap((dir) => filesUnder(root, dir));
+  const gitignore = existsSync(join(root, '.gitignore'))
+    ? readFileSync(join(root, '.gitignore'), 'utf8').split('\n').filter(Boolean)
+    : [];
+  const found = ['.claude-plugin', '.agents'].flatMap((dir) => filesUnder(root, dir, gitignore));
+  const extra = found.filter((f) => !MARKETPLACES.includes(f));
+  for (const file of extra)
+    report.add(
+      'REPO_MARKETPLACE',
+      file,
+      undefined,
+      `"${file}" isn't part of the repo layout; the root .claude-plugin/ and .agents/ hold only a public repo's marketplace files.`,
+      'Move it into the plugin, or remove it.',
+    );
   if (!isPublic) {
-    for (const file of found)
+    for (const file of found.filter((f) => MARKETPLACES.includes(f)))
       report.add(
         'REPO_MARKETPLACE',
         file,
@@ -441,14 +455,6 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
       );
     return;
   }
-  for (const file of found.filter((f) => !MARKETPLACES.includes(f)))
-    report.add(
-      'REPO_MARKETPLACE',
-      file,
-      undefined,
-      `"${file}" isn't part of the install source.`,
-      'Keep only .claude-plugin/marketplace.json and .agents/plugins/marketplace.json there.',
-    );
   const [claudeFile, codexFile] = MARKETPLACES as [string, string];
   const how = "Write it as the house style's Install source section shows.";
   for (const file of MARKETPLACES) {
@@ -496,6 +502,19 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
   const named = new Set(
     [...install.matchAll(/plugin (?:install|add) [\w.-]+@([\w.-]+)/g)].map((m) => m[1]),
   );
+  const added = new Set(
+    [...install.matchAll(/plugin marketplace add (\S+)/g)].map((m) => m[1]?.replace(/`$/, '')),
+  );
+  for (const source of added) {
+    if (source !== `SidecutStudio/${repo}`)
+      report.add(
+        'README_INSTALL',
+        'README.md',
+        undefined,
+        `The Install section adds the marketplace ${source}, which isn't this repo.`,
+        `Add \`SidecutStudio/${repo}\` instead.`,
+      );
+  }
   for (const marketplace of named) {
     if (marketplace !== id)
       report.add(
@@ -512,7 +531,8 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
     `codex plugin ${add}`,
     `codex plugin add ${id}@${id}`,
   ];
-  const missing = steps.filter((step) => !install.includes(step));
+  const lines = new Set(install.split('\n').map((line) => line.trim()));
+  const missing = steps.filter((step) => !lines.has(step));
   if (missing.length > 0)
     report.add(
       'README_INSTALL',

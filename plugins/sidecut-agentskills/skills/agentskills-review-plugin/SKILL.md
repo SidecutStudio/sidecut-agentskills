@@ -17,7 +17,7 @@ Produces a short report of everything in a plugin repo that breaks the house sty
 1. Call `check_plugin` with the repo's absolute path. Each problem comes with a code, a file and line, and a fix.
 2. Run `claude plugin validate --strict plugins/<plugin-id>` for the problems Claude Code itself would reject.
 3. Read the rows marked review in `get_house_style` and check those by reading the files: voice, sentence length, link text, transport and the rest.
-4. In a public repo, run the README's install steps from a throwaway `CLAUDE_CONFIG_DIR` and `CODEX_HOME`, then delete both. A step that fails, or needs a marketplace the public can't reach, won't work; if the steps can't run, say which host went unproven.
+4. In a public repo, run the README's install steps from a throwaway `CLAUDE_CONFIG_DIR` and `CODEX_HOME`, then delete both. For unmerged work, add the marketplace from the local checkout's path instead of `SidecutStudio/<repo>`, which serves `main`. A step that fails, or needs a marketplace the public can't reach, won't work; if the steps can't run, say which host went unproven.
 5. Write the report in three groups, most serious first:
    - **Won't load or work:** validator errors, a server that doesn't start, a stale bundle, a missing manifest.
    - **Breaks the house style:** every other `check_plugin` problem.

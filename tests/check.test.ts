@@ -914,6 +914,31 @@ describe('install source', () => {
     expect(codes(repo.root)).toEqual(['REPO_MARKETPLACE']);
   });
 
+  test('files .gitignore ignores beside the install source are left alone', () => {
+    const repo = withSource(publicRepo());
+    repo.write('.claude-plugin/.DS_Store', '');
+    repo.write('.agents/plugins/.DS_Store', '');
+    expect(codes(repo.root)).toEqual([]);
+  });
+
+  test('an install step must add this repo, not one with a similar name', () => {
+    const repo = withSource(publicRepo());
+    repo.edit('README.md', (t) =>
+      t.replace(
+        `/plugin marketplace add SidecutStudio/${ID}\n`,
+        `/plugin marketplace add SidecutStudio/${ID}-fork\n`,
+      ),
+    );
+    const report = new Report();
+    checkRepo(repo.root, report);
+    expect(
+      report.problems.filter((p) => p.code === 'README_INSTALL').map((p) => p.message),
+    ).toEqual([
+      `The Install section adds the marketplace SidecutStudio/${ID}-fork, which isn't this repo.`,
+      `The Install section is missing \`/plugin marketplace add SidecutStudio/${ID}\`.`,
+    ]);
+  });
+
   test('a private repo has no marketplace of its own', () => {
     const repo = withSource(copy());
     expect(codes(repo.root)).toContain('REPO_MARKETPLACE');
