@@ -25,7 +25,7 @@ Read this file from the loaded plugin's `server/data/` folder. The sibling `visu
 9. Make the report useful without scripts, storage or network access. Add interaction only when it helps compare, inspect or understand the material.
 10. Render the saved file before sharing it. Check narrow, tablet and desktop layouts, both themes, keyboard focus, zoom and print output.
 11. Check every interaction, source link and image. Reload the file to check that required content survives; avoid relying on browser storage.
-12. Show the report where the user already is, with a short chat answer. In Claude Code, publish it with the Artifact tool or open it in the desktop app's built-in browser; in Codex, open it in the in-app browser. Never hand over a file the user has to download and open. With no view at all, give the path and name that gap.
+12. Show the report where the user already is, with a short chat answer. In Claude Code, publish it with the Artifact tool or open it in the desktop app's built-in browser; in Codex, open it in the in-app browser. Keep private data, such as usage, in the local browser view unless the user asks to share it. Never hand over a file the user has to download and open. With no view at all, give the path and name that gap.
 
 ## Apply it to agent tooling
 

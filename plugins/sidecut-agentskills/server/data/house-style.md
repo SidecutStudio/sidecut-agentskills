@@ -256,8 +256,8 @@ The only telemetry a Sidecut plugin has.
 | Record | One JSON line per skill run with `time`, `plugin`, `skill`, `host` and nothing else | yes |
 | Location | `~/.sidecut/skill-log.jsonl`, never sent anywhere | yes |
 | Ownership | Records only this plugin's skills | yes |
-| Mentions in skills | None; skills never ask the agent to log, report or send feedback | review |
-| Reading it | `agentskills-show-usage` reads the log for every Sidecut plugin in both hosts; a plugin doesn't ship its own reader, and a plugin with richer usage of its own, like Sidecut Solo, adds a `<prefix>-show-usage` skill that checks recording still works before reporting | review |
+| Mentions in skills | None; skills never ask the agent to log, report or send feedback. A skill that reads usage back to the user, as `agentskills-show-usage` does, is the one exception | review |
+| Reading it | `agentskills-show-usage` reads this log for every plugin that keeps it, so no plugin ships its own reader for it. A plugin with richer usage data of its own, like Sidecut Solo, may add a `<prefix>-show-usage` skill for that data, which checks recording still works before reporting | review |
 
 ## Wording
 
@@ -286,7 +286,7 @@ The only telemetry a Sidecut plugin has.
 | Authored skills | Give skills that benefit from visual outputs their own procedure and necessary packaged assets; don't depend on a maintainer checkout or another installed plugin | review |
 | Output boundaries | Save read-only reports outside the reviewed repository; an artifact doesn't grant implementation, publication or production-write permission | review |
 | Verification | Inspect the saved report in a browser, including narrow layouts, themes, focus, refresh and print; keep source links and untested states visible | review |
-| Showing it | Open the report where the user already is: an Artifact or the built-in browser in Claude Code, the in-app browser in Codex. Never hand over a file to download and open; with no view at all, give the path | review |
+| Showing it | Open the report where the user already is: an Artifact or the built-in browser in Claude Code, the in-app browser in Codex. Private data such as usage stays in the local browser view unless the user asks to share it. Never hand over a file to download and open; with no view at all, give the path | review |
 | New pages and identities | Show two or three rendered directions with the real words, after researching real examples, before building one; copy alone in chat is never the draft | review |
 | Markdown scope | The Markdown rules apply to instruction and documentation files; generated HTML reports and their packaged HTML/CSS assets use their own formats | review |
 
