@@ -257,7 +257,7 @@ The only telemetry a Sidecut plugin has.
 | Location | `~/.sidecut/skill-log.jsonl`, never sent anywhere | yes |
 | Ownership | Records only this plugin's skills | yes |
 | Mentions in skills | None; skills never ask the agent to log, report or send feedback. A skill that reads usage back to the user, as `agentskills-show-usage` does, is the one exception | review |
-| Reading it | `agentskills-show-usage` reads this log for every plugin that keeps it, so no plugin ships its own reader for it. A plugin with richer usage data of its own, like Sidecut Solo, may add a `<prefix>-show-usage` skill for that data, which checks recording still works before reporting | review |
+| Reading it | `agentskills-show-usage` reads this log for every plugin that keeps it, so no plugin ships its own reader for it. A plugin with richer usage data of its own, like Sidecut Solo, may add a `<prefix>-show-usage` skill for that data. It checks recording still works before reporting | review |
 
 ## Wording
 
