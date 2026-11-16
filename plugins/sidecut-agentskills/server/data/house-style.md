@@ -21,7 +21,7 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 
 ## Repo layout
 
-A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. A repo that kept its older name, the plugin id without `sidecut-`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bunfig.toml` when used, `docs/` for longer documentation, such as a specification, a `.claude/` folder that holds only worktrees Claude Code registered under `.claude/worktrees/` and files `.gitignore` ignores, and a `.codex/` folder that holds only files `.gitignore` ignores, such as the subagent profiles under `.codex/agents/`.
+A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. A repo that kept its older name, the plugin id without `sidecut-`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bunfig.toml` when used, `docs/` for longer documentation, such as a specification, a `.claude/` folder that holds only worktrees Claude Code registered under `.claude/worktrees/` and files `.gitignore` ignores, and a `.codex/` folder that holds only files `.gitignore` ignores, such as the subagent profiles under `.codex/agents/`. A public repo also has its install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, described under Install source.
 
 A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `sidecut.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
 
@@ -53,12 +53,70 @@ tsconfig.json
 | --- | --- | --- |
 | `CLAUDE.md` | One line: `@AGENTS.md` | yes |
 | `LICENSE` | MIT, `Copyright (c) <year> Sidecut Studio` | yes |
-| Marketplace | Not in the plugin repo; the plugin is listed from the `sidecut-plugins` marketplace | yes |
+| Install source | A public repo, one whose CI jobs all run on `ubuntu-24.04`, carries its own marketplace for each host, listing only its plugin. A private repo has none; its plugin is listed from the `sidecut-plugins` marketplace | yes |
 | Plugins per repo | One | review |
 | `.gitignore` | Starts with the template's `house-style` block; the repo's own lines go after it | yes |
 | `package.json` | `name` is the plugin id, `version` matches the manifests, `packageManager` is a pinned `bun@x.y.z`, every dependency is an exact version or a tagged GitHub source | yes |
 | Code formatting | Biome with the template's `biome.json`: 2-space indent, single quotes, 100-character lines; it also formats every JSON file | yes |
 | Unexpected top-level files | Fail the check | yes |
+
+## Install source
+
+A public repo has to install for people with no access to anything private. The `sidecut-plugins` marketplace is private, so a public repo carries a marketplace of its own: one file per host, at the path each host reads, both named after the plugin id and listing only `./plugins/<plugin-id>`. sidecut-plugins still bundles the plugin folder for the owner's own installs; it copies only `plugins/<plugin-id>/`, so these files don't reach it.
+
+`.claude-plugin/marketplace.json`, for Claude Code:
+
+```json
+{
+  "name": "<plugin-id>",
+  "owner": { "name": "Sidecut Studio", "url": "https://sidecut.dev" },
+  "description": "<manifest description>",
+  "plugins": [
+    {
+      "name": "<plugin-id>",
+      "source": "./plugins/<plugin-id>",
+      "description": "<manifest description>",
+      "category": "development"
+    }
+  ]
+}
+```
+
+`.agents/plugins/marketplace.json`, for Codex, which reads this path before the Claude Code one:
+
+```json
+{
+  "name": "<plugin-id>",
+  "interface": { "displayName": "<display name>" },
+  "plugins": [
+    {
+      "name": "<plugin-id>",
+      "source": { "source": "local", "path": "./plugins/<plugin-id>" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Developer Tools"
+    }
+  ]
+}
+```
+
+The README's Install section then gives these steps, with no command output. It says "In Claude Code, add this repo's marketplace, then install the plugin:" above a `text` block with the first two lines, and "In Codex, run:" above a `bash` block with the last two:
+
+```text
+/plugin marketplace add SidecutStudio/<repo>
+/plugin install <plugin-id>@<plugin-id>
+codex plugin marketplace add SidecutStudio/<repo>
+codex plugin add <plugin-id>@<plugin-id>
+```
+
+| Item | Rule | Checked |
+| --- | --- | --- |
+| Both files | Present in a public repo | yes |
+| Root `.claude-plugin/` and `.agents/` | Hold nothing but these two files, in any repo; files `.gitignore` ignores don't count | yes |
+| Contents | `name` is the plugin id and `plugins` holds one entry for the plugin at `./plugins/<plugin-id>` | yes |
+| README install steps | In a public repo, both hosts add the marketplace from `SidecutStudio/<repo>` and install `<plugin-id>@<plugin-id>`; no step names a marketplace the repo doesn't provide | yes |
+| Proof | Before a public repo's install steps are published anywhere, they run from a clean Claude Code profile and a clean Codex home, or `claude plugin validate .` passes and the gap is named | review |
+| Private repo | No marketplace files | yes |
+| Private repo README | Installs from `sidecut-plugins` | review |
 
 ## Plugin layout
 
@@ -317,7 +375,7 @@ Sections in this order:
 
 1. `# <Display name>`, then one paragraph that is the manifest description.
 2. `## What it does`: a table with columns `Skill` and `Does`, one row per skill, using each description's first sentence.
-3. `## Install`: install through the Sidecut marketplace in Claude Code and Codex.
+3. `## Install`: in a public repo, the steps under Install source; in a private repo, install from the `sidecut-plugins` marketplace in Claude Code and Codex. No command output.
 4. `## Use`: 2 or 3 example requests.
 5. `## Settings`: a table of environment variables with default and meaning, or the line "None." A plugin with hooks then says Codex runs them only once trusted.
 6. `## Privacy`: every field the usage log records and where it goes, or the line "This plugin records nothing."

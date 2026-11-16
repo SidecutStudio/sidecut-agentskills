@@ -17,7 +17,7 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 | Version in every manifest, nothing checks they match | All four | Adapt | Keep one version in every file and let the checker fail on any mismatch |
 | Two byte-identical MCP files (`.mcp.json` and `mcp.json`) | Expo | Adapt | Two files are needed for a local server because the hosts use different root variables; the checker keeps them identical apart from that |
 | Non-standard fields such as a `note` on an MCP server | Vercel | Skip | Ignored by hosts and went stale ("read-only in initial release") |
-| Marketplace entry with `category` and `tags` | Apify | Adopt | Helps the listing; lives in the marketplace repo, not the plugin |
+| Marketplace entry with `category` and `tags` | Apify | Adopt | Helps the listing; lives in the marketplace file, so in sidecut-plugins or a public repo's own install source |
 
 ## Skill names and frontmatter
 

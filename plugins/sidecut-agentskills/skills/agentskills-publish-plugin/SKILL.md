@@ -7,7 +7,7 @@ allowed-tools:
 
 # Publish plugin
 
-Produces a new version of the plugin that the sidecut-plugins marketplace serves to Claude Code and Codex. A plugin in its own repo ships as a tagged release; a plugin inside another product's repo ships as one pinned commit of `main`. Either way, sidecut-plugins then copies that version into its `bundled/` folder, because claude.ai can read the private marketplace but not the plugin's own repo.
+Produces a new version of the plugin that the sidecut-plugins marketplace serves to Claude Code and Codex. A plugin in its own repo ships as a tagged release; a plugin inside another product's repo ships as one pinned commit of `main`. Either way, sidecut-plugins copies that version into its `bundled/` folder for the owner's installs, and a public repo also installs from its own marketplace files.
 
 ## Before you start
 
@@ -29,6 +29,7 @@ The change to publish is merged to `main` first.
 3. Run `bun run check`, then merge through `solo-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
 4. Confirm the release in the plugin's own repo: `gh release view v<version> --repo SidecutStudio/<repo>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`, and `gh api repos/SidecutStudio/<repo>/commits/v<version> --jq .sha` is the merge commit. If the Release run failed, read its log and re-run it; never tag by hand.
 5. In `sidecut-plugins`, run `bun scripts/bundle.ts <plugin-id> v<version>`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
+6. In a public repo, prove its own install source from GitHub, as [public-install.md](references/public-install.md) describes.
 
 ### 3. Commit pin
 
@@ -44,7 +45,8 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 
 ## Rules
 
-- Never install the plugin locally to try it; the marketplace copy is the one people get.
+- Never install the plugin into the user's own Claude Code or Codex to try it; the marketplace copy is the one they get. A public install source is tried only from throwaway config folders, deleted afterwards.
+- Install commands for a public plugin, on a website or anywhere else, are the README's public steps. Never give one that names `sidecut-plugins`, and never show made-up output.
 - Release only from `main`, and only a commit whose checks passed. For a tag release the Release workflow enforces both; for a commit pin, check them before bundling the commit.
 - Name the repo in every `gh` command, with `--repo SidecutStudio/<repo>` or a `repos/SidecutStudio/<repo>/` path. Without it, `gh` uses whichever checkout it runs in.
 - A release counts only when its repo, version and commit all match. The same version number in another repo, or on another commit, isn't this release.
@@ -68,6 +70,7 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 
 - `bundled/sources.json` in sidecut-plugins names the new tag or merge commit, and that change is merged.
 - A tag release is published with its ZIP and checksum.
+- A public repo's README install steps work from clean profiles in both hosts, or the unproven host is named.
 - A new session shows the plugin at the new version.
 
 ## References
@@ -75,3 +78,4 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 | Read | When |
 | --- | --- |
 | [marketplace.md](references/marketplace.md) | Adding, updating or removing a plugin in the marketplace |
+| [public-install.md](references/public-install.md) | Proving a public repo installs for people without access to sidecut-plugins |

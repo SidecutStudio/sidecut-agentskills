@@ -1,0 +1,20 @@
+{
+  "name": "sidecut-agentskills",
+  "interface": {
+    "displayName": "Sidecut Agentskills"
+  },
+  "plugins": [
+    {
+      "name": "sidecut-agentskills",
+      "source": {
+        "source": "local",
+        "path": "./plugins/sidecut-agentskills"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

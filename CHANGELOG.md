@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.0] - 2026-11-16
+
+### Added
+
+- Added this repo's own install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, so anyone can install Sidecut Agentskills from GitHub without the private sidecut-plugins marketplace.
+- Added the Install source section to the house style: a public repo carries both marketplace files and its README gives install steps that work without any private marketplace.
+- Added `README_INSTALL` to `check_plugin` and `sidecut-check`, which flags a public repo's README whose install steps name a marketplace the repo doesn't provide.
+- Added `public-install.md` to `agentskills-publish-plugin`, which proves a public repo's install steps from clean Claude Code and Codex profiles.
+
+### Changed
+
+- Changed the README's Install section to the public steps for Claude Code and Codex.
+- Changed `REPO_MARKETPLACE` to require both marketplace files in a public repo, listing only its plugin, and to allow none in a private one.
+- Changed `agentskills-create-plugin`, `agentskills-rebuild-plugin`, `agentskills-review-plugin` and `agentskills-publish-plugin` to set up, check and prove a public repo's install source.
+
 ## [0.10.0] - 2026-11-16
 
 ### Added
