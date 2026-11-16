@@ -23279,14 +23279,15 @@ var isRealDir = (path) => {
   const stat = lstatSync(path);
   return stat.isDirectory() && !stat.isSymbolicLink();
 };
-function onlyHostState(root) {
-  const dir = join7(root, ".claude");
+var HOST_FOLDERS = [".claude", ".codex"];
+function onlyHostState(root, folder) {
+  const dir = join7(root, folder);
   if (!isRealDir(dir))
     return false;
   const top = git(root, "rev-parse", "--show-toplevel")?.trim();
   if (!top || realpathSync(top) !== realpathSync(root))
     return false;
-  if (git(root, "ls-files", "-z", "--", ".claude") !== "")
+  if (git(root, "ls-files", "-z", "--", folder) !== "")
     return false;
   const registered = new Set((git(root, "worktree", "list", "--porcelain", "-z") ?? "").split("\x00").filter((line) => line.startsWith("worktree ")).flatMap((line) => {
     const path = line.slice("worktree ".length);
@@ -23294,15 +23295,24 @@ function onlyHostState(root) {
   }));
   return readdirSync4(dir).every((name) => {
     const path = join7(dir, name);
-    if (name === "worktrees" && isRealDir(path))
+    if (folder === ".claude" && name === "worktrees" && isRealDir(path))
       return readdirSync4(path).every((tree) => isRealDir(join7(path, tree)) && registered.has(realpathSync(join7(path, tree))));
-    return git(root, "check-ignore", "-q", "--", `.claude/${name}`) !== undefined;
+    return git(root, "check-ignore", "-q", "--", `${folder}/${name}`) !== undefined;
   });
+}
+function checkCheckerVersion(root, report) {
+  const path = join7(root, "package.json");
+  if (!existsSync7(path))
+    return;
+  const pkg = JSON.parse(readFileSync6(path, "utf8"));
+  const pinned = /#v(\d+\.\d+\.\d+)$/.exec(pkg.devDependencies?.["sidecut-agentskills"] ?? "")?.[1];
+  if (pinned && pinned !== ownVersion)
+    report.add("REPO_CHECKER_VERSION", "package.json", undefined, `package.json pins sidecut-agentskills v${pinned}, but the installed sidecut-check is v${ownVersion}, so this check can differ from CI.`, "Run `bun install`, then check again.");
 }
 function checkTopLevel(root, report) {
   const gitignore = existsSync7(join7(root, ".gitignore")) ? readFileSync6(join7(root, ".gitignore"), "utf8").split(`
 `).filter(Boolean) : [];
-  const entries = readdirSync4(root).filter((n) => !ignoredBy(gitignore, n) && !(n === ".claude" && onlyHostState(root)));
+  const entries = readdirSync4(root).filter((n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n)));
   for (const name of entries) {
     if (!REQUIRED_ENTRIES.includes(name) && !OPTIONAL_ENTRIES.includes(name)) {
       report.add("REPO_ENTRY_UNEXPECTED", name, undefined, `"${name}" isn't part of the repo layout.`, "Move it into the plugin, tests/ or scripts/, or remove it.");
@@ -23508,6 +23518,7 @@ function checkRepo(root, report) {
   checkTopLevel(root, report);
   checkLicense(root, report);
   const scripts = checkPackage(root, id, version, report);
+  checkCheckerVersion(root, report);
   checkAgents(root, id, scripts, report);
   checkCi(root, report);
   checkSolo(root, report);

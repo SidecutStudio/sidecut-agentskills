@@ -67,15 +67,19 @@ const isRealDir = (path: string) => {
 };
 
 /**
- * Whether `.claude` holds only what Claude Code leaves in a checkout: git worktrees it registered
- * under `.claude/worktrees/` and files the repo's .gitignore ignores, with nothing tracked.
+ * Whether a host folder holds only what the host leaves in a checkout, with nothing tracked:
+ * files the repo's .gitignore ignores, such as the Codex subagent profiles skills copy into
+ * `.codex/agents/`, plus, for `.claude`, git worktrees Claude Code registered under
+ * `.claude/worktrees/`.
  */
-function onlyHostState(root: string): boolean {
-  const dir = join(root, '.claude');
+const HOST_FOLDERS = ['.claude', '.codex'];
+
+function onlyHostState(root: string, folder: string): boolean {
+  const dir = join(root, folder);
   if (!isRealDir(dir)) return false;
   const top = git(root, 'rev-parse', '--show-toplevel')?.trim();
   if (!top || realpathSync(top) !== realpathSync(root)) return false;
-  if (git(root, 'ls-files', '-z', '--', '.claude') !== '') return false;
+  if (git(root, 'ls-files', '-z', '--', folder) !== '') return false;
   const registered = new Set(
     (git(root, 'worktree', 'list', '--porcelain', '-z') ?? '')
       .split('\0')
@@ -88,12 +92,30 @@ function onlyHostState(root: string): boolean {
   );
   return readdirSync(dir).every((name) => {
     const path = join(dir, name);
-    if (name === 'worktrees' && isRealDir(path))
+    if (folder === '.claude' && name === 'worktrees' && isRealDir(path))
       return readdirSync(path).every(
         (tree) => isRealDir(join(path, tree)) && registered.has(realpathSync(join(path, tree))),
       );
-    return git(root, 'check-ignore', '-q', '--', `.claude/${name}`) !== undefined;
+    return git(root, 'check-ignore', '-q', '--', `${folder}/${name}`) !== undefined;
   });
+}
+
+/** A checker older or newer than the pinned tag checks other rules than CI does. */
+function checkCheckerVersion(root: string, report: Report): void {
+  const path = join(root, 'package.json');
+  if (!existsSync(path)) return;
+  const pkg = JSON.parse(readFileSync(path, 'utf8')) as {
+    devDependencies?: Record<string, string>;
+  };
+  const pinned = /#v(\d+\.\d+\.\d+)$/.exec(pkg.devDependencies?.['sidecut-agentskills'] ?? '')?.[1];
+  if (pinned && pinned !== ownVersion)
+    report.add(
+      'REPO_CHECKER_VERSION',
+      'package.json',
+      undefined,
+      `package.json pins sidecut-agentskills v${pinned}, but the installed sidecut-check is v${ownVersion}, so this check can differ from CI.`,
+      'Run `bun install`, then check again.',
+    );
 }
 
 function checkTopLevel(root: string, report: Report): void {
@@ -101,7 +123,7 @@ function checkTopLevel(root: string, report: Report): void {
     ? readFileSync(join(root, '.gitignore'), 'utf8').split('\n').filter(Boolean)
     : [];
   const entries = readdirSync(root).filter(
-    (n) => !ignoredBy(gitignore, n) && !(n === '.claude' && onlyHostState(root)),
+    (n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n)),
   );
   for (const name of entries) {
     if (!REQUIRED_ENTRIES.includes(name) && !OPTIONAL_ENTRIES.includes(name)) {
@@ -506,6 +528,7 @@ export function checkRepo(root: string, report: Report): void {
   checkTopLevel(root, report);
   checkLicense(root, report);
   const scripts = checkPackage(root, id, version, report);
+  checkCheckerVersion(root, report);
   checkAgents(root, id, scripts, report);
   checkCi(root, report);
   checkSolo(root, report);

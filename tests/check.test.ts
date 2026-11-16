@@ -1004,3 +1004,53 @@ test('add_skill writes a router whose display-name title passes the checker', ()
     expect(found).not.toContain(code);
   }
 });
+
+describe('host-created Codex folder', () => {
+  function gitRepo() {
+    const repo = copy();
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
+    );
+    const git = (...args: string[]) =>
+      spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args], {
+        cwd: repo.root,
+        env,
+      });
+    git('init', '-q');
+    git('add', 'AGENTS.md');
+    git('commit', '-qm', 'Fixture');
+    return { repo, git };
+  }
+
+  test('ignored subagent profiles under .codex/agents/ are host state', () => {
+    const { repo } = gitRepo();
+    repo.write('.codex/agents/demo_reviewer.toml', 'name = "demo_reviewer"\n');
+    expect(codes(repo.root)).toEqual([]);
+  });
+
+  test('anything else in .codex is still checked', () => {
+    const { repo } = gitRepo();
+    repo.write('.codex/config.toml', 'model = "x"\n');
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+
+  test('a tracked .codex file is source rather than host state', () => {
+    const { repo, git } = gitRepo();
+    repo.write('.codex/agents/demo_reviewer.toml', 'name = "demo_reviewer"\n');
+    git('add', '-f', '.codex/agents/demo_reviewer.toml');
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+});
+
+test('an installed checker that differs from the pinned tag is reported', () => {
+  const r = copy();
+  const pin = (tag: string) =>
+    r.json('package.json', (v) => {
+      (v.devDependencies as Record<string, string>)['sidecut-agentskills'] =
+        `github:SidecutStudio/sidecut-agentskills#v${tag}`;
+    });
+  pin('0.0.1');
+  expect(codes(r.root)).toContain('REPO_CHECKER_VERSION');
+  pin(ownVersion);
+  expect(codes(r.root)).not.toContain('REPO_CHECKER_VERSION');
+});
