@@ -1,0 +1,7 @@
+interface:
+  display_name: "Show usage"
+  short_description: "Shows which Sidecut plugin skills ran in Claude Code and Codex, from the local skill log."
+  icon_small: "../../assets/icon.png"
+  icon_large: "../../assets/icon.png"
+  brand_color: "#FF6B00"
+  default_prompt: "Use $agentskills-show-usage to show which Sidecut plugin skills ran in Claude Code and Codex, from the local skill log."

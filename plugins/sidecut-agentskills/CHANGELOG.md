@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0] - 2026-11-16
+
+### Added
+
+- `agentskills-show-usage` reads the shared skill log and shows which Sidecut plugin skills ran, in Claude Code and Codex, which never ran and whether the log is on.
+- The house style's usage log rules say how the log is read: one reader for every plugin, and a plugin with richer usage of its own adds a `<prefix>-show-usage` skill that checks recording works.
+- The house style's visual report rules ask for two or three rendered directions with the real words, after researching real examples, before a new page or identity is built.
+
+### Changed
+
+- Visual reports open where the user already is: an Artifact or the built-in browser in Claude Code, the in-app browser in Codex. They are no longer handed over as files to download.
+
 ## [0.9.2] - 2026-11-16
 
 ### Fixed

@@ -13,6 +13,7 @@ Creates, checks and publishes Sidecut plugins, skills and MCP servers that all f
 | `agentskills-publish-plugin` | Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. |
 | `agentskills-rebuild-plugin` | Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost. |
 | `agentskills-review-plugin` | Reviews a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything. |
+| `agentskills-show-usage` | Shows which Sidecut plugin skills ran in Claude Code and Codex, from the local skill log. |
 | `agentskills-write-skill` | Writes one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style. |
 
 Its MCP server provides the tools behind them: `get_house_style` and `get_patterns` return the rules and the reasons for them, `check_plugin` checks a repo against them, and `scaffold_plugin` and `add_skill` write new plugins and skills from the template.
