@@ -23301,13 +23301,17 @@ function onlyHostState(root, folder) {
   });
 }
 function checkCheckerVersion(root, report) {
-  const path = join7(root, "package.json");
-  if (!existsSync7(path))
-    return;
-  const pkg = JSON.parse(readFileSync6(path, "utf8"));
-  const pinned = /#v(\d+\.\d+\.\d+)$/.exec(pkg.devDependencies?.["sidecut-agentskills"] ?? "")?.[1];
-  if (pinned && pinned !== ownVersion)
-    report.add("REPO_CHECKER_VERSION", "package.json", undefined, `package.json pins sidecut-agentskills v${pinned}, but the installed sidecut-check is v${ownVersion}, so this check can differ from CI.`, "Run `bun install`, then check again.");
+  const read = (path) => {
+    try {
+      return JSON.parse(readFileSync6(join7(root, path), "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const pinned = /#v(\d+\.\d+\.\d+)$/.exec(read("package.json")?.devDependencies?.["sidecut-agentskills"] ?? "")?.[1];
+  const installed = read("node_modules/sidecut-agentskills/package.json")?.version;
+  if (pinned && installed && pinned !== installed)
+    report.add("REPO_CHECKER_VERSION", "package.json", undefined, `package.json pins sidecut-agentskills v${pinned}, but node_modules holds v${installed}, so \`bun run style\` can differ from CI.`, "Run `bun install`, then check again.");
 }
 function checkTopLevel(root, report) {
   const gitignore = existsSync7(join7(root, ".gitignore")) ? readFileSync6(join7(root, ".gitignore"), "utf8").split(`

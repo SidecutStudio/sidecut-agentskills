@@ -100,20 +100,32 @@ function onlyHostState(root: string, folder: string): boolean {
   });
 }
 
-/** A checker older or newer than the pinned tag checks other rules than CI does. */
+/**
+ * The repo's installed sidecut-check, from node_modules, must be the tag package.json pins, or
+ * `bun run style` checks other rules than CI does. It reads node_modules rather than this
+ * checker's own version, which is the marketplace plugin's when check_plugin runs it.
+ */
 function checkCheckerVersion(root: string, report: Report): void {
-  const path = join(root, 'package.json');
-  if (!existsSync(path)) return;
-  const pkg = JSON.parse(readFileSync(path, 'utf8')) as {
-    devDependencies?: Record<string, string>;
+  const read = (path: string) => {
+    try {
+      return JSON.parse(readFileSync(join(root, path), 'utf8')) as {
+        version?: string;
+        devDependencies?: Record<string, string>;
+      };
+    } catch {
+      return null;
+    }
   };
-  const pinned = /#v(\d+\.\d+\.\d+)$/.exec(pkg.devDependencies?.['sidecut-agentskills'] ?? '')?.[1];
-  if (pinned && pinned !== ownVersion)
+  const pinned = /#v(\d+\.\d+\.\d+)$/.exec(
+    read('package.json')?.devDependencies?.['sidecut-agentskills'] ?? '',
+  )?.[1];
+  const installed = read('node_modules/sidecut-agentskills/package.json')?.version;
+  if (pinned && installed && pinned !== installed)
     report.add(
       'REPO_CHECKER_VERSION',
       'package.json',
       undefined,
-      `package.json pins sidecut-agentskills v${pinned}, but the installed sidecut-check is v${ownVersion}, so this check can differ from CI.`,
+      `package.json pins sidecut-agentskills v${pinned}, but node_modules holds v${installed}, so \`bun run style\` can differ from CI.`,
       'Run `bun install`, then check again.',
     );
 }

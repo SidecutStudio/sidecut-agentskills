@@ -367,7 +367,7 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 | --- | --- | --- |
 | `bun run check` | Runs `biome check .`, `tsc --noEmit`, `bun run style`, `bun test` and `bun scripts/build-server.ts --check` in that order, with the repo's own steps anywhere between; the last fails when the bundle or its licence notices are stale | yes |
 | `bun run style` | `sidecut-check`, from the `sidecut-agentskills` dev dependency pinned to a tag; it includes the bundle drift check | yes |
-| Installed checker | The installed `sidecut-check` is the version `package.json` pins; run `bun install` when it isn't | yes |
+| Installed checker | The sidecut-agentskills in `node_modules` is the version `package.json` pins; run `bun install` when it isn't | yes |
 | Checker output | What it checked, then what is kept on purpose, then one line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |

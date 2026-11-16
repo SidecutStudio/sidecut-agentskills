@@ -4,7 +4,7 @@
 
 ### Added
 
-- `REPO_CHECKER_VERSION`: `sidecut-check` reports when the installed checker isn't the version `package.json` pins, so a stale `node_modules` can't pass a check that CI fails.
+- `REPO_CHECKER_VERSION`: the checker reports when the sidecut-agentskills in `node_modules` isn't the version `package.json` pins, so a stale install can't pass a check that CI fails. `agentskills-publish-plugin` says what to do about it.
 - `agentskills-write-skill` says how to scaffold the router with `add_skill`.
 
 ### Fixed

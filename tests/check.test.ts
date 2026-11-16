@@ -1044,13 +1044,27 @@ describe('host-created Codex folder', () => {
 
 test('an installed checker that differs from the pinned tag is reported', () => {
   const r = copy();
+  // The fixture links node_modules to this repo's, so the installed copy needs its own folder.
+  r.rm('node_modules');
+  r.write('node_modules/sidecut-agentskills/package.json', JSON.stringify({ version: '0.8.0' }));
   const pin = (tag: string) =>
     r.json('package.json', (v) => {
       (v.devDependencies as Record<string, string>)['sidecut-agentskills'] =
         `github:SidecutStudio/sidecut-agentskills#v${tag}`;
     });
-  pin('0.0.1');
+  pin('0.9.0');
   expect(codes(r.root)).toContain('REPO_CHECKER_VERSION');
-  pin(ownVersion);
+  pin('0.8.0');
+  expect(codes(r.root)).not.toContain('REPO_CHECKER_VERSION');
+});
+
+test('the installed checker is compared with the pin, not with the plugin running the check', () => {
+  const r = copy();
+  r.rm('node_modules');
+  r.write('node_modules/sidecut-agentskills/package.json', JSON.stringify({ version: '0.0.1' }));
+  r.json('package.json', (v) => {
+    (v.devDependencies as Record<string, string>)['sidecut-agentskills'] =
+      'github:SidecutStudio/sidecut-agentskills#v0.0.1';
+  });
   expect(codes(r.root)).not.toContain('REPO_CHECKER_VERSION');
 });
