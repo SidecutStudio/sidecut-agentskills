@@ -19,8 +19,10 @@ import {
 } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
 import { Report } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
 import {
+  addSkill,
   checkPluginInput,
   displayNameOf,
+  ownVersion,
   scaffoldPlugin,
 } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
@@ -957,4 +959,112 @@ test('a renamed plugin explicitly retains full repo checks and sync identity', (
   expect(codes(r.root)).toContain('REPO_ENTRY_MISSING');
   r.json('package.json', (v) => Object.assign(v, { name: 'another-app' }));
   expect(identify(r.root).id).toBeNull();
+});
+
+test('a scaffold without a checker source pins sidecut-check to this release', () => {
+  const root = mkdtempSync(join(tmpdir(), 'sidecut-pin-'));
+  scratch.push(root);
+  scaffoldPlugin(
+    {
+      id: ID,
+      description: 'Shows how a Sidecut plugin is put together.',
+      longDescription: 'A small example plugin. It exists to test the generator.',
+      keywords: ['example', 'template', 'mcp'],
+      date: '2026-11-12',
+    },
+    root,
+  );
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  expect(pkg.devDependencies['sidecut-agentskills']).toBe(
+    `github:SidecutStudio/sidecut-agentskills#v${ownVersion}`,
+  );
+});
+
+test('add_skill writes a router whose display-name title passes the checker', () => {
+  const r = copy();
+  for (const name of ['demo-write-note', 'demo-read-note', 'demo-list-notes']) {
+    addSkill(join(r.root, P), { name, does: 'Writes a note for the demo.' });
+  }
+  const files = addSkill(join(r.root, P), {
+    name: 'demo',
+    does: 'Routes a demo request to the right Sidecut Demo skill.',
+  });
+  expect(files).toContain('skills/demo/SKILL.md');
+  const skill = r.read(`${P}/skills/demo/SKILL.md`);
+  expect(skill).toContain('# Sidecut Demo');
+  expect(skill).toContain('## Pick a skill');
+  const found = codes(r.root);
+  for (const code of [
+    'NAME_SKILL',
+    'SKILL_TITLE',
+    'SKILL_SECTIONS',
+    'MD_HEADING_CASE',
+    'SKILL_ROUTER',
+  ]) {
+    expect(found).not.toContain(code);
+  }
+});
+
+describe('host-created Codex folder', () => {
+  function gitRepo() {
+    const repo = copy();
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
+    );
+    const git = (...args: string[]) =>
+      spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args], {
+        cwd: repo.root,
+        env,
+      });
+    git('init', '-q');
+    git('add', 'AGENTS.md');
+    git('commit', '-qm', 'Fixture');
+    return { repo, git };
+  }
+
+  test('ignored subagent profiles under .codex/agents/ are host state', () => {
+    const { repo } = gitRepo();
+    repo.write('.codex/agents/demo_reviewer.toml', 'name = "demo_reviewer"\n');
+    expect(codes(repo.root)).toEqual([]);
+  });
+
+  test('anything else in .codex is still checked', () => {
+    const { repo } = gitRepo();
+    repo.write('.codex/config.toml', 'model = "x"\n');
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+
+  test('a tracked .codex file is source rather than host state', () => {
+    const { repo, git } = gitRepo();
+    repo.write('.codex/agents/demo_reviewer.toml', 'name = "demo_reviewer"\n');
+    git('add', '-f', '.codex/agents/demo_reviewer.toml');
+    expect(codes(repo.root)).toContain('REPO_ENTRY_UNEXPECTED');
+  });
+});
+
+test('an installed checker that differs from the pinned tag is reported', () => {
+  const r = copy();
+  // The fixture links node_modules to this repo's, so the installed copy needs its own folder.
+  r.rm('node_modules');
+  r.write('node_modules/sidecut-agentskills/package.json', JSON.stringify({ version: '0.8.0' }));
+  const pin = (tag: string) =>
+    r.json('package.json', (v) => {
+      (v.devDependencies as Record<string, string>)['sidecut-agentskills'] =
+        `github:SidecutStudio/sidecut-agentskills#v${tag}`;
+    });
+  pin('0.9.0');
+  expect(codes(r.root)).toContain('REPO_CHECKER_VERSION');
+  pin('0.8.0');
+  expect(codes(r.root)).not.toContain('REPO_CHECKER_VERSION');
+});
+
+test('the installed checker is compared with the pin, not with the plugin running the check', () => {
+  const r = copy();
+  r.rm('node_modules');
+  r.write('node_modules/sidecut-agentskills/package.json', JSON.stringify({ version: '0.0.1' }));
+  r.json('package.json', (v) => {
+    (v.devDependencies as Record<string, string>)['sidecut-agentskills'] =
+      'github:SidecutStudio/sidecut-agentskills#v0.0.1';
+  });
+  expect(codes(r.root)).not.toContain('REPO_CHECKER_VERSION');
 });

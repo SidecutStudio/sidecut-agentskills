@@ -21605,10 +21605,10 @@ function checkPluginInput(input) {
 }
 function checkSkillInput(input, prefix) {
   const problems = [];
-  if (input.name === prefix || !isSkillName(input.name, prefix)) {
+  if (input.name !== prefix && !isSkillName(input.name, prefix)) {
     problems.push({
       code: "NAME_SKILL",
-      message: `Skill name "${input.name}" must be ${prefix}- then a verb and an object, 2 or 3 words in kebab-case.`
+      message: `Skill name "${input.name}" must be ${prefix}- then a verb and an object, 2 or 3 words in kebab-case, or ${prefix} alone for the router.`
     });
   }
   if (!/^[A-Z][a-z]+s /.test(input.does) || !input.does.endsWith(".") || input.does.split(". ").length > 1) {
@@ -21726,7 +21726,7 @@ function scaffoldPlugin(input, out) {
     year: date.slice(0, 4),
     skillDoes,
     skillPrompt: defaultPromptOf(skillDoes),
-    checkerSource: input.checkerSource ?? `${DEFAULT_CHECKER}#v${version}`
+    checkerSource: input.checkerSource ?? `${DEFAULT_CHECKER}#v${ownVersion}`
   };
   const files = new Map;
   for (const [path, text] of renderTree("repo", vars))
@@ -21765,7 +21765,8 @@ function addSkill(pluginDir, input) {
     brandColor: brandColorOf(pluginDir)
   };
   const files = new Map;
-  for (const [path, text] of renderTree("skill", vars))
+  const template = input.name === prefix ? "router" : "skill";
+  for (const [path, text] of renderTree(template, vars))
     files.set(join(skillDir, path), text);
   return writeAll(pluginDir, files);
 }
@@ -22395,7 +22396,7 @@ function checkSections(dir, name, root, report, tools, skills, plugin) {
   const file = relative4(root, path);
   const text = readFileSync3(path, "utf8");
   const doc = parseMarkdown(path, text);
-  checkMarkdown(doc, text, root, report);
+  checkMarkdown(doc, text, root, report, { skipH1Case: true });
   if (doc.lines.length > 200) {
     report.add("SKILL_LENGTH", file, 201, `SKILL.md has ${doc.lines.length} lines.`, "Move detail into references/ to stay at 200 or fewer.");
   }
@@ -23278,14 +23279,15 @@ var isRealDir = (path) => {
   const stat = lstatSync(path);
   return stat.isDirectory() && !stat.isSymbolicLink();
 };
-function onlyHostState(root) {
-  const dir = join7(root, ".claude");
+var HOST_FOLDERS = [".claude", ".codex"];
+function onlyHostState(root, folder) {
+  const dir = join7(root, folder);
   if (!isRealDir(dir))
     return false;
   const top = git(root, "rev-parse", "--show-toplevel")?.trim();
   if (!top || realpathSync(top) !== realpathSync(root))
     return false;
-  if (git(root, "ls-files", "-z", "--", ".claude") !== "")
+  if (git(root, "ls-files", "-z", "--", folder) !== "")
     return false;
   const registered = new Set((git(root, "worktree", "list", "--porcelain", "-z") ?? "").split("\x00").filter((line) => line.startsWith("worktree ")).flatMap((line) => {
     const path = line.slice("worktree ".length);
@@ -23293,15 +23295,28 @@ function onlyHostState(root) {
   }));
   return readdirSync4(dir).every((name) => {
     const path = join7(dir, name);
-    if (name === "worktrees" && isRealDir(path))
+    if (folder === ".claude" && name === "worktrees" && isRealDir(path))
       return readdirSync4(path).every((tree) => isRealDir(join7(path, tree)) && registered.has(realpathSync(join7(path, tree))));
-    return git(root, "check-ignore", "-q", "--", `.claude/${name}`) !== undefined;
+    return git(root, "check-ignore", "-q", "--", `${folder}/${name}`) !== undefined;
   });
+}
+function checkCheckerVersion(root, report) {
+  const read = (path) => {
+    try {
+      return JSON.parse(readFileSync6(join7(root, path), "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const pinned = /#v(\d+\.\d+\.\d+)$/.exec(read("package.json")?.devDependencies?.["sidecut-agentskills"] ?? "")?.[1];
+  const installed = read("node_modules/sidecut-agentskills/package.json")?.version;
+  if (pinned && installed && pinned !== installed)
+    report.add("REPO_CHECKER_VERSION", "package.json", undefined, `package.json pins sidecut-agentskills v${pinned}, but node_modules holds v${installed}, so \`bun run style\` can differ from CI.`, "Run `bun install`, then check again.");
 }
 function checkTopLevel(root, report) {
   const gitignore = existsSync7(join7(root, ".gitignore")) ? readFileSync6(join7(root, ".gitignore"), "utf8").split(`
 `).filter(Boolean) : [];
-  const entries = readdirSync4(root).filter((n) => !ignoredBy(gitignore, n) && !(n === ".claude" && onlyHostState(root)));
+  const entries = readdirSync4(root).filter((n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n)));
   for (const name of entries) {
     if (!REQUIRED_ENTRIES.includes(name) && !OPTIONAL_ENTRIES.includes(name)) {
       report.add("REPO_ENTRY_UNEXPECTED", name, undefined, `"${name}" isn't part of the repo layout.`, "Move it into the plugin, tests/ or scripts/, or remove it.");
@@ -23507,6 +23522,7 @@ function checkRepo(root, report) {
   checkTopLevel(root, report);
   checkLicense(root, report);
   const scripts = checkPackage(root, id, version, report);
+  checkCheckerVersion(root, report);
   checkAgents(root, id, scripts, report);
   checkCi(root, report);
   checkSolo(root, report);
@@ -23637,7 +23653,7 @@ server.registerTool("add_skill", {
   description: "Writes a skill skeleton with SKILL.md and agents/openai.yaml into a plugin folder and returns the files it wrote. Use it to start a new skill, then replace every TODO.",
   inputSchema: object({
     plugin: string2().describe("Absolute path to plugins/<plugin-id>"),
-    name: string2().describe("Verb then object in kebab-case, such as agentskills-write-skill"),
+    name: string2().describe("Prefix, verb and object in kebab-case, such as agentskills-write-skill, or the prefix alone for the router"),
     does: string2().describe("One sentence starting with a third-person verb")
   }),
   annotations: writes

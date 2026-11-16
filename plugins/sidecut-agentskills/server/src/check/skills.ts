@@ -325,7 +325,8 @@ function checkSections(
   const file = relative(root, path);
   const text = readFileSync(path, 'utf8');
   const doc = parseMarkdown(path, text);
-  checkMarkdown(doc, text, root, report);
+  // SKILL_TITLE pins the H1 exactly, and a router's title is the display name.
+  checkMarkdown(doc, text, root, report, { skipH1Case: true });
   if (doc.lines.length > 200) {
     report.add(
       'SKILL_LENGTH',

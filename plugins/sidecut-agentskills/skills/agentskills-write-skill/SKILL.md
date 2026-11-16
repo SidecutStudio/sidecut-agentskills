@@ -18,7 +18,7 @@ Produces one skill folder that passes `check_plugin` and has trigger evals that 
 
 ## Steps
 
-1. For a new skill, call `add_skill` with the plugin folder, a verb-then-object name and the one-sentence summary. It writes `SKILL.md` and `agents/openai.yaml`.
+1. For a new skill, call `add_skill` with the plugin folder, a verb-then-object name and the one-sentence summary. It writes `SKILL.md` and `agents/openai.yaml`. For the router a plugin needs once it has 4 or more other skills, pass the prefix alone as the name; it writes a router skeleton.
 2. Write the description: the summary, then "Use when" with the trigger situations, then "Not for" with the near misses and the sibling skill that handles each one. Follow [descriptions.md](references/descriptions.md).
 3. Write the body in the house order: Before you start, Steps, Rules, When it goes wrong, Done when, References. Keep only the sections the skill needs; Steps and Done when are always there.
 4. Move anything the agent only needs sometimes into `references/`, one topic per file, and add a row for it to the References table saying when to read it.

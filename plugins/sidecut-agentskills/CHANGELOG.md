@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.1] - 2026-11-16
+
+### Added
+
+- `REPO_CHECKER_VERSION`: the checker reports when the sidecut-agentskills in `node_modules` isn't the version `package.json` pins, so a stale install can't pass a check that CI fails. `agentskills-publish-plugin` says what to do about it.
+- `agentskills-write-skill` says how to scaffold the router with `add_skill`.
+
+### Fixed
+
+- `scaffold_plugin` pinned `sidecut-check` to the new plugin's own version (`#v0.1.0`) instead of this release, so a fresh repo failed `bun run check` and had no `sidecut-icon`. It now pins the Agentskills version that generated it.
+- `add_skill` refused the router's name, though the checker requires a router once a plugin has 4 or more skills. It now writes a router skeleton for the prefix alone.
+- The heading-case check rejected a router's display-name title, which `SKILL_TITLE` requires. `SKILL_TITLE` already pins every skill's H1, so the case check skips it.
+- The house style named the router's H1 `# Start`; it is the plugin's display name, as the checker and the title rule say.
+- The layout check flagged a `.codex/` folder holding only the ignored subagent profiles skills copy into `.codex/agents/`. It now treats that folder as host state, like `.claude/`, and the template `.gitignore` ignores `.codex/agents/`.
+
 ## [0.9.0] - 2026-11-15
 
 ### Added

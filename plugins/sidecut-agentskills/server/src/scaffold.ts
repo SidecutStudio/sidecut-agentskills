@@ -85,10 +85,10 @@ export function checkPluginInput(input: PluginInput): Problem[] {
 
 export function checkSkillInput(input: SkillInput, prefix: string): Problem[] {
   const problems: Problem[] = [];
-  if (input.name === prefix || !isSkillName(input.name, prefix)) {
+  if (input.name !== prefix && !isSkillName(input.name, prefix)) {
     problems.push({
       code: 'NAME_SKILL',
-      message: `Skill name "${input.name}" must be ${prefix}- then a verb and an object, 2 or 3 words in kebab-case.`,
+      message: `Skill name "${input.name}" must be ${prefix}- then a verb and an object, 2 or 3 words in kebab-case, or ${prefix} alone for the router.`,
     });
   }
   if (
@@ -239,7 +239,7 @@ export function scaffoldPlugin(input: PluginInput, out: string): string[] {
     year: date.slice(0, 4),
     skillDoes,
     skillPrompt: defaultPromptOf(skillDoes),
-    checkerSource: input.checkerSource ?? `${DEFAULT_CHECKER}#v${version}`,
+    checkerSource: input.checkerSource ?? `${DEFAULT_CHECKER}#v${ownVersion}`,
   };
 
   const files = new Map<string, string | Buffer>();
@@ -280,6 +280,7 @@ export function addSkill(pluginDir: string, input: SkillInput): string[] {
     brandColor: brandColorOf(pluginDir),
   };
   const files = new Map<string, string>();
-  for (const [path, text] of renderTree('skill', vars)) files.set(join(skillDir, path), text);
+  const template = input.name === prefix ? 'router' : 'skill';
+  for (const [path, text] of renderTree(template, vars)) files.set(join(skillDir, path), text);
   return writeAll(pluginDir, files);
 }
