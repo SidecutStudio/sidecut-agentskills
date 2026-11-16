@@ -5,7 +5,7 @@
 ### Added
 
 - `agentskills-show-usage` reads the shared skill log and shows which Sidecut plugin skills ran in Claude Code and Codex, whether recording is confirmed in each host, and what the log can't see, such as plugins without the hook.
-- The house style's usage log rules say how the log is read: one reader for every plugin that keeps it, and a plugin with richer usage of its own adds a `<prefix>-show-usage` skill that checks recording works.
+- The house style's usage log rules say how the log is read: one reader for every plugin that keeps it, and a plugin with richer usage of its own may add a `<prefix>-show-usage` skill that checks recording works.
 - The house style's visual report rules ask for two or three rendered directions with the real words, after researching real examples, before a new page or identity is built.
 
 ### Changed
