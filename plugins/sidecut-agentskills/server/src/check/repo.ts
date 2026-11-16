@@ -26,7 +26,16 @@ const REQUIRED_ENTRIES = [
   'tests',
   'tsconfig.json',
 ];
-const OPTIONAL_ENTRIES = ['.git', 'node_modules', 'bunfig.toml', 'docs'];
+const OPTIONAL_ENTRIES = [
+  '.git',
+  'node_modules',
+  'bunfig.toml',
+  'docs',
+  '.claude-plugin',
+  '.agents',
+];
+/** The install source a public repo carries for each host, at the paths each host reads. */
+const MARKETPLACES = ['.claude-plugin/marketplace.json', '.agents/plugins/marketplace.json'];
 const CHECK_STEPS = [
   'biome check .',
   'tsc --noEmit',
@@ -157,17 +166,6 @@ function checkTopLevel(root: string, report: Report): void {
         `"${name}" is missing.`,
         'Add it from the template.',
       );
-  }
-  for (const marketplace of ['.claude-plugin', '.agents']) {
-    if (existsSync(join(root, marketplace))) {
-      report.add(
-        'REPO_MARKETPLACE',
-        marketplace,
-        undefined,
-        'The repo has its own marketplace.',
-        'List the plugin from the sidecut-plugins marketplace instead.',
-      );
-    }
   }
 }
 
@@ -385,8 +383,7 @@ function checkCi(root: string, report: Report): void {
     : '';
   // A public repo runs every job on GitHub-hosted Linux and never reaches the self-hosted runners.
   // Every job has to say where it runs; a job that calls another workflow can't count as hosted.
-  const jobs = jobsOf(check);
-  const hostedOnly = jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
+  const hostedOnly = isHostedOnly(check);
   const release = existsSync(join(dir, 'release.yml'))
     ? readFileSync(join(dir, 'release.yml'), 'utf8')
     : '';
@@ -408,6 +405,122 @@ function checkCi(root: string, report: Report): void {
       'Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.',
     );
   }
+}
+
+/** Whether every job in a workflow runs on GitHub-hosted Linux, which marks a public repo. */
+function isHostedOnly(workflow: string): boolean {
+  const jobs = jobsOf(workflow);
+  return jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
+}
+
+/** Every file under `dir`, relative to `root`. */
+function filesUnder(root: string, dir: string): string[] {
+  const path = join(root, dir);
+  if (!existsSync(path)) return [];
+  if (!lstatSync(path).isDirectory()) return [dir];
+  return readdirSync(path).flatMap((name) => filesUnder(root, `${dir}/${name}`));
+}
+
+/**
+ * A public repo carries its own install source, so people without access to the private
+ * sidecut-plugins marketplace can install it, and its README installs from that source. A private
+ * repo has none: claude.ai can't read it, so its plugin is listed from sidecut-plugins only.
+ */
+function checkInstallSource(root: string, id: string, repo: string, report: Report): void {
+  const check = join(root, '.github', 'workflows', 'check.yml');
+  const isPublic = existsSync(check) && isHostedOnly(readFileSync(check, 'utf8'));
+  const found = ['.claude-plugin', '.agents'].flatMap((dir) => filesUnder(root, dir));
+  if (!isPublic) {
+    for (const file of found)
+      report.add(
+        'REPO_MARKETPLACE',
+        file,
+        undefined,
+        'A private repo has its own marketplace.',
+        'List the plugin from the sidecut-plugins marketplace only; a public repo, whose jobs all run on ubuntu-24.04, keeps one.',
+      );
+    return;
+  }
+  for (const file of found.filter((f) => !MARKETPLACES.includes(f)))
+    report.add(
+      'REPO_MARKETPLACE',
+      file,
+      undefined,
+      `"${file}" isn't part of the install source.`,
+      'Keep only .claude-plugin/marketplace.json and .agents/plugins/marketplace.json there.',
+    );
+  const [claudeFile, codexFile] = MARKETPLACES as [string, string];
+  const how = "Write it as the house style's Install source section shows.";
+  for (const file of MARKETPLACES) {
+    if (!existsSync(join(root, file)))
+      report.add(
+        'REPO_MARKETPLACE',
+        file,
+        undefined,
+        `A public repo has no ${file}, so only people with access to the private sidecut-plugins marketplace can install it.`,
+        how,
+      );
+  }
+  type Entry = { name?: unknown; source?: unknown };
+  const only = (file: string, source: (entry: Entry) => boolean) => {
+    if (!existsSync(join(root, file))) return;
+    const marketplace = readJson(join(root, file));
+    const plugins = marketplace.plugins as Entry[] | undefined;
+    const ok =
+      marketplace.name === id &&
+      Array.isArray(plugins) &&
+      plugins.length === 1 &&
+      plugins[0]?.name === id &&
+      source(plugins[0]);
+    if (!ok)
+      report.add(
+        'REPO_MARKETPLACE',
+        file,
+        undefined,
+        `${file} doesn't list only plugins/${id} under the marketplace name ${id}.`,
+        how,
+      );
+  };
+  const path = `./plugins/${id}`;
+  only(claudeFile, (entry) => entry.source === path);
+  only(codexFile, (entry) => {
+    const source = entry.source as { source?: unknown; path?: unknown } | undefined;
+    return source?.source === 'local' && source.path === path;
+  });
+
+  const readme = existsSync(join(root, 'README.md'))
+    ? readFileSync(join(root, 'README.md'), 'utf8')
+    : '';
+  const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(readme)?.[1] ?? '';
+  const add = `marketplace add SidecutStudio/${repo}`;
+  const named = new Set(
+    [...install.matchAll(/plugin (?:install|add) [\w.-]+@([\w.-]+)/g)].map((m) => m[1]),
+  );
+  for (const marketplace of named) {
+    if (marketplace !== id)
+      report.add(
+        'README_INSTALL',
+        'README.md',
+        undefined,
+        `The Install section installs from ${marketplace}, a marketplace this public repo doesn't provide.`,
+        `Install ${id}@${id} after \`/plugin ${add}\` in Claude Code and \`codex plugin ${add}\` in Codex.`,
+      );
+  }
+  const steps = [
+    `/plugin ${add}`,
+    `/plugin install ${id}@${id}`,
+    `codex plugin ${add}`,
+    `codex plugin add ${id}@${id}`,
+  ];
+  const missing = steps.filter((step) => !install.includes(step));
+  if (missing.length > 0)
+    report.add(
+      'README_INSTALL',
+      'README.md',
+      undefined,
+      `The Install section is missing ${missing.map((step) => `\`${step}\``).join(', ')}.`,
+      "Use the public install steps from the house style's Install source section.",
+    );
 }
 
 /**
@@ -543,6 +656,7 @@ export function checkRepo(root: string, report: Report): void {
   checkCheckerVersion(root, report);
   checkAgents(root, id, scripts, report);
   checkCi(root, report);
+  checkInstallSource(root, id, repoName, report);
   checkSolo(root, report);
   for (const name of ['README.md', 'LICENSE', 'CHANGELOG.md']) {
     const a = join(root, name);

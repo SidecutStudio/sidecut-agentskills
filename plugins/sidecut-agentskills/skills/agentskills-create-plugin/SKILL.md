@@ -3,6 +3,7 @@ name: agentskills-create-plugin
 description: "Creates a new Sidecut plugin repo from the template, with Claude Code and Codex manifests, a bundled MCP server and a first skill. Use when the user wants a new plugin, a new repo for agent tooling, or something new packaged for the Sidecut marketplace. Not for changing a plugin that already exists (use `agentskills-rebuild-plugin` or `agentskills-write-skill`)."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
+  - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
 ---
 
 # Create plugin
@@ -23,7 +24,8 @@ Produces a new plugin repo that passes `bun run check` on its first commit and l
 4. Run `bun run check`. It passes on a fresh repo; if it doesn't, fix the cause before going on.
 5. Load the plugin for one session with `claude --plugin-dir <folder>/plugins/<plugin-id>` and run its `check-status` skill. The new plugin's status tool answers with its name and version.
 6. Ask the user before creating the GitHub repo. On a yes, create `SidecutStudio/<plugin-id>` as a private repo, push `main`, then run `solo-configure-project` to fill the Sidecut Solo section of `AGENTS.md`.
-7. Add the plugin's real skills with `agentskills-write-skill` and its real tools with `agentskills-build-mcp-server`. Keep `check-status` while the status tool is the server's only tool.
+7. When the user wants anyone to be able to install it, make the repo public instead of private. Follow the Install source section of `get_house_style`: run every CI job on `ubuntu-24.04`, add both marketplace files and replace the README's Install section with the public steps. `bun run check` fails until all three are in place.
+8. Add the plugin's real skills with `agentskills-write-skill` and its real tools with `agentskills-build-mcp-server`. Keep `check-status` while the status tool is the server's only tool.
 
 Use `server/data/visual-reports.md` from the loaded plugin root when plugin or design alternatives need a visible comparison. Keep a routine scaffold result in chat.
 

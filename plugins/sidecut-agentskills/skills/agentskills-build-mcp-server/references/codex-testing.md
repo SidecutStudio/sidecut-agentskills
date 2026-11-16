@@ -1,6 +1,6 @@
 # Testing in Codex
 
-Read this when trying a plugin in Codex before it's published. Codex installs plugins only from a marketplace, and a plugin repo has none, so the test makes a throwaway one that points at the local folder.
+Read this when trying a plugin in Codex before it's published. Codex installs plugins only from a marketplace. A public repo carries its own, so set an empty `CODEX_HOME`, run `codex plugin marketplace add <repo>` and `codex plugin add <plugin-id>@<plugin-id>`, and go on from step 5. A private repo has none, so the test makes a throwaway one that points at the local folder.
 
 ## Steps
 

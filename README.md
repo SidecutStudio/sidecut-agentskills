@@ -20,7 +20,19 @@ Its MCP server provides the tools behind them: `get_house_style` and `get_patter
 
 ## Install
 
-In Claude Code, run `/plugin install sidecut-agentskills@sidecut-plugins`. In Codex, run `codex plugin add sidecut-agentskills@sidecut-plugins`.
+In Claude Code, add this repo's marketplace, then install the plugin:
+
+```text
+/plugin marketplace add SidecutStudio/sidecut-agentskills
+/plugin install sidecut-agentskills@sidecut-agentskills
+```
+
+In Codex, run:
+
+```bash
+codex plugin marketplace add SidecutStudio/sidecut-agentskills
+codex plugin add sidecut-agentskills@sidecut-agentskills
+```
 
 ## Use
 

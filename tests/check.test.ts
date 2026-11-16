@@ -827,6 +827,100 @@ test("a public repo can't release on the self-hosted runners", () => {
   expect(codes(repo.root)).not.toContain('CI_RELEASE');
 });
 
+describe('install source', () => {
+  const PRIVATE_INSTALL = `In Claude Code, run \`/plugin install ${ID}@sidecut-plugins\`. In Codex, run \`codex plugin add ${ID}@sidecut-plugins\`.\n`;
+  const PUBLIC_INSTALL = [
+    "In Claude Code, add this repo's marketplace, then install the plugin:",
+    '',
+    '```text',
+    `/plugin marketplace add SidecutStudio/${ID}`,
+    `/plugin install ${ID}@${ID}`,
+    '```',
+    '',
+    'In Codex, run:',
+    '',
+    '```bash',
+    `codex plugin marketplace add SidecutStudio/${ID}`,
+    `codex plugin add ${ID}@${ID}`,
+    '```',
+    '',
+  ].join('\n');
+
+  /** The generated repo made public: every job on ubuntu-24.04, so it needs its own install source. */
+  function publicRepo(): Repo {
+    const repo = copy();
+    repo.write(
+      '.github/workflows/check.yml',
+      'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: bun run check\n',
+    );
+    repo.write(
+      '.github/workflows/release.yml',
+      repo
+        .read('.github/workflows/release.yml')
+        .replace(/ {4}runs-on:\n {6}group: .*\n {6}labels: .*\n/, '    runs-on: ubuntu-24.04\n')
+        .replace(/ {6}- uses: SidecutStudio\/sidecut-ops\/.*\n {8}with:\n {10}tools: gh\n/, ''),
+    );
+    return repo;
+  }
+
+  function withSource(repo: Repo): Repo {
+    repo.write(
+      '.claude-plugin/marketplace.json',
+      `${JSON.stringify({ name: ID, owner: { name: 'Sidecut Studio' }, plugins: [{ name: ID, source: `./${P}` }] }, null, 2)}\n`,
+    );
+    repo.write(
+      '.agents/plugins/marketplace.json',
+      `${JSON.stringify({ name: ID, plugins: [{ name: ID, source: { source: 'local', path: `./${P}` } }] }, null, 2)}\n`,
+    );
+    for (const file of ['README.md', `${P}/README.md`])
+      repo.edit(file, (t) => t.replace(PRIVATE_INSTALL, PUBLIC_INSTALL));
+    return repo;
+  }
+
+  test('the generated repo starts private, installing from sidecut-plugins', () => {
+    expect(copy().read('README.md')).toContain(PRIVATE_INSTALL);
+  });
+
+  test('a public repo with only the private marketplace install line fails', () => {
+    // The mistake this rule exists for: a public README whose install needs a private marketplace.
+    const problems = new Report();
+    checkRepo(publicRepo().root, problems);
+    const found = problems.problems.map((p) => `${p.code} ${p.file}`);
+    expect(found).toContain('REPO_MARKETPLACE .claude-plugin/marketplace.json');
+    expect(found).toContain('REPO_MARKETPLACE .agents/plugins/marketplace.json');
+    expect(
+      problems.problems.filter((p) => p.code === 'README_INSTALL').map((p) => p.message),
+    ).toEqual([
+      "The Install section installs from sidecut-plugins, a marketplace this public repo doesn't provide.",
+      `The Install section is missing \`/plugin marketplace add SidecutStudio/${ID}\`, \`/plugin install ${ID}@${ID}\`, \`codex plugin marketplace add SidecutStudio/${ID}\`, \`codex plugin add ${ID}@${ID}\`.`,
+    ]);
+  });
+
+  test('a public repo with its own install source and steps passes', () => {
+    expect(codes(withSource(publicRepo()).root)).toEqual([]);
+  });
+
+  test('a public marketplace must list only the plugin folder', () => {
+    const repo = withSource(publicRepo());
+    repo.json('.agents/plugins/marketplace.json', (v) => {
+      v.plugins = [{ name: ID, source: { source: 'local', path: './bundled/demo' } }];
+    });
+    expect(codes(repo.root)).toEqual(['REPO_MARKETPLACE']);
+  });
+
+  test('nothing else lives beside the install source', () => {
+    const repo = withSource(publicRepo());
+    repo.write('.agents/skills/extra/SKILL.md', '# Extra\n');
+    expect(codes(repo.root)).toEqual(['REPO_MARKETPLACE']);
+  });
+
+  test('a private repo has no marketplace of its own', () => {
+    const repo = withSource(copy());
+    expect(codes(repo.root)).toContain('REPO_MARKETPLACE');
+    expect(codes(repo.root)).not.toContain('README_INSTALL');
+  });
+});
+
 test('a hosted-only workflow with a job that calls another workflow still needs the picker', () => {
   const repo = copy();
   repo.write(
