@@ -310,7 +310,7 @@ The only telemetry a Sidecut plugin has.
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Trigger | `PostToolUse`: matcher `Skill` in Claude Code; matcher `Bash` in Codex, which has no skill tool and opens a skill by reading its `SKILL.md` with a shell command (openai/codex#17132). A skill Codex puts straight into the prompt, without a read, isn't logged | yes |
-| Switch | Off unless `SIDECUT_SKILL_LOG=1`; `DO_NOT_TRACK=1` or a CI environment turns it off even then; tests in the template prove all three | yes |
+| Switch | On by default, because nothing leaves the machine; `SIDECUT_SKILL_LOG=0`, `DO_NOT_TRACK=1` or a CI environment turns it off; tests in the template prove all three | yes |
 | Record | One JSON line per skill run with `time`, `plugin`, `skill`, `host` and nothing else | yes |
 | Location | `~/.sidecut/skill-log.jsonl`, never sent anywhere | yes |
 | Ownership | Records only this plugin's skills | yes |

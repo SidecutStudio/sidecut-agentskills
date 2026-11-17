@@ -11,4 +11,4 @@ Report it privately to Sidecut Studio through a GitHub security advisory on Side
 ## What the plugin runs
 
 - **MCP server:** `node` runs `server/index.mjs` on your machine. It has no dependencies outside the bundle and makes no network calls unless a tool says it does.
-- **Usage log hook:** when `SIDECUT_SKILL_LOG=1` is set, a hook writes one line per skill run to `~/.sidecut/skill-log.jsonl`. It sends nothing anywhere.
+- **Usage log hook:** unless `SIDECUT_SKILL_LOG=0`, `DO_NOT_TRACK=1` or CI is set, a hook writes one line per skill run to `~/.sidecut/skill-log.jsonl`. It sends nothing anywhere.

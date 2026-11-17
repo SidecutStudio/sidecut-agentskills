@@ -89,7 +89,7 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 | Timeout on every hook, exit 0 on own failure | Expo, Vercel (partly) | Adopt | Vercel's session-start hooks had none and could spend about 9 seconds |
 | Hooks that scan the repo and inject context at session start | Vercel | Skip | Costs every session, including unrelated projects |
 | Skill-use event on `PostToolUse` with matcher `Skill` | Expo, Vercel | Adapt | Keep the event, write a local file only |
-| Opt-in marker file, `DO_NOT_TRACK` and CI turn it off | Expo | Adopt | The safest switch seen |
+| Opt-in marker file, `DO_NOT_TRACK` and CI turn it off | Expo | Adapt | Keep the off switches and add `SIDECUT_SKILL_LOG=0`, but start the log on: it is local-only, so nothing leaves the machine without a yes |
 | Default-on network telemetry, install IDs, user-agent tags, `generatedBy` written into user files | Apify, Vercel | Skip | Data leaves the machine without a yes |
 | Feedback sending folded into a skill's done criterion | Firecrawl | Skip | Mixes the vendor's goals into the user's task |
 | Eval-candidate report the user approves before it's sent | Expo | Adapt | Feeds Sidecut Solo's dogfood log instead |

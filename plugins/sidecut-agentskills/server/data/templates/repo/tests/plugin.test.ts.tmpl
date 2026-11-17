@@ -61,8 +61,10 @@ const claude = (name: string) => ({ tool_name: 'Skill', tool_input: { skill: nam
 const codex = (command: string) => ({ tool_name: 'Bash', turn_id: 'turn', tool_input: { command } });
 const skillFile = join(root, 'skills', skill, 'SKILL.md');
 
-test('the usage log stays off unless SIDECUT_SKILL_LOG=1', () => {
-  expect(runSkillLog({}, claude(`${manifest.name}:${skill}`))).toBe('');
+test('the usage log is on by default, and SIDECUT_SKILL_LOG=0 turns it off', () => {
+  expect(runSkillLog({}, claude(`${manifest.name}:${skill}`))).not.toBe('');
+  for (const value of ['0', 'false', 'off', 'no'])
+    expect(runSkillLog({ SIDECUT_SKILL_LOG: value }, claude(`${manifest.name}:${skill}`))).toBe('');
 });
 
 test("the usage log records this plugin's skill in Claude Code", () => {

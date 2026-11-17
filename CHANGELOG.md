@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0] - 2026-11-17
+
+### Changed
+
+- The usage log hook is on by default. It still records only `time`, `plugin`, `skill` and `host` to `~/.sidecut/skill-log.jsonl` and sends nothing. `SIDECUT_SKILL_LOG=0` (or `false`, `off`, `no`), `DO_NOT_TRACK=1` or a CI environment turns it off. Plugins copy the new `post-tool-use-skill-log.mjs` from the template to pass `HOOK_SKILL_LOG`.
+- The house style's usage log switch, the template README, SECURITY and plugin tests, `agentskills-show-usage` and the Expo pattern verdict say the same.
+
 ## [0.11.0] - 2026-11-16
 
 ### Added

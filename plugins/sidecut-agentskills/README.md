@@ -46,7 +46,7 @@ Plugin repos also run two commands from it. `bunx sidecut-check` checks a repo a
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `SIDECUT_SKILL_LOG` | off | Set to `1` to keep the local usage log described under Privacy |
+| `SIDECUT_SKILL_LOG` | on | Set to `0` to turn off the local usage log described under Privacy |
 
 To keep your personal rules the same in both hosts: Claude Code reads your rules from `~/.claude/rules/*.md`, and Codex reads one file, `~/.codex/AGENTS.md`. To have Codex follow the same rules, run `node <plugin folder>/hooks/session-start-rules.mjs --init` once; it moves your current `~/.codex/AGENTS.md` to `~/.codex/AGENTS.md.before-sidecut-rules` first, so copy anything you still want from it into a rules file. From then on, each new session rebuilds `~/.codex/AGENTS.md` from the rules folder, so you only ever edit `~/.claude/rules`. Without that one run, the hook leaves `~/.codex/AGENTS.md` alone.
 
@@ -54,7 +54,7 @@ In Codex, the usage log and the rules hook are plugin hooks, and Codex runs plug
 
 ## Privacy
 
-The plugin keeps a usage log only when you set `SIDECUT_SKILL_LOG=1`, and never when `DO_NOT_TRACK=1` is set or it runs in CI. Each time one of its skills runs in Claude Code or Codex, it adds one line to `~/.sidecut/skill-log.jsonl` with the fields `time`, `plugin`, `skill` and `host`. Nothing is sent anywhere.
+The plugin keeps a local usage log unless you set `SIDECUT_SKILL_LOG=0`, and never when `DO_NOT_TRACK=1` is set or it runs in CI. Each time one of its skills runs in Claude Code or Codex, it adds one line to `~/.sidecut/skill-log.jsonl` with the fields `time`, `plugin`, `skill` and `host`. Nothing is sent anywhere.
 
 ## Develop
 
