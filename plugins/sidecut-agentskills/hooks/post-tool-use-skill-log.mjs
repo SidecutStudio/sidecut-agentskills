@@ -1,5 +1,6 @@
-// Sidecut usage log. When SIDECUT_SKILL_LOG=1, records one line per run of this plugin's own skills
-// to ~/.sidecut/skill-log.jsonl. DO_NOT_TRACK=1 or a CI environment turns it off. Sends nothing.
+// Sidecut usage log, on by default: records one line per run of this plugin's own skills to
+// ~/.sidecut/skill-log.jsonl. SIDECUT_SKILL_LOG=0, DO_NOT_TRACK=1 or a CI environment turns it off.
+// Sends nothing.
 // Claude Code runs a skill through its Skill tool. Codex has no skill tool: it reads the skill's
 // SKILL.md with a shell command, so a Bash call that reads one of this plugin's SKILL.md files counts.
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -18,10 +19,11 @@ const CI_VARIABLES = [
 ];
 const SKILL_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const READERS = /^(cat|sed|head|tail|less|more|bat|nl)\b/;
+const OFF = new Set(['0', 'false', 'off', 'no']);
 
 function isOn(env) {
   if (env.DO_NOT_TRACK === '1' || CI_VARIABLES.some((name) => env[name])) return false;
-  return env.SIDECUT_SKILL_LOG === '1';
+  return !OFF.has((env.SIDECUT_SKILL_LOG ?? '').toLowerCase());
 }
 
 // The skill a tool call ran, or nothing when the call wasn't one of this plugin's skills.
