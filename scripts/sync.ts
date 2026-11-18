@@ -9,6 +9,7 @@ import {
   BLOCK_FILES,
   OWNED_FILES,
   planSync,
+  pluginOwnedFile,
 } from '../plugins/sidecut-agentskills/server/src/check/sync.ts';
 import { ownVersion } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
@@ -47,7 +48,13 @@ if (!values.check && !values.force) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
   );
-  const touched = [...OWNED_FILES, ...BLOCK_FILES, 'package.json', 'package-lock.json'];
+  const touched = [
+    ...OWNED_FILES,
+    ...BLOCK_FILES,
+    pluginOwnedFile(who.id),
+    'package.json',
+    'package-lock.json',
+  ];
   const dirty = spawnSync('git', ['status', '--porcelain', '--', ...touched], {
     cwd: root,
     encoding: 'utf8',

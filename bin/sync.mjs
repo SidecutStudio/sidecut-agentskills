@@ -23,6 +23,10 @@ function keepCovers(key, code, file) {
 var here = dirname(fileURLToPath(import.meta.url));
 var dataRoot = existsSync(join(here, "data")) ? join(here, "data") : existsSync(join(here, "..", "data")) ? join(here, "..", "data") : join(here, "..", "plugins", "sidecut-agentskills", "server", "data");
 var templatesRoot = join(dataRoot, "templates");
+var OWNER_INPUT_PATH = "server/data/owner-input.md";
+function ownerInput() {
+  return readFileSync(join(dataRoot, "owner-input.md"), "utf8");
+}
 var ownVersion = JSON.parse(readFileSync(join(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
 var ACRONYMS = /* @__PURE__ */ new Set([
   "ai",
@@ -75,6 +79,9 @@ var OWNED_FILES = [
   "scripts/build-server.ts",
   "scripts/release.ts"
 ];
+function pluginOwnedFile(id) {
+  return `plugins/${id}/${OWNER_INPUT_PATH}`;
+}
 var BLOCK_FILES = [".gitignore", "AGENTS.md", "SECURITY.md"];
 var SHARED_TOOLS = [
   "@biomejs/biome",
@@ -213,9 +220,10 @@ function planSync(root2, vars, kept = () => false) {
     repo: vars.repo,
     displayName: displayNameOf(vars.id)
   });
-  for (const file of OWNED_FILES) {
+  const guide = pluginOwnedFile(vars.id);
+  for (const file of [...OWNED_FILES, guide]) {
     if (kept(file)) continue;
-    const want = render2(file);
+    const want = file === guide ? ownerInput() : render2(file);
     const path = join2(root2, file);
     const have = existsSync2(path) ? readFileSync2(path, "utf8") : null;
     if (have !== want)
@@ -321,7 +329,13 @@ if (!values.check && !values.force) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_"))
   );
-  const touched = [...OWNED_FILES, ...BLOCK_FILES, "package.json", "package-lock.json"];
+  const touched = [
+    ...OWNED_FILES,
+    ...BLOCK_FILES,
+    pluginOwnedFile(who.id),
+    "package.json",
+    "package-lock.json"
+  ];
   const dirty = spawnSync("git", ["status", "--porcelain", "--", ...touched], {
     cwd: root,
     encoding: "utf8",

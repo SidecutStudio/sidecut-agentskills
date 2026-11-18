@@ -12,7 +12,7 @@ Produces a new version of the plugin that the sidecut-plugins marketplace serves
 ## Before you start
 
 - `check_plugin` reports no problems on the plugin.
-- Decide the version with the user: a fix is a patch, a new skill or tool is a minor version, and a renamed or removed skill or tool is a major version once the plugin is past 1.0.
+- Reuse a settled version or apply the release rule: a fix is a patch, a new skill or tool is a minor version, and a renamed or removed skill or tool is a major version once the plugin is past 1.0. Ask only if the correct version is a material unresolved choice. Follow `server/data/owner-input.md` from the loaded plugin root.
 
 ## Steps
 
@@ -22,7 +22,7 @@ Open the plugin's entry in `sidecut-plugins`' `bundled/sources.json`. A `ref` su
 
 ### 2. Tag release
 
-The change to publish is merged to `main` first.
+The change to publish is merged to `main` first. For either release type, reuse existing publication authorization. If it is missing, use the owner-input guidance after preparing the version and before the first action that publishes it.
 
 1. On a branch, add the dated version entry to the top of the root CHANGELOG.
 2. For Agentskills, run `node scripts/version.ts <version>`. Repositories that have adopted the shared release workflow run `npm exec --no -- sidecut-version <version>`. The command updates the package and lockfile versions, both host manifests and the plugin CHANGELOG. In older repositories, follow their own version instructions.

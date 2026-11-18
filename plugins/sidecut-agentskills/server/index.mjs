@@ -21656,6 +21656,10 @@ function sameJson(a, b) {
 var here = dirname(fileURLToPath(import.meta.url));
 var dataRoot = existsSync(join(here, "data")) ? join(here, "data") : existsSync(join(here, "..", "data")) ? join(here, "..", "data") : join(here, "..", "plugins", "sidecut-agentskills", "server", "data");
 var templatesRoot = join(dataRoot, "templates");
+var OWNER_INPUT_PATH = "server/data/owner-input.md";
+function ownerInput() {
+  return readFileSync(join(dataRoot, "owner-input.md"), "utf8");
+}
 var ownVersion = JSON.parse(readFileSync(join(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
 var PLUGIN_ID = /^sidecut-[a-z0-9]+(-[a-z0-9]+)*$/;
 var SKILL_NAME = /^[a-z]+(-[a-z]+){1,2}$/;
@@ -21828,6 +21832,7 @@ function scaffoldPlugin(input, out) {
   for (const name of ["README.md", "LICENSE", "CHANGELOG.md"]) {
     files.set(name, files.get(`${pluginDir}/${name}`));
   }
+  files.set(`${pluginDir}/${OWNER_INPUT_PATH}`, ownerInput());
   files.set(`${pluginDir}/assets/icon.png`, readFileSync(join(templatesRoot, "..", "icon.png")));
   return writeAll(out, files);
 }
@@ -21856,6 +21861,9 @@ function addSkill(pluginDir, input) {
   const files = /* @__PURE__ */ new Map();
   const template = input.name === prefix ? "router" : "skill";
   for (const [path, text2] of renderTree(template, vars)) files.set(join(skillDir, path), text2);
+  if (!existsSync(join(pluginDir, OWNER_INPUT_PATH))) {
+    files.set(OWNER_INPUT_PATH, ownerInput());
+  }
   return writeAll(pluginDir, files);
 }
 
@@ -23459,6 +23467,9 @@ var OWNED_FILES = [
   "scripts/build-server.ts",
   "scripts/release.ts"
 ];
+function pluginOwnedFile(id) {
+  return `plugins/${id}/${OWNER_INPUT_PATH}`;
+}
 var BLOCK_FILES = [".gitignore", "AGENTS.md", "SECURITY.md"];
 var SHARED_TOOLS = [
   "@biomejs/biome",
@@ -23597,9 +23608,10 @@ function planSync(root, vars, kept = () => false) {
     repo: vars.repo,
     displayName: displayNameOf(vars.id)
   });
-  for (const file of OWNED_FILES) {
+  const guide = pluginOwnedFile(vars.id);
+  for (const file of [...OWNED_FILES, guide]) {
     if (kept(file)) continue;
-    const want = render2(file);
+    const want = file === guide ? ownerInput() : render2(file);
     const path = join6(root, file);
     const have = existsSync6(path) ? readFileSync5(path, "utf8") : null;
     if (have !== want)

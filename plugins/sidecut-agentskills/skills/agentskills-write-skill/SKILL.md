@@ -12,7 +12,7 @@ Produces one skill folder that passes `check_plugin` and has trigger evals that 
 
 ## Before you start
 
-- Get four things from the user: what the skill produces, three requests that should trigger it, two close requests that shouldn't, and how to tell the result is right.
+- Derive the outcome, three triggers, two near misses and the acceptance check from the request and existing materials. Ask only about gaps that would change the skill or its checks. Follow `server/data/owner-input.md` from the loaded plugin root.
 - Read the "Skill folder", "Skill frontmatter" and "SKILL.md layout" sections of `get_house_style`.
 - For a rewrite, read the old skill only to list what it covers. Write the new text from that list; don't copy sentences, headings or layout.
 

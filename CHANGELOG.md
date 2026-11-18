@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.2.1] - 2026-11-18
+
+- Ask for material owner choices through the active host's question tool, with a chat fallback. Reuse settled requirements and keep unanswered permission requests pending.
+- Include the shared owner-input guide in plugin scaffolds and skill templates.
+
 ## [1.2.0] - 2026-11-18
 
 ### Added

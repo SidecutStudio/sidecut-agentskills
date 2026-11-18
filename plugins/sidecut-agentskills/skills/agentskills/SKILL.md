@@ -22,7 +22,7 @@ Picks the one skill in this plugin that fits the request and hands over to it. E
 | A new version released to the Sidecut marketplace | `agentskills-publish-plugin` |
 | Which Sidecut skills ran, in which host, and whether the log is on | `agentskills-show-usage` |
 
-When the request doesn't say what the result is for, ask before handing over; the answer often changes what gets built.
+When the purpose is missing and would change the route, ask before handing over. Follow `server/data/owner-input.md` from the loaded plugin root.
 
 When a request spans several, start with the one whose result the others need: `agentskills-create-plugin` before `agentskills-write-skill`, and `agentskills-review-plugin` before `agentskills-rebuild-plugin`.
 

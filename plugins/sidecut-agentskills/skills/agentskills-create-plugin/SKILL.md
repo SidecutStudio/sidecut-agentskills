@@ -12,7 +12,7 @@ Produces a new plugin repo that passes `npm run check` on its first commit and l
 
 ## Before you start
 
-- Agree five things with the user, and only these: the plugin id (`sidecut-<name>`), a one-sentence description of at most 120 characters, a 2 or 3 sentence description for the Codex listing, 3 to 8 lowercase keywords, and the [Lucide](https://lucide.dev/icons) icon for its mark.
+- Propose all five from the brief and existing guidance. Ask together about unresolved choices that affect identity or scope. Follow `server/data/owner-input.md` from the loaded plugin root. Settle these details: the plugin id (`sidecut-<name>`), a one-sentence description of at most 120 characters, a 2 or 3 sentence description for the Codex listing, 3 to 8 lowercase keywords, and the [Lucide](https://lucide.dev/icons) icon for its mark.
 - Test the name by saying it cold: two plain words someone would search for. Check that no well-known project uses it.
 - The repo goes in `~/Developer/<plugin-id>` unless the user names another folder. The folder has to be empty or missing.
 
@@ -23,7 +23,7 @@ Produces a new plugin repo that passes `npm run check` on its first commit and l
 3. Run `npm exec --no -- sidecut-icon <lucide-name>` to draw the plugin's icon with its agreed mark.
 4. Run `npm run check`. It passes on a fresh repo; if it doesn't, fix the cause before going on.
 5. Load the plugin for one session with `claude --plugin-dir <folder>/plugins/<plugin-id>` and run its `check-status` skill. The new plugin's status tool answers with its name and version.
-6. Ask the user before creating the GitHub repo. On a yes, create `SidecutStudio/<plugin-id>` as a private repo, push `main`, then run `solo-configure-project` to fill the Sidecut Solo section of `AGENTS.md`.
+6. Reuse permission covering the repository name and visibility. If it is missing, ask before creating the GitHub repo. Once authorized, create `SidecutStudio/<plugin-id>` as a private repo, push `main`, then run `solo-configure-project` to fill the Sidecut Solo section of `AGENTS.md`.
 7. When the user wants anyone to be able to install it, make the repo public instead of private. Follow the Install source section of `get_house_style`: run every CI job on `ubuntu-24.04`, add both marketplace files and replace the README's Install section with the public steps. `npm run check` fails until all three are in place.
 8. Add the plugin's real skills with `agentskills-write-skill` and its real tools with `agentskills-build-mcp-server`. Keep `check-status` while the status tool is the server's only tool.
 
