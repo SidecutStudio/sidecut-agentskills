@@ -6,6 +6,7 @@ import {
   releaseCommit,
   releasePlan,
   requiredChecksPass,
+  waitForRelease,
 } from '../scripts/release.ts';
 
 const changelog =
@@ -72,6 +73,25 @@ describe('release script', () => {
         throw new Error('network unavailable');
       }),
     ).toThrow('network unavailable');
+  });
+
+  test('waits for GitHub reads to catch up without retrying writes', async () => {
+    const draft = { tag_name: 'v1.2.0', draft: true, prerelease: false, html_url: '', assets: [] };
+    const states = [undefined, undefined, draft];
+    expect(
+      await waitForRelease(
+        () => states.shift(),
+        (release) => release.draft,
+        [1, 1],
+      ),
+    ).toEqual(draft);
+    expect(
+      await waitForRelease(
+        () => undefined,
+        () => true,
+        [1],
+      ),
+    ).toBeUndefined();
   });
 
   test('compares versions numerically', () => {

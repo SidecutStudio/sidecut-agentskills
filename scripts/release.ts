@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { setTimeout } from 'node:timers/promises';
 import { parse } from 'smol-toml';
 
 const root = process.cwd();
@@ -91,6 +92,20 @@ export function findRelease(repo: string, tag: string, provider = gh): Release |
   const matches = pages.flat().filter((item) => item.tag_name === tag);
   if (matches.length > 1) throw new Error(`${tag}: more than one matching release.`);
   return matches[0];
+}
+
+export async function waitForRelease(
+  lookup: () => Release | undefined,
+  ready: (release: Release) => boolean,
+  delays = [1_000, 2_000, 4_000, 8_000],
+) {
+  let current = lookup();
+  for (const delay of delays) {
+    if (current && ready(current)) return current;
+    await setTimeout(delay);
+    current = lookup();
+  }
+  return current && ready(current) ? current : undefined;
 }
 
 export function missingAssets(release: Release, expected: Map<string, string>) {
@@ -255,8 +270,9 @@ async function main() {
         '--notes-file',
         notes,
       );
-    const draft = findRelease(repo, plan.tag);
-    if (!draft?.draft) throw new Error('The draft is unavailable. Rerun Release to reconcile it.');
+    const lookup = () => findRelease(repo, plan.tag);
+    const draft = await waitForRelease(lookup, (release) => release.draft);
+    if (!draft) throw new Error('The draft is unavailable. Rerun Release to reconcile it.');
     for (const name of missingAssets(draft, expected)) {
       const starter = draft.assets.find(
         (asset) => asset.name === name && asset.state === 'starter',
@@ -268,14 +284,19 @@ async function main() {
       }
       gh('release', 'upload', plan.tag, join(stage, name), '--repo', repo);
     }
-    const uploaded = findRelease(repo, plan.tag);
-    if (!uploaded?.draft || missingAssets(uploaded, expected).length)
+    const uploaded = await waitForRelease(
+      lookup,
+      (release) => release.draft && missingAssets(release, expected).length === 0,
+    );
+    if (!uploaded)
       throw new Error('Release assets are not ready. Rerun Release to reconcile them.');
     assertMain();
     gh('release', 'edit', plan.tag, '--repo', repo, '--draft=false', '--latest');
-    const published = findRelease(repo, plan.tag);
-    if (!published || published.draft || missingAssets(published, expected).length)
-      throw new Error('Could not verify publication. Rerun Release to confirm.');
+    const published = await waitForRelease(
+      lookup,
+      (release) => !release.draft && missingAssets(release, expected).length === 0,
+    );
+    if (!published) throw new Error('Could not verify publication. Rerun Release to confirm.');
     console.log(`Published ${plan.tag} at ${commit}: ${published.html_url}`);
   } finally {
     rmSync(stage, { recursive: true, force: true });
