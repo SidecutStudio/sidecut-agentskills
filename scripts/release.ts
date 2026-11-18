@@ -1,17 +1,12 @@
-// Publishes the plugin version from a checked main commit: tag, GitHub Release, ZIP and SHA-256
-// checksum. The Release workflow runs it after Check passes on main. Locally it only prints the
-// plan: node scripts/release.ts <version>. --auto prints the manifest version and whether it still
-// needs publishing, as GITHUB_OUTPUT lines. A published release is never replaced. Every Sidecut
-// plugin repo has this file unchanged.
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'smol-toml';
 
-const root = join(import.meta.dirname, '..');
+const root = process.cwd();
 const id = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).name as string;
-const plugin = join(root, 'plugins', id);
 const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 export function releasePlan(
@@ -47,11 +42,6 @@ export function newerVersion(left: string, right: string) {
   return false;
 }
 
-/** A version needs publishing unless its GitHub Release exists and is no longer a draft. */
-export function releaseNeeded(existing: { found: boolean; isDraft?: boolean }) {
-  return !existing.found || existing.isDraft !== false;
-}
-
 export function requiredChecksPass(
   required: string[],
   checks: { id: number; name: string; status: string; conclusion: string | null }[],
@@ -64,203 +54,232 @@ export function requiredChecksPass(
   }
 }
 
-const manifests = () => ({
-  codex: JSON.parse(readFileSync(join(plugin, '.codex-plugin/plugin.json'), 'utf8')),
-  claude: JSON.parse(readFileSync(join(plugin, '.claude-plugin/plugin.json'), 'utf8')),
-  changelog: readFileSync(join(plugin, 'CHANGELOG.md'), 'utf8'),
-});
-
-const run = (command: string, args: string[]) =>
-  execFileSync(command, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-const json = (args: string[]) => JSON.parse(run('gh', args));
-
-async function releaseState(tag: string, repo: string) {
-  const view = spawnSync('gh', ['release', 'view', tag, '--repo', repo, '--json', 'isDraft'], {
+const run = (command: string, args: string[]) => {
+  const result = spawnSync(command, args, {
     cwd: root,
+    env: { ...process.env, TZ: 'UTC' },
     encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
   });
-  return view.status === 0
-    ? { found: true, isDraft: JSON.parse(view.stdout).isDraft as boolean }
-    : { found: false };
-}
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${command} ${args[0]}: ${result.stderr.trim()}`);
+  return result.stdout.trim();
+};
+const git = (...args: string[]) => run('git', args);
+const gh = (...args: string[]) => run('gh', args);
 
-function githubRepo() {
-  const repo = process.env.GITHUB_REPOSITORY;
-  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error('Missing GitHub repository.');
-  return repo;
-}
+type Asset = { name: string; digest: string | null; id?: number; state?: string };
+type Release = {
+  tag_name: string;
+  draft: boolean;
+  prerelease: boolean;
+  assets: Asset[];
+  html_url: string;
+};
+type Ref = { ref: string; object: { type: string; sha: string } };
 
-/** The commit a version tag points to, following an annotated tag; undefined when untagged. */
-async function tagCommit(repo: string, tag: string) {
-  const refs: { ref: string; object: { type: string; sha: string } }[] = json([
-    'api',
-    'repos/' + repo + '/git/matching-refs/tags/v',
-  ]);
-  const found = refs.find((ref) => ref.ref === `refs/tags/${tag}`);
-  if (!found) return { refs, commit: undefined };
-  let object = found.object;
-  if (object.type === 'tag')
-    object = json(['api', 'repos/' + repo + '/git/tags/' + object.sha]).object;
-  return { refs, commit: object.type === 'commit' ? object.sha : '' };
-}
-
-async function auto() {
-  const { codex, claude, changelog } = await manifests();
-  const plan = releasePlan(codex.version, codex, claude, changelog);
-  const repo = githubRepo();
-  const existing = await releaseState(plan.tag, repo);
-  let needed = releaseNeeded(existing);
-  if (needed) {
-    const { commit } = await tagCommit(repo, plan.tag);
-    const head = run('git', ['rev-parse', 'HEAD']).trim();
-    if (commit !== undefined && commit !== head) {
-      // A tag made by hand before this workflow existed: leave it, and release the next version.
-      if (!existing.found) {
-        console.error(
-          `${plan.tag} was tagged by hand on ${commit}; the next version bump releases.`,
-        );
-        needed = false;
-      } else
-        throw new Error(
-          `${plan.tag} is tagged on ${commit || 'a non-commit'} but its release is unfinished. ` +
-            'Bump the version to release from main; the old tag and draft stay as they are.',
-        );
-    }
+export function findRelease(repo: string, tag: string, provider = gh): Release | undefined {
+  // The direct endpoint may omit a draft. A failed request only means absence on an explicit 404.
+  try {
+    return JSON.parse(provider('api', `repos/${repo}/releases/tags/${tag}`));
+  } catch (error) {
+    if (!/\(HTTP 404\)$/.test(String(error))) throw error;
   }
-  if (needed) console.error(`${plan.tag} is not published yet.`);
-  else if (existing.found) console.error(`${plan.tag} is already published.`);
-  else console.error(`${plan.tag} is not released and won't be; bump the version to release.`);
-  console.log(`version=${plan.version}\nneeded=${needed}`);
+  const pages: Release[][] = JSON.parse(
+    provider('api', '--paginate', '--slurp', `repos/${repo}/releases?per_page=100`),
+  );
+  const matches = pages.flat().filter((item) => item.tag_name === tag);
+  if (matches.length > 1) throw new Error(`${tag}: more than one matching release.`);
+  return matches[0];
+}
+
+export function missingAssets(release: Release, expected: Map<string, string>) {
+  return [...expected]
+    .filter(([name, digest]) => {
+      const asset = release.assets.find((item) => item.name === name);
+      if (release.draft && asset?.state === 'starter' && asset.digest === null) return true;
+      if (asset && asset.digest !== digest)
+        throw new Error(`Existing release asset differs: ${name}.`);
+      return !asset;
+    })
+    .map(([name]) => name);
+}
+
+export function releaseCommit(
+  head: string,
+  tagged: string | undefined,
+  ancestor: (sha: string) => boolean,
+) {
+  if (tagged === undefined) return head;
+  if (!ancestor(tagged)) throw new Error('The existing version tag is outside main history.');
+  return tagged;
+}
+
+function planAt(commit: string) {
+  const file = (path: string) => git('show', `${commit}:${path}`);
+  const pkg = JSON.parse(file('package.json'));
+  const codex = JSON.parse(file(`plugins/${id}/.codex-plugin/plugin.json`));
+  const claude = JSON.parse(file(`plugins/${id}/.claude-plugin/plugin.json`));
+  if (pkg.name !== id || codex.name !== id || claude.name !== id)
+    throw new Error('The package and both manifests must describe the same plugin.');
+  const plan = releasePlan(pkg.version, codex, claude, file(`plugins/${id}/CHANGELOG.md`));
+  return { ...plan, title: `${codex.interface?.displayName ?? id} ${plan.version}` };
 }
 
 async function main() {
-  if (process.argv[2] === '--auto' && process.argv.length === 3) return auto();
-  const [version, mode, ...extra] = process.argv.slice(2);
-  if (!version || (mode && mode !== '--publish') || extra.length)
-    throw new Error('Usage: node scripts/release.ts <version> [--publish] | --auto');
-  const { codex, claude, changelog } = await manifests();
-  const plan = releasePlan(version, codex, claude, changelog);
-  if (!mode) {
-    console.log(JSON.stringify({ ...plan, publish: false }, null, 2));
+  const [mode, ...extra] = process.argv.slice(2);
+  const head = git('rev-parse', 'HEAD');
+  const plan = planAt(head);
+  if (extra.length || (mode !== plan.version && mode !== '--publish-current'))
+    throw new Error('Usage: node scripts/release.ts <package-version> | --publish-current (CI)');
+  if (mode !== '--publish-current') {
+    console.log(JSON.stringify(plan, null, 2));
     return;
   }
-  const expected = process.env.RELEASE_SHA;
-  if (process.env.GITHUB_ACTIONS !== 'true' || !expected || !/^[0-9a-f]{40}$/.test(expected))
-    throw new Error('Publish only through the Release workflow, which sets RELEASE_SHA.');
-  const repo = githubRepo();
-  const head = run('git', ['rev-parse', 'HEAD']).trim();
-  if (head !== expected) throw new Error('Checkout differs from the commit Check passed on.');
-  const assertMain = async () => {
-    const remote = json(['api', 'repos/' + repo + '/git/ref/heads/main']);
-    if (remote.object.sha !== head) throw new Error('Main moved on; the next Check run releases.');
-  };
-  // A newer push has its own Check and Release run, which publishes this version if it's still due.
-  const tip = json(['api', 'repos/' + repo + '/git/ref/heads/main']).object.sha;
-  if (tip !== head) {
-    console.log(`Main moved on to ${tip}; its own Release run publishes ${plan.tag}.`);
-    return;
-  }
-  const policy = parse(readFileSync(join(root, 'solo-workflow.toml'), 'utf8')) as {
-    required_checks: string[];
-  };
-  const pages = json([
-    'api',
-    '--paginate',
-    '--slurp',
-    'repos/' + repo + '/commits/' + head + '/check-runs?per_page=100',
-  ]);
-  requiredChecksPass(
-    policy.required_checks,
-    pages.flatMap((page: { check_runs: [] }) => page.check_runs),
-  );
-  const existing = await releaseState(plan.tag, repo);
-  if (!releaseNeeded(existing))
-    throw new Error('This release is already published; published assets are never replaced.');
 
-  // The installable folder exactly as committed, under a top folder named after the plugin.
-  mkdirSync(join(root, 'dist'), { recursive: true });
-  const archive = join(root, 'dist', plan.archive);
-  run('git', [
-    'archive',
-    '--format=zip',
-    '--prefix=' + id + '/',
-    '-o',
-    archive,
-    head + ':plugins/' + id,
-  ]);
-  const checksum = `${archive}.sha256`;
-  const hash = createHash('sha256').update(readFileSync(archive)).digest('hex');
-  writeFileSync(checksum, `${hash}  ${plan.archive}\n`);
-  const notes = join(root, 'dist/release-notes.md');
-  writeFileSync(notes, plan.notes);
-  const { refs, commit } = await tagCommit(repo, plan.tag);
-  for (const ref of refs) {
-    const tagged = ref.ref.slice('refs/tags/v'.length);
-    if (semver.test(tagged) && newerVersion(tagged, version))
-      throw new Error('A newer version tag exists; refusing to move Latest backwards.');
-  }
-  if (commit !== undefined) {
-    if (commit !== head) throw new Error('The version tag already points to a different commit.');
-  } else {
-    await assertMain();
-    run('gh', [
-      'api',
-      '--method',
-      'POST',
-      'repos/' + repo + '/git/refs',
-      '-f',
-      'ref=refs/tags/' + plan.tag,
-      '-f',
-      'sha=' + head,
-    ]);
-  }
-  const title = `${codex.interface?.displayName ?? id} ${version}`;
-  if (!existing.found)
-    run('gh', [
-      'release',
-      'create',
-      plan.tag,
-      '--repo',
-      repo,
-      '--verify-tag',
-      '--target',
-      head,
-      '--draft',
-      '--title',
-      title,
-      '--notes-file',
-      notes,
-    ]);
-  run('gh', ['release', 'upload', plan.tag, archive, checksum, '--repo', repo, '--clobber']);
-  await assertMain();
-  run('gh', [
-    'release',
-    'edit',
-    plan.tag,
-    '--repo',
-    repo,
-    '--draft=false',
-    '--latest',
-    '--notes-file',
-    notes,
-  ]);
-  const published = json([
-    'release',
-    'view',
-    plan.tag,
-    '--repo',
-    repo,
-    '--json',
-    'isDraft,assets,url',
-  ]);
+  const repo = process.env.GITHUB_REPOSITORY;
   if (
-    published.isDraft ||
-    ![plan.archive, `${plan.archive}.sha256`].every((name) =>
-      published.assets.some((asset: { name: string }) => asset.name === name),
-    )
+    process.env.GITHUB_ACTIONS !== 'true' ||
+    process.env.RELEASE_SHA !== head ||
+    !repo ||
+    !/^[\w.-]+\/[\w.-]+$/.test(repo)
   )
-    throw new Error('Release publication or assets could not be verified.');
-  console.log(`Published ${plan.tag} at ${head}: ${published.url}`);
+    throw new Error('Publish through the Release workflow at its checked commit.');
+  const remoteHead = (): string =>
+    JSON.parse(gh('api', `repos/${repo}/git/ref/heads/main`)).object.sha;
+  if (remoteHead() !== head) {
+    console.log('Main moved. Use the Release run for the latest checked main commit.');
+    return;
+  }
+
+  const refs: Ref[] = JSON.parse(gh('api', `repos/${repo}/git/matching-refs/tags/v`));
+  const tag = refs.find((entry) => entry.ref === `refs/tags/${plan.tag}`);
+  const ancestor = (sha: string) =>
+    spawnSync('git', ['merge-base', '--is-ancestor', sha, head], { cwd: root }).status === 0;
+  const tagged = tag ? git('rev-parse', `refs/tags/${plan.tag}^{commit}`) : undefined;
+  if (tag && tag.object.sha !== git('rev-parse', `refs/tags/${plan.tag}`))
+    throw new Error('The remote tag changed since checkout. Rerun Release.');
+  const commit = releaseCommit(head, tagged, ancestor);
+  const plugin = `plugins/${id}`;
+  if (tagged && git('rev-parse', `${head}:${plugin}`) !== git('rev-parse', `${commit}:${plugin}`))
+    throw new Error(
+      `${plan.tag}: main contains different plugin content. Bump the package version.`,
+    );
+  const taggedPlan = planAt(commit);
+  if (taggedPlan.tag !== plan.tag) throw new Error('The existing tag describes another version.');
+  const existing = findRelease(repo, plan.tag);
+  const assetNames = [plan.archive, `${plan.archive}.sha256`];
+  if (existing && !existing.draft) {
+    if (
+      !tag ||
+      existing.prerelease ||
+      assetNames.some((name) => !existing.assets.some((asset) => asset.name === name))
+    )
+      throw new Error(`${plan.tag}: published release is incomplete. Fix it in a new version.`);
+    console.log(`Already published ${plan.tag} at ${commit}: ${existing.html_url}`);
+    return;
+  }
+  if (
+    refs.some((ref) => {
+      const version = ref.ref.slice('refs/tags/v'.length);
+      return semver.test(version) && newerVersion(version, plan.version);
+    })
+  )
+    throw new Error('A newer version tag exists. Run Release for the latest checked version.');
+  if (existing?.prerelease) throw new Error('A prerelease already uses this stable tag.');
+  for (const sha of new Set([head, commit])) {
+    const policy = parse(git('show', `${sha}:solo-workflow.toml`)) as { required_checks: string[] };
+    const pages = JSON.parse(
+      gh(
+        'api',
+        '--paginate',
+        '--slurp',
+        `repos/${repo}/commits/${sha}/check-runs?per_page=100&filter=all`,
+      ),
+    );
+    requiredChecksPass(
+      policy.required_checks,
+      pages.flatMap((page: { check_runs: [] }) => page.check_runs),
+    );
+  }
+
+  const assertMain = () => {
+    if (remoteHead() !== head)
+      throw new Error('Main moved. The latest checked main run can resume this version.');
+  };
+  const stage = mkdtempSync(join(tmpdir(), 'sidecut-release-'));
+  try {
+    const archive = join(stage, plan.archive);
+    git(
+      'archive',
+      '--format=zip',
+      '-0',
+      `--mtime=${git('show', '-s', '--format=%cI', commit)}`,
+      `--prefix=${id}/`,
+      '-o',
+      archive,
+      `${commit}:plugins/${id}`,
+    );
+    const digest = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
+    const checksum = `${archive}.sha256`;
+    writeFileSync(checksum, `${digest(archive)}  ${plan.archive}\n`);
+    const expected = new Map(
+      assetNames.map((name) => [name, `sha256:${digest(join(stage, name))}`]),
+    );
+    const notes = join(stage, 'notes.md');
+    writeFileSync(notes, taggedPlan.notes);
+
+    assertMain();
+    if (!tag)
+      gh(
+        'api',
+        '--method',
+        'POST',
+        `repos/${repo}/git/refs`,
+        '-f',
+        `ref=refs/tags/${plan.tag}`,
+        '-f',
+        `sha=${commit}`,
+      );
+    if (!existing)
+      gh(
+        'release',
+        'create',
+        plan.tag,
+        '--repo',
+        repo,
+        '--verify-tag',
+        '--draft',
+        '--title',
+        taggedPlan.title,
+        '--notes-file',
+        notes,
+      );
+    const draft = findRelease(repo, plan.tag);
+    if (!draft?.draft) throw new Error('The draft is unavailable. Rerun Release to reconcile it.');
+    for (const name of missingAssets(draft, expected)) {
+      const starter = draft.assets.find(
+        (asset) => asset.name === name && asset.state === 'starter',
+      );
+      if (starter) {
+        if (!Number.isSafeInteger(starter.id))
+          throw new Error(`Invalid draft asset ID for ${name}.`);
+        gh('api', '--method', 'DELETE', `repos/${repo}/releases/assets/${starter.id}`);
+      }
+      gh('release', 'upload', plan.tag, join(stage, name), '--repo', repo);
+    }
+    const uploaded = findRelease(repo, plan.tag);
+    if (!uploaded?.draft || missingAssets(uploaded, expected).length)
+      throw new Error('Release assets are not ready. Rerun Release to reconcile them.');
+    assertMain();
+    gh('release', 'edit', plan.tag, '--repo', repo, '--draft=false', '--latest');
+    const published = findRelease(repo, plan.tag);
+    if (!published || published.draft || missingAssets(published, expected).length)
+      throw new Error('Could not verify publication. Rerun Release to confirm.');
+    console.log(`Published ${plan.tag} at ${commit}: ${published.html_url}`);
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+  }
 }
 
 if (import.meta.main) await main();

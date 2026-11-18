@@ -54,3 +54,7 @@ Run `sh scripts/check.sh` and merge the copy, `sources.json` and both entries in
 ## Removing a plugin
 
 Delete both entries, its `bundled/<plugin-id>/` folder and its line in `bundled/sources.json` in one commit. People who have it installed keep their copy until they remove it.
+
+## Shared release workflow pilot
+
+From a fresh marketplace branch, run `bun scripts/reconcile.ts check` for Sidecut Agentskills and Sidecut Solo. If a release is ahead of the bundle, run the printed update command. The update verifies the published ZIP and checksum against the tagged source and generates the bundle and its pin. Commit the generated diff and open a marketplace PR.

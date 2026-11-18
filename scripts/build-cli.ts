@@ -2,7 +2,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { buildSync } from 'esbuild';
 
 const check = process.argv.includes('--check');
-for (const name of ['check', 'icon', 'sync']) {
+for (const name of ['check', 'icon', 'sync', 'version']) {
   const path = 'bin/' + name + '.mjs';
   const result = buildSync({
     entryPoints: ['scripts/' + name + '.ts'],

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0] - 2026-11-18
+
+### Added
+
+- Generate both host versions and the npm lock version with sidecut-version.
+- Share the checked GitHub release workflow across Sidecut plugin repositories.
+
 ## [1.1.0] - 2026-11-18
 
 ### Changed

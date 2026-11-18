@@ -1,17 +1,18 @@
 {
   "name": "sidecut-agentskills",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.19.1",
   "bin": {
     "sidecut-check": "bin/check.mjs",
     "sidecut-icon": "bin/icon.mjs",
-    "sidecut-sync": "bin/sync.mjs"
+    "sidecut-sync": "bin/sync.mjs",
+    "sidecut-version": "bin/version.mjs"
   },
   "scripts": {
     "build": "node scripts/build-server.ts && node scripts/build-cli.ts",
-    "check": "biome check . && tsc --noEmit && npm run style && npm test && node scripts/build-server.ts --check && node scripts/build-cli.ts --check",
+    "check": "biome check . && tsc --noEmit && npm run style && npm test && node scripts/build-server.ts --check && node scripts/build-cli.ts --check && node scripts/version.ts --check",
     "fix": "biome check --write .",
     "icon": "node scripts/icon.ts",
     "new": "node scripts/new.ts",
@@ -36,5 +37,10 @@
   },
   "engines": {
     "node": ">=24.2.0"
+  },
+  "sidecut": {
+    "keep": {
+      "REPO_SYNC scripts/release.ts": "The shared Actions workflow runs this publisher. The template still supports repositories outside the rollout."
+    }
   }
 }
