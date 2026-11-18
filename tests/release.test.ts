@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'vitest';
 import {
+  findRelease,
+  missingAssets,
   newerVersion,
-  releaseNeeded,
+  releaseCommit,
   releasePlan,
   requiredChecksPass,
 } from '../scripts/release.ts';
@@ -31,10 +33,45 @@ describe('release script', () => {
     ).toThrow('stable version');
   });
 
-  test('a published release is never redone; a draft or missing one is', () => {
-    expect(releaseNeeded({ found: true, isDraft: false })).toBe(false);
-    expect(releaseNeeded({ found: true, isDraft: true })).toBe(true);
-    expect(releaseNeeded({ found: false })).toBe(true);
+  test('recovers a tag on an earlier checked main commit', () => {
+    expect(releaseCommit('new', undefined, () => false)).toBe('new');
+    expect(releaseCommit('new', 'old', (sha) => sha === 'old')).toBe('old');
+    expect(() => releaseCommit('new', 'off-main', () => false)).toThrow('outside main');
+  });
+
+  test('resumes a partial draft without replacing assets', () => {
+    const release = {
+      tag_name: 'v1.2.0',
+      draft: true,
+      prerelease: false,
+      html_url: '',
+      assets: [{ name: 'plugin.zip', digest: 'sha256:zip' }],
+    };
+    const expected = new Map([
+      ['plugin.zip', 'sha256:zip'],
+      ['plugin.zip.sha256', 'sha256:sum'],
+    ]);
+    expect(missingAssets(release, expected)).toEqual(['plugin.zip.sha256']);
+    release.assets.push({ name: 'plugin.zip.sha256', digest: 'sha256:sum' });
+    expect(missingAssets(release, expected)).toEqual([]);
+    expect(() => missingAssets(release, new Map([['plugin.zip', 'sha256:other']]))).toThrow(
+      'differs',
+    );
+  });
+
+  test('recovers a draft after a tag lookup 404 but fails closed on other errors', () => {
+    const draft = { tag_name: 'v1.2.0', draft: true };
+    expect(
+      findRelease('Studio/plugin', 'v1.2.0', (...args) => {
+        if (args.includes('--paginate')) return JSON.stringify([[draft]]);
+        throw new Error('gh: HTTP error (HTTP 404)');
+      }),
+    ).toEqual(draft);
+    expect(() =>
+      findRelease('Studio/plugin', 'v1.2.0', () => {
+        throw new Error('network unavailable');
+      }),
+    ).toThrow('network unavailable');
   });
 
   test('compares versions numerically', () => {

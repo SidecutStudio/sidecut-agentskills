@@ -1,0 +1,57 @@
+name: Publish Sidecut plugin
+on:
+  workflow_call:
+    inputs:
+      checked-sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.event == 'push'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_branch == 'main'
+      && inputs.checked-sha == github.event.workflow_run.head_sha
+    runs-on: ${{ github.event.repository.private && fromJSON('{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-ci"]}') || 'ubuntu-24.04' }}
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      checks: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.checked-sha }}
+          fetch-depth: 0
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: release-tools
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.22.2
+      - name: Install gh 2.102.0
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/gh.tar.gz" https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz
+          echo "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386  $RUNNER_TEMP/gh.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gh.tar.gz" -C "$RUNNER_TEMP" gh_2.102.0_linux_amd64/bin/gh
+          echo "$RUNNER_TEMP/gh_2.102.0_linux_amd64/bin" >> "$GITHUB_PATH"
+      - run: npm ci --ignore-scripts
+        working-directory: release-tools
+      - name: Publish the checked version
+        working-directory: source
+        run: node ../release-tools/scripts/release.ts --publish-current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.checked-sha }}

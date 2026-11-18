@@ -24,11 +24,11 @@ Open the plugin's entry in `sidecut-plugins`' `bundled/sources.json`. A `ref` su
 
 The change to publish is merged to `main` first.
 
-1. On a branch, set the new version in `plugins/<plugin-id>/.claude-plugin/plugin.json`, `plugins/<plugin-id>/.codex-plugin/plugin.json` and `package.json`.
-2. Add a CHANGELOG entry for it at the top, with today's date and one line per change under Added, Changed, Fixed or Removed. Copy it to the plugin's CHANGELOG so the two stay identical.
+1. On a branch, add the dated version entry to the top of the root CHANGELOG.
+2. For Agentskills, run `node scripts/version.ts <version>`. Repositories that have adopted the shared release workflow run `npm exec --no -- sidecut-version <version>`. The command updates the package and lockfile versions, both host manifests and the plugin CHANGELOG. In older repositories, follow their own version instructions.
 3. Run `npm run check`, then merge through `solo-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
 4. Confirm the release in the plugin's own repo: `gh release view v<version> --repo SidecutStudio/<repo>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`, and `gh api repos/SidecutStudio/<repo>/commits/v<version> --jq .sha` is the merge commit. If the Release run failed, read its log and re-run it; never tag by hand.
-5. In `sidecut-plugins`, run `bun scripts/bundle.ts <plugin-id> v<version>`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
+5. In `sidecut-plugins`, check and update the shared bundle using [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
 6. In a public repo, prove its own install source from GitHub, as [public-install.md](references/public-install.md) describes.
 
 ### 3. Commit pin
