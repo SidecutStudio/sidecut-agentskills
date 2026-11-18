@@ -53,6 +53,9 @@ if (args[0] === 'api') {
     respond(state.tag ? [{ref:'refs/tags/v1.2.0',object:{sha:state.tag,type:'commit'}}] : []);
   } else if (path.includes('/check-runs?')) {
     respond([{check_runs:['check','secrets'].map(name=>({id:1,name,status:'completed',conclusion:'success'}))}]);
+  } else if (args.includes('DELETE') && path.endsWith('/releases/assets/99')) {
+    state.assets = state.assets.filter(asset => asset.id !== 99);
+    mutate('remove starter');
   } else if (args.includes('--method')) {
     state.tag = head;
     execFileSync('git', ['tag','v1.2.0',head]);
@@ -67,7 +70,11 @@ if (args[0] === 'api') {
   mutate('draft');
 } else if (args[1] === 'upload') {
   const name = basename(args[3]);
-  if (name.endsWith('.sha256') && process.env.FAIL_UPLOAD) process.exit(73);
+  if (name.endsWith('.sha256') && process.env.FAIL_UPLOAD) {
+    state.assets.push({name,id:99,digest:null,state:'starter'});
+    mutate('starter');
+    process.exit(73);
+  }
   const digest = createHash('sha256').update(readFileSync(args[3])).digest('hex');
   state.assets.push({name,digest:'sha256:'+digest});
   mutate(name);
@@ -96,7 +103,7 @@ if (args[0] === 'api') {
     expect(publish(first, { STALE: '1' }).status).toBe(0);
     expect(state().writes).toEqual([]);
     expect(publish(first, { FAIL_UPLOAD: '1' }).status).not.toBe(0);
-    expect(state().writes).toEqual(['tag', 'draft', 'sample-1.2.0.zip']);
+    expect(state().writes).toEqual(['tag', 'draft', 'sample-1.2.0.zip', 'starter']);
     git('commit', '--allow-empty', '-qm', 'Advance main at the same version');
     const second = git('rev-parse', 'HEAD');
     const resumed = publish(second);
@@ -107,11 +114,20 @@ if (args[0] === 'api') {
       'tag',
       'draft',
       'sample-1.2.0.zip',
+      'starter',
+      'remove starter',
       'sample-1.2.0.zip.sha256',
       'publish',
     ]);
     const before = readFileSync(statePath, 'utf8');
     expect(publish(second).status).toBe(0);
+    expect(readFileSync(statePath, 'utf8')).toBe(before);
+    write('plugins/sample/README.md', 'Different plugin content');
+    git('add', 'plugins/sample/README.md');
+    git('commit', '-qm', 'Change plugin without bumping');
+    const drift = publish(git('rev-parse', 'HEAD'));
+    expect(drift.status).not.toBe(0);
+    expect(drift.stderr).toContain('Bump the package version');
     expect(readFileSync(statePath, 'utf8')).toBe(before);
   } finally {
     rmSync(root, { recursive: true, force: true });

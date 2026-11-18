@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ github.event.repository.private && fromJSON('{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-ci"]}') || 'ubuntu-24.04' }}
     concurrency:
       group: release
-      cancel-in-progress: false
+      queue: max
     timeout-minutes: 15
     permissions:
       contents: write

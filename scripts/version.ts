@@ -1,18 +1,44 @@
 #!/usr/bin/env node
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+
+function compareVersions(a: string, b: string) {
+  if (!stableVersion.test(a) || !stableVersion.test(b))
+    throw new Error('Expected stable versions.');
+  const left = a.split('.').map(BigInt);
+  const right = b.split('.').map(BigInt);
+  const changed = left.findIndex((part, index) => part !== right[index]);
+  if (changed < 0) return 0;
+  return (left[changed] ?? 0n) > (right[changed] ?? 0n) ? 1 : -1;
+}
+
+export function checkVersionBase(base: string, root: string, id: string, version: string) {
+  if (!/^[0-9a-f]{40}$/.test(base)) throw new Error('Expected a full base commit SHA.');
+  const original = JSON.parse(
+    execFileSync('git', ['show', `${base}:package.json`], {
+      cwd: root,
+      encoding: 'utf8',
+    }),
+  );
+  const order = compareVersions(version, original.version);
+  const diff = spawnSync('git', ['diff', '--quiet', base, '--', `plugins/${id}`], { cwd: root });
+  if (diff.status !== 0 && diff.status !== 1)
+    throw new Error('Could not compare installable files to the base commit.');
+  if (order < 0 || (order === 0 && diff.status === 1))
+    throw new Error(
+      `Bump the package version from ${original.version} for the changed installable files.`,
+    );
+}
 
 export function syncVersion(version: string, root = process.cwd(), check = false) {
   if (!stableVersion.test(version)) throw new Error('Use a stable version such as 1.2.3.');
   const read = (path: string) => readFileSync(join(root, path), 'utf8');
   const pkg = JSON.parse(read('package.json'));
   if (!/^[a-z][a-z0-9-]*$/.test(pkg.name)) throw new Error('Invalid plugin name in package.json.');
-  const current = pkg.version.split('.').map(BigInt) as bigint[];
-  const next = version.split('.').map(BigInt);
-  const changed = next.findIndex((part, index) => part !== current[index]);
-  if (changed >= 0 && (next[changed] ?? 0n) < (current[changed] ?? 0n))
+  if (compareVersions(version, pkg.version) < 0)
     throw new Error(`Cannot move package version backwards from ${pkg.version} to ${version}.`);
 
   const changelog = read('CHANGELOG.md');
@@ -55,8 +81,10 @@ if (import.meta.main) {
   const [argument, extra] = process.argv.slice(2);
   if (!argument || extra) throw new Error('Usage: sidecut-version <version> | --check');
   if (argument === '--check') {
-    const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
+    const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'));
     syncVersion(version, process.cwd(), true);
+    const base = process.env.SIDECUT_VERSION_BASE;
+    if (base && !/^0+$/.test(base)) checkVersionBase(base, process.cwd(), name, version);
   } else {
     syncVersion(argument);
     console.log(

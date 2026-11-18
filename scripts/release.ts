@@ -68,7 +68,7 @@ const run = (command: string, args: string[]) => {
 const git = (...args: string[]) => run('git', args);
 const gh = (...args: string[]) => run('gh', args);
 
-type Asset = { name: string; digest: string | null };
+type Asset = { name: string; digest: string | null; id?: number; state?: string };
 type Release = {
   tag_name: string;
   draft: boolean;
@@ -97,6 +97,7 @@ export function missingAssets(release: Release, expected: Map<string, string>) {
   return [...expected]
     .filter(([name, digest]) => {
       const asset = release.assets.find((item) => item.name === name);
+      if (release.draft && asset?.state === 'starter' && asset.digest === null) return true;
       if (asset && asset.digest !== digest)
         throw new Error(`Existing release asset differs: ${name}.`);
       return !asset;
@@ -159,6 +160,11 @@ async function main() {
   if (tag && tag.object.sha !== git('rev-parse', `refs/tags/${plan.tag}`))
     throw new Error('The remote tag changed since checkout. Rerun Release.');
   const commit = releaseCommit(head, tagged, ancestor);
+  const plugin = `plugins/${id}`;
+  if (tagged && git('rev-parse', `${head}:${plugin}`) !== git('rev-parse', `${commit}:${plugin}`))
+    throw new Error(
+      `${plan.tag}: main contains different plugin content. Bump the package version.`,
+    );
   const taggedPlan = planAt(commit);
   if (taggedPlan.tag !== plan.tag) throw new Error('The existing tag describes another version.');
   const existing = findRelease(repo, plan.tag);
@@ -251,8 +257,17 @@ async function main() {
       );
     const draft = findRelease(repo, plan.tag);
     if (!draft?.draft) throw new Error('The draft is unavailable. Rerun Release to reconcile it.');
-    for (const name of missingAssets(draft, expected))
+    for (const name of missingAssets(draft, expected)) {
+      const starter = draft.assets.find(
+        (asset) => asset.name === name && asset.state === 'starter',
+      );
+      if (starter) {
+        if (!Number.isSafeInteger(starter.id))
+          throw new Error(`Invalid draft asset ID for ${name}.`);
+        gh('api', '--method', 'DELETE', `repos/${repo}/releases/assets/${starter.id}`);
+      }
       gh('release', 'upload', plan.tag, join(stage, name), '--repo', repo);
+    }
     const uploaded = findRelease(repo, plan.tag);
     if (!uploaded?.draft || missingAssets(uploaded, expected).length)
       throw new Error('Release assets are not ready. Rerun Release to reconcile them.');
