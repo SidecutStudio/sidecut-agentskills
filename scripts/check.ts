@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { checkRepo } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
@@ -21,10 +21,20 @@ const report = new Report();
 checkRepo(resolve(positionals[0] ?? '.'), report);
 if (values.json)
   console.log(
-    JSON.stringify({ scope: report.scope, problems: report.problems, kept: report.kept }, null, 2),
+    JSON.stringify(
+      {
+        scope: report.scope,
+        problems: report.problems,
+        advisories: report.advisories,
+        kept: report.kept,
+      },
+      null,
+      2,
+    ),
   );
 else {
   console.log(report.scope);
+  for (const p of report.advisories) console.log('Advisory: ' + p.file + ': ' + p.message);
   for (const p of report.kept) console.log(`Kept on purpose: ${p.code} ${p.file} (${p.reason})`);
   console.log(
     report.problems.length === 0

@@ -40,7 +40,7 @@ codex plugin add sidecut-agentskills@sidecut-agentskills
 - "Is my sidecut-demo plugin ready to publish?"
 - "Bring sidecut-ci up to the Sidecut template without losing anything."
 
-Plugin repos also run two commands from it. `bunx sidecut-check` checks a repo against the house style, and `bunx sidecut-sync` brings a repo up to date with the latest release: the files and marked blocks the house style shares, and the shared tool versions.
+Plugin repos also run two commands from it. `npm exec --no -- sidecut-check` checks a repo against the house style, and `npm exec --no -- sidecut-sync` applies the standards from the pinned installed release: the files and marked blocks the house style shares, and the shared tool versions.
 
 ## Settings
 

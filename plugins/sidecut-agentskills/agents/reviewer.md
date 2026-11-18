@@ -12,7 +12,7 @@ Reads a plugin repo with fresh eyes and returns every problem that would fail th
 ## Steps
 
 1. Note the repo path, the commit and the claim you were given. Treat the claim as something to check, not a fact.
-2. Run `bun run check` in the repo and keep its output.
+2. Run `npm run check` in the repo and keep its output.
 3. Read what the checker can't judge: the house style rows marked review, from `get_house_style`, against the skills, README and server.
 4. Check the two hosts match: every skill, hook and subagent the Claude Code side has, the Codex side has too.
 5. Settle each doubt with a read or a command. Edit, commit, push and delete nothing.

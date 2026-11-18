@@ -1,14 +1,16 @@
-import { expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { expect, test } from 'vitest';
 
 test('installed house style exposes visual reports without a source checkout', () => {
   const scratch = mkdtempSync(join(tmpdir(), 'agentskills-visual-'));
   try {
     const plugin = join(scratch, 'plugin');
-    cpSync(join(import.meta.dir, '../plugins/sidecut-agentskills'), plugin, { recursive: true });
+    cpSync(join(import.meta.dirname, '../plugins/sidecut-agentskills'), plugin, {
+      recursive: true,
+    });
     const messages = [
       {
         id: 1,
@@ -39,7 +41,7 @@ test('installed house style exposes visual reports without a source checkout', (
       .map((line) => JSON.parse(line));
     const reply = replies.find((message) => message.id === 2);
     expect(reply.result.isError).not.toBe(true);
-    expect(reply.result.content[0].text).toStartWith('## Visual reports');
+    expect(reply.result.content[0].text.startsWith('## Visual reports')).toBe(true);
     expect(reply.result.content[0].text).toContain('[visual-reports.md](visual-reports.md)');
     const data = join(plugin, 'server/data');
     const html = readFileSync(join(data, 'visual-report.html'), 'utf8');

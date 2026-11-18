@@ -8,7 +8,7 @@ allowed-tools:
 
 # Create plugin
 
-Produces a new plugin repo that passes `bun run check` on its first commit and loads in Claude Code and Codex.
+Produces a new plugin repo that passes `npm run check` on its first commit and loads in Claude Code and Codex.
 
 ## Before you start
 
@@ -19,12 +19,12 @@ Produces a new plugin repo that passes `bun run check` on its first commit and l
 ## Steps
 
 1. Call `scaffold_plugin` with the absolute folder path, the id, both descriptions and the keywords.
-2. In the new folder, run `bun install`, `bun run fix`, `bun run build` and `git init`, in that order.
-3. Run `bunx sidecut-icon <lucide-name>` to draw the plugin's icon with its agreed mark.
-4. Run `bun run check`. It passes on a fresh repo; if it doesn't, fix the cause before going on.
+2. In the new folder, run `npm install`, `npm run fix`, `npm run build` and `git init`, in that order.
+3. Run `npm exec --no -- sidecut-icon <lucide-name>` to draw the plugin's icon with its agreed mark.
+4. Run `npm run check`. It passes on a fresh repo; if it doesn't, fix the cause before going on.
 5. Load the plugin for one session with `claude --plugin-dir <folder>/plugins/<plugin-id>` and run its `check-status` skill. The new plugin's status tool answers with its name and version.
 6. Ask the user before creating the GitHub repo. On a yes, create `SidecutStudio/<plugin-id>` as a private repo, push `main`, then run `solo-configure-project` to fill the Sidecut Solo section of `AGENTS.md`.
-7. When the user wants anyone to be able to install it, make the repo public instead of private. Follow the Install source section of `get_house_style`: run every CI job on `ubuntu-24.04`, add both marketplace files and replace the README's Install section with the public steps. `bun run check` fails until all three are in place.
+7. When the user wants anyone to be able to install it, make the repo public instead of private. Follow the Install source section of `get_house_style`: run every CI job on `ubuntu-24.04`, add both marketplace files and replace the README's Install section with the public steps. `npm run check` fails until all three are in place.
 8. Add the plugin's real skills with `agentskills-write-skill` and its real tools with `agentskills-build-mcp-server`. Keep `check-status` while the status tool is the server's only tool.
 
 Use `server/data/visual-reports.md` from the loaded plugin root when plugin or design alternatives need a visible comparison. Keep a routine scaffold result in chat.
@@ -35,12 +35,12 @@ Use `server/data/visual-reports.md` from the loaded plugin root when plugin or d
 - Leave the generated manifests, MCP files, hook and CI workflow as written. `check_plugin` reports anything that drifts from them.
 - Publishing is a separate step: `agentskills-publish-plugin`.
 
-## When it goes wrong
+## Resolve setup problems
 
 - **Folder not empty:** `scaffold_plugin` refuses. Ask the user for another folder; never clear one.
-- **`bun install` fails:** the template's dependencies come from npm and GitHub, so check the network once, report the error and stop.
-- **`bun run check` fails on a fresh repo:** that is a bug in the template. Report the problem lines from `bun run style` to the user rather than patching the new repo by hand.
+- **`npm install` fails:** the template's dependencies come from npm and GitHub, so check the network once, report the error and stop.
+- **`npm run check` fails on a fresh repo:** that is a bug in the template. Report the problem lines from `npm run style` to the user rather than patching the new repo by hand.
 
 ## Done when
 
-`bun run check` passes in the new repo and `check-status` returns the plugin's version in a `--plugin-dir` session.
+`npm run check` passes in the new repo and `check-status` returns the plugin's version in a `--plugin-dir` session.

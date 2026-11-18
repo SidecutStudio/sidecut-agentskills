@@ -3,11 +3,24 @@ import { dirname, join } from 'node:path';
 import { displayNameOf, renderFile } from '../scaffold.ts';
 
 /** Files sidecut-agentskills owns whole in every plugin repo. */
-export const OWNED_FILES = ['CLAUDE.md', 'scripts/build-server.ts', 'scripts/release.ts'];
+export const OWNED_FILES = [
+  'CLAUDE.md',
+  'VOICE.md',
+  'scripts/build-server.ts',
+  'scripts/release.ts',
+];
 /** Files where sidecut-agentskills owns only the marked blocks; the rest belongs to the repo. */
 export const BLOCK_FILES = ['.gitignore', 'AGENTS.md', 'SECURITY.md'];
 /** devDependencies sync raises to the template's version, never lowers. */
-const SHARED_TOOLS = ['@biomejs/biome', '@types/bun', 'lefthook', 'typescript'];
+const SHARED_TOOLS = [
+  '@biomejs/biome',
+  '@types/node',
+  'esbuild',
+  'lefthook',
+  'smol-toml',
+  'typescript',
+  'vitest',
+];
 const CHECKER = 'github:SidecutStudio/sidecut-agentskills#v';
 
 /**
@@ -140,8 +153,8 @@ function planPackage(root: string, vars: SyncVars): Change | null {
     }),
   ) as { packageManager: string; devDependencies: Record<string, string> };
   const raised: string[] = [];
-  const bun = (s: unknown) => String(s ?? '').replace(/^bun@/, '');
-  if (newer(bun(template.packageManager), bun(pkg.packageManager))) {
+  const npm = (s: unknown) => String(s ?? '').replace(/^npm@/, '');
+  if (newer(npm(template.packageManager), npm(pkg.packageManager))) {
     pkg.packageManager = template.packageManager;
     raised.push(template.packageManager);
   }

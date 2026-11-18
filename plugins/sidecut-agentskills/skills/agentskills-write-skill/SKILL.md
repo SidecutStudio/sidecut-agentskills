@@ -20,11 +20,11 @@ Produces one skill folder that passes `check_plugin` and has trigger evals that 
 
 1. For a new skill, call `add_skill` with the plugin folder, a verb-then-object name and the one-sentence summary. It writes `SKILL.md` and `agents/openai.yaml`. For the router a plugin needs once it has 4 or more other skills, pass the prefix alone as the name; it writes a router skeleton.
 2. Write the description: the summary, then "Use when" with the trigger situations, then "Not for" with the near misses and the sibling skill that handles each one. Follow [descriptions.md](references/descriptions.md).
-3. Write the body in the house order: Before you start, Steps, Rules, When it goes wrong, Done when, References. Keep only the sections the skill needs; Steps and Done when are always there.
+3. Write the body around the actual work. Put constraints and recovery beside the relevant steps, and make completion verifiable when proof matters. Use only headings that help.
 4. Move anything the agent only needs sometimes into `references/`, one topic per file, and add a row for it to the References table saying when to read it.
 5. Update `agents/openai.yaml` so its title, summary and starter prompt match the new H1 and description.
 6. Add trigger evals as described in [evals.md](references/evals.md): one case per trigger request and one per near miss.
-7. Run `bun run style`, fix every problem it names, then run the evals.
+7. Run `npm run style`, fix every problem it names, then run the evals.
 
 When choosing the output format, read `server/data/visual-reports.md` from the loaded plugin root. For skills that benefit from visual outputs, write the procedure and package its needed assets with that plugin. Preserve any other product's own design. Don't require another installed plugin or a maintainer checkout.
 
@@ -36,7 +36,7 @@ Keep the skill instructions in Markdown.
 - Name other skills in backticks and tools by their exact names. `check_plugin` fails on a skill or tool that doesn't exist.
 - Never put a version number or a date into a skill. Say how to check the current version instead.
 
-## When it goes wrong
+## Fix validation failures
 
 - **The skill fires on a near miss:** make the "Not for" clause name that request and the skill that owns it, then rerun its eval.
 - **The skill never fires:** put the words the user would say into "Use when", then rerun the trigger evals.
@@ -44,7 +44,7 @@ Keep the skill instructions in Markdown.
 
 ## Done when
 
-`bun run style` reports no problems for the skill and every trigger and near-miss eval passes.
+`npm run style` reports no problems for the skill and every trigger and near-miss eval passes.
 
 ## References
 

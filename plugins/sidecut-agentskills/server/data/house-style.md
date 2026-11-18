@@ -1,6 +1,6 @@
-# House style
+# Plugin standards
 
-Read this when writing or changing anything in a Sidecut plugin, skill, MCP server or plugin repo. Every rule has one answer. Rules marked yes in the Checked column fail `bun run check`; the rest are for review. The reasons behind the rules are in [patterns.md](patterns.md).
+Read this when writing or changing anything in a Sidecut plugin, skill, MCP server or plugin repo. Every rule has one answer. Rules marked yes in the Checked column fail `npm run check`; the rest are for review. The reasons behind the rules are in [patterns.md](patterns.md).
 
 ## Names
 
@@ -38,7 +38,7 @@ LICENSE
 README.md
 SECURITY.md
 biome.json
-bun.lock
+package-lock.json
 lefthook.yml
 package.json
 plugins/<plugin-id>/
@@ -56,7 +56,7 @@ tsconfig.json
 | Install source | A public repo, one whose CI jobs all run on `ubuntu-24.04`, carries its own marketplace for each host, listing only its plugin. A private repo has none; its plugin is listed from the `sidecut-plugins` marketplace | yes |
 | Plugins per repo | One | review |
 | `.gitignore` | Starts with the template's `house-style` block; the repo's own lines go after it | yes |
-| `package.json` | `name` is the plugin id, `version` matches the manifests, `packageManager` is a pinned `bun@x.y.z`, every dependency is an exact version or a tagged GitHub source | yes |
+| `package.json` | `name` is the plugin id, `version` matches the manifests, `packageManager` is a pinned `npm@x.y.z`, every dependency is an exact version or a tagged GitHub source | yes |
 | Code formatting | Biome with the template's `biome.json`: 2-space indent, single quotes, 100-character lines; it also formats every JSON file | yes |
 | Unexpected top-level files | Fail the check | yes |
 
@@ -150,7 +150,7 @@ plugins/<plugin-id>/
 | Hosts | Claude Code and Codex only | yes |
 | Copies of repo files | Byte-identical to the repo root | yes |
 | Empty folders | None | yes |
-| Icon | `bunx sidecut-icon <lucide-name>` draws it in Sidecut Builder's style: a near-black rounded tile, one white [Lucide](https://lucide.dev/icons) mark and Builder's orange full stop. One mark per plugin, never another plugin's | no |
+| Icon | `npm exec --no -- sidecut-icon <lucide-name>` draws it in Sidecut Builder's style: a near-black rounded tile, one white [Lucide](https://lucide.dev/icons) mark and Builder's orange full stop. One mark per plugin, never another plugin's | no |
 
 ## Manifests
 
@@ -185,7 +185,7 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/
 | Connection and views | App declarations package a registered connection; building, deploying, authenticating and rendering MCP Apps views are separate outcomes | review |
 | Finding its own files | The server resolves paths from `import.meta.url`, never from the working directory, which is the user's project in Claude Code | yes |
 | Source and build | TypeScript in `server/src/`, bundled to `server/index.mjs` with every dependency inlined, built file committed; CI rebuilds and fails on any difference | yes |
-| Build script | `bun run build` is `bun scripts/build-server.ts`, the same file in every plugin repo; it also writes `server/THIRD_PARTY_LICENSES.txt` with the licence of every package the bundle inlines, and the Codex profile of each subagent | yes |
+| Build script | `npm run build` is `node scripts/build-server.ts`, the same file in every plugin repo; it also writes `server/THIRD_PARTY_LICENSES.txt` with the licence of every package the bundle inlines, and the Codex profile of each subagent | yes |
 | Transport | stdio for local servers; a remote server is hosted elsewhere and only configured here | review |
 | Tool annotations | Every tool sets `title`, `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` explicitly | yes |
 | Tool description | At most 2 sentences: what it returns, then when to use it; no "Use this tool to" | yes |
@@ -208,9 +208,9 @@ skills/<skill>/
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Nesting | None below `references/`, `examples/` or `scripts/` | yes |
-| `SKILL.md` length | At most 200 lines | yes |
-| Reference file length | At most 300 lines | yes |
-| Every supporting file | Linked from the References table in `SKILL.md` | yes |
+| `SKILL.md` length | Prefer at most 200 lines | advisory |
+| Reference file length | Prefer at most 300 lines | advisory |
+| Every supporting file | Referenced from `SKILL.md` | yes |
 | Unfinished text | No `TODO` anywhere; the skill template's `TODO` markers fail the check until replaced | yes |
 | Links to other skills' files | None; name the skill instead | yes |
 | Scripts | Node ESM, built-in modules only, `--help` flag, exit 0 on success and 1 on failure, plain-text output | yes |
@@ -223,8 +223,8 @@ Fields appear in this order and no others are used: `name`, `description`, `argu
 | Item | Rule | Checked |
 | --- | --- | --- |
 | `name` | The folder name | yes |
-| `description` | One line in double quotes, at most 400 characters | yes |
-| Description shape | `<Does what>. Use when <situations>. Not for <thing> (use <skill>).` The `(use <skill>)` part appears when a skill in the same plugin covers it. The first sentence starts with a third-person verb: Writes, Builds, Checks | yes |
+| `description` | One line in double quotes; prefer at most 400 characters | yes / advisory |
+| Description | State the capability and concrete trigger. Include exclusions only when they disambiguate the request. | yes |
 | First sentence | One main verb, so Codex's starter prompt reads correctly | review |
 | `allowed-tools` | A YAML list, narrowest patterns that work: `Bash(gh pr view *)` | yes |
 | Own MCP tools | Every read-only tool of the plugin's own server that the skill calls is listed, as `mcp__plugin_<plugin id>_<server key>__<tool>`; tools that write stay unlisted so Claude Code asks first. An entry naming a tool the server doesn't have fails | yes |
@@ -237,38 +237,13 @@ Fields appear in this order and no others are used: `name`, `description`, `argu
 
 ## SKILL.md layout
 
-A skill is either a task skill or the router. Knowledge that isn't a procedure goes in `references/`.
+Write for the task, not a fixed outline. Lead with the outcome and use headings that name the actual work. Put prerequisites, constraints, and recovery beside the operation they affect. Include verification when the outcome needs proof.
 
-Task skill, in this order:
-
-1. `# <Title>`: the name without its prefix, hyphens as spaces, first word capitalized, acronyms upper case. `agentskills-build-mcp-server` is `# Build MCP server`; the router's title is the plugin's display name.
-2. One paragraph of 1 to 3 sentences saying what the skill produces. No heading.
-3. `## Before you start` (optional): what to check once before doing anything, including cost. A skill that spends money asks before spending.
-4. `## Steps` (required): a numbered list, or `### 1. <Step>` subsections when a step needs more than 3 lines.
-5. `## Rules` (optional): constraints that apply across steps.
-6. `## When it goes wrong` (optional): each known failure, what to do once, and when to stop and report.
-7. `## Done when` (required): one sentence or a short list the agent can verify.
-8. `## References` (required when supporting files exist): a table with columns `Read` and `When`.
-
-Router skill, in this order: `# <Display name>`, one paragraph, `## Pick a skill` (a table with columns `Need` and `Skill`), `## Not this plugin` (requests that look close but belong elsewhere), `## Done when`.
-
-| Item | Rule | Checked |
-| --- | --- | --- |
-| Section names and order | Exactly as above | yes |
-| Other H2 sections | None | yes |
-| "When to use" sections, role lines, footers | None | yes |
-| Cross-skill pointers | Inline in Steps or in the description's Not for, written as the skill name in backticks: `agentskills-write-skill` | review |
-| Pointers to skills or tools that don't exist in the plugin | None: a backticked `<plugin>:<skill>` names a real skill and a backticked `snake_case` name is a tool on the plugin's server | yes |
+Keep procedures in SKILL.md and move detail into references when it is useful. Reference supporting files where they are needed. A router maps requests to actual skills and makes ambiguous routing clear. Cross-skill and tool pointers must resolve.
 
 ## Reference and example files
 
-| Item | Rule | Checked |
-| --- | --- | --- |
-| Frontmatter | None | yes |
-| Opening | `# <Title>`, then one sentence starting `Read this when` | yes |
-| Sections | No heading level is skipped | yes |
-| Sets of similar files | Same headings in the same order in every file of the set | review |
-| Example files | `# <Title>`, `## Request`, `## What the agent does`, `## Result` | yes |
+Use ordinary Markdown. Keep examples realistic and references easy to find. Supporting files must be packaged and referenced; no frontmatter in reference files. Prefer short files, but length alone does not block a release.
 
 ## Subagents
 
@@ -277,7 +252,7 @@ Router skill, in this order: `# <Display name>`, one paragraph, `## Pick a skill
 | Frontmatter | `name` (the file name), `description` in the skill shape, `tools` as the narrowest list that works, `model: inherit` | review |
 | Model | A skill that starts a reviewer picks its model from the review level `solo-review-change` reports: no reviewer at light, a cheaper model such as `sonnet` at standard, the parent's at deep | review |
 | Body | `# <Role>`, one paragraph, `## Steps`, `## Return` | review |
-| Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `bun run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>` with the prefix's hyphens as underscores, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
+| Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `npm run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>` with the prefix's hyphens as underscores, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
 | Naming one in a skill | `<plugin id>:<role>` for Claude Code and `<prefix>_<role>` for Codex, both in backticks: `sidecut-agentskills:reviewer` (`agentskills_reviewer` in Codex). A `<plugin id>:<name>` pointer must name one of the plugin's skills or subagents | yes |
 | Limits | A subagent's tool limits are enforced in Claude Code only; in Codex it runs with the parent session's permissions, and its profile says so | yes |
 
@@ -319,20 +294,7 @@ The only telemetry a Sidecut plugin has.
 
 ## Wording
 
-| Item | Rule | Checked |
-| --- | --- | --- |
-| Spelling | US English | review |
-| Lists in prose | No comma before the final "and" or "or" | review |
-| Voice in skills | Imperative, talking to the agent: "Run", "Ask", "Stop" | review |
-| Voice in descriptions | Third person present: "Writes a skill" | yes |
-| The person using it | "the user" in skills; "you" in READMEs | review |
-| Sentence length | At most 25 words; one idea per sentence | review |
-| Shouting | No words in capitals for emphasis: `IMPORTANT`, `MUST`, `NEVER`, `ALWAYS`, `CRITICAL`, `MANDATORY` | yes |
-| Banned words | `ultimate`, `comprehensive`, `seamless`, `robust`, `leverage`, `utilize`, `simply`, `just`, `please`, `expert`, `powerful`, `effortless`; the checker skips inline code and fences | yes |
-| Contractions | Used: don't, it's, isn't | review |
-| Version facts | Not written into skills; the skill says how to check the current version | review |
-| Dates | Only in CHANGELOG entries | yes |
-| Jargon | Explained in plain words the first time it appears | review |
+Use [VOICE.md](templates/repo/VOICE.md.tmpl) as editorial guidance. It is not a release gate. Keep literal commands, paths, tool names, and approval boundaries exact.
 
 ## Visual reports
 
@@ -350,24 +312,7 @@ The only telemetry a Sidecut plugin has.
 
 ## Markdown
 
-| Item | Rule | Checked |
-| --- | --- | --- |
-| Headings | ATX (`#`), sentence case, no closing punctuation, one H1 per file, no skipped levels | yes |
-| Paragraphs | One line each, no hard wrapping, at most 4 sentences | yes |
-| Bullets | `-` only | yes |
-| Numbered lists | `1.`, `2.` in order, only when order matters | yes |
-| Bold | Only for a lead term in a bullet: `- **Term:** text` | yes |
-| Italics, HTML, emoji, horizontal rules, blockquotes | None, except the two Sidecut Solo marker comments in AGENTS.md | yes |
-| Dashes | No em or en dashes; use a colon, comma or parentheses | yes |
-| Arrows | None in prose; write "then" | yes |
-| Quotes and apostrophes | Straight only | yes |
-| Inline code | Commands, paths, file names, tool names, field names, environment variables | review |
-| Code fences | Always tagged: `bash` for shell, `ts`, `js`, `json`, `yaml`, `toml`, `text` for trees and output | yes |
-| Shell blocks | One command per line, no `$` prompt, no output mixed in | yes |
-| Tables | Leading and trailing pipes, `---` in every separator cell, no alignment padding | yes |
-| Links | Relative paths without `./` that resolve inside the repo; no bare URLs | yes |
-| Link text | The file name for files, a short description for web pages | review |
-| End of file | Exactly one newline | yes |
+Use standard Markdown with readable headings and code fences. The checker fails unresolved local links, links outside the repository, and unfinished template instructions. It does not enforce sentence length, punctuation, paragraph shape, or a word blacklist.
 
 ## README
 
@@ -398,13 +343,13 @@ Sections in this order:
 
 ## Shared files
 
-sidecut-agentskills owns part of every plugin repo, and `bunx sidecut-sync` keeps it current. Run it after a new sidecut-agentskills release; it first moves the repo to the latest release and runs that version. The checker reports anything out of date as `REPO_SYNC`.
+sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecut-sync` keeps it current. Update the pinned dependency explicitly, then run the installed version. Sync never upgrades itself. The checker reports anything out of date as `REPO_SYNC`.
 
 | What | Owned by sidecut-agentskills | Belongs to the repo |
 | --- | --- | --- |
 | `CLAUDE.md`, `scripts/build-server.ts`, `scripts/release.ts` | The whole file | Nothing |
 | `.gitignore`, `AGENTS.md`, `SECURITY.md` | The block between `sidecut:start house-style` and `sidecut:end house-style` | Everything outside it |
-| `package.json` | `packageManager` and the versions of Biome, TypeScript, Lefthook, `@types/bun` and `sidecut-agentskills`, which sync only ever raises | Everything else |
+| `package.json` | `packageManager` and the versions of Biome, TypeScript, Lefthook, `@types/node` and `sidecut-agentskills`, which sync only ever raises | Everything else |
 
 | Item | Rule | Checked |
 | --- | --- | --- |
@@ -419,21 +364,21 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Commands | Every `package.json` script appears once as `bun run <script>`, in `package.json` order, and nothing else | yes |
+| Commands | Every `package.json` script appears once as `npm run <script>`, in `package.json` order, and nothing else | yes |
 | Counts, versions, dates | None | review |
 
 ## Checks and CI
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| `bun run check` | Runs `biome check .`, `tsc --noEmit`, `bun run style`, `bun test` and `bun scripts/build-server.ts --check` in that order, with the repo's own steps anywhere between; the last fails when the bundle or its licence notices are stale | yes |
-| `bun run style` | `sidecut-check`, from the `sidecut-agentskills` dev dependency pinned to a tag; it includes the bundle drift check | yes |
-| Installed checker | The sidecut-agentskills in `node_modules` is the version `package.json` pins; run `bun install` when it isn't | yes |
+| `npm run check` | Runs `biome check .`, `tsc --noEmit`, `npm run style`, `npm test` and `node scripts/build-server.ts --check` in that order, with the repo's own steps anywhere between; the last fails when the bundle or its licence notices are stale | yes |
+| `npm run style` | `sidecut-check`, from the `sidecut-agentskills` dev dependency pinned to a tag; it includes the bundle drift check | yes |
+| Installed checker | The sidecut-agentskills in `node_modules` is the version `package.json` pins; run `npm install` when it isn't | yes |
 | Checker output | What it checked, then what is kept on purpose, then one line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
-| CI | `check.yml` copied from sidecut-ops' runner-picker pattern; actions pinned by full SHA; Bun from `packageManager`; no hosted macOS or Windows | yes |
-| Release | `release.yml` runs `bun scripts/release.ts`, the same file in every plugin repo, after Check passes on a push to `main`. It publishes the manifest version when that version has no published release: the `v<version>` tag on the checked commit, a GitHub Release with the CHANGELOG entry as notes, `<plugin-id>-<version>.zip` of the plugin folder and its `.sha256`. It never replaces a published release or moves Latest backwards, so merging a version bump is the release | yes |
+| CI | `check.yml` copied from sidecut-ops' runner-picker pattern; actions pinned by full SHA; Node.js pinned to an exact version and npm ci; no hosted macOS or Windows | yes |
+| Release | `release.yml` runs `node scripts/release.ts`, the same file in every plugin repo, after Check passes on a push to `main`. It publishes the manifest version when that version has no published release: the `v<version>` tag on the checked commit, a GitHub Release with the CHANGELOG entry as notes, `<plugin-id>-<version>.zip` of the plugin folder and its `.sha256`. It never replaces a published release or moves Latest backwards, so merging a version bump is the release | yes |
 | Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses the self-hosted runners or sidecut-ops' private actions | yes |
 | Private repo CI | Keeps the runner picker, whose budget guard stops hosted jobs near the monthly credit; the checker can't tell a private repo from a public one, so a hosted-only private repo is caught in review | review |
 | Merge gate | `required_checks` in `solo-workflow.toml` includes `check` | yes |

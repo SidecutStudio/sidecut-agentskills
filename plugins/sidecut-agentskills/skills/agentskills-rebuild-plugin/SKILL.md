@@ -20,15 +20,15 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 1. Record the plugin as it is now, following [parity.md](references/parity.md): its skills, their trigger requests and their hard rules; its tools and their output on fixed inputs; its hooks and their decisions on fixed inputs; its required checks.
 2. Call `check_plugin` and keep the list; it shows most of what has to change.
 3. Work out every name the rebuild changes, and settle the whole list with the user before building anything: plugin id, skill prefix and skill names, tool names, paths, the repo name, config and state file names, and how existing installs move over (the marketplace's `renames` entry, and old config files still read). Search the user's other repos (the folders next to this one, normally `~/Developer/`) and both marketplaces (`sidecut-plugins`'s `.claude-plugin/` and `.agents/plugins/`) for each old name, as described in [parity.md](references/parity.md). Tell the user what a rename would break and get a yes before renaming anything people or other repos already use.
-4. Call `scaffold_plugin` into a temporary folder with the plugin's id, description and keywords. Copy in whichever generated files the plugin lacks: manifests, MCP files, hook, CI workflow. Draw its icon with `bunx sidecut-icon <lucide-name>`. A public repo also gets the two marketplace files and the README install steps from the Install source section of `get_house_style`; drop any install line that needs `sidecut-plugins`.
+4. Call `scaffold_plugin` into a temporary folder with the plugin's id, description and keywords. Copy in whichever generated files the plugin lacks: manifests, MCP files, hook, CI workflow. Draw its icon with `npm exec --no -- sidecut-icon <lucide-name>`. A public repo also gets the two marketplace files and the README install steps from the Install source section of `get_house_style`; drop any install line that needs `sidecut-plugins`.
 5. Commit, push the branch and open one draft PR now. Commit and push again after each step that follows, so the work is never only on this disk.
 6. Rewrite each skill with `agentskills-write-skill`. Read the old skill to list what it covers and every hard rule it states (never, always, only when, don't, must), then write the new one from that list.
-7. Move the server's logic into `server/src/` and bundle it with `bun run build`. Keep tool names and outputs, except where the house style says otherwise; list every change.
+7. Move the server's logic into `server/src/` and bundle it with `npm run build`. Keep tool names and outputs, except where the house style says otherwise; list every change.
 8. Port each hook so it makes the same decision on every recorded input. Carry the old hook's tests over before rewriting it.
 9. Delete what the house style has no place for: extra manifests, duplicate MCP files, commands, unused scripts and stale docs.
-10. Run `bun run check` until it passes.
+10. Run `npm run check` until it passes.
 11. Repeat the recording from step 1 on the new version and compare the two. Write down every difference and why it is there.
-12. Hand the rebuilt repo, its commit and the list of differences to the `sidecut-agentskills:reviewer` subagent, which reads it without your context. A rebuild is always a deep review, so it runs on your own model, and so does the full re-review after its fixes. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Fix what it finds and run `bun run check` again.
+12. Hand the rebuilt repo, its commit and the list of differences to the `sidecut-agentskills:reviewer` subagent, which reads it without your context. A rebuild is always a deep review, so it runs on your own model, and so does the full re-review after its fixes. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Fix what it finds and run `npm run check` again.
 13. Merge and release through `agentskills-publish-plugin`, which also bundles the new tag into the marketplace. If the plugin id changed, bundle it under the new id and remove the old copy and entries in the same marketplace change. Then fix each other repo step 3 found in its own PR.
 
 Use `server/data/visual-reports.md` from the loaded plugin root for substantial before-and-after comparisons. Show observed parity results and unresolved differences without replacing the checks.
@@ -39,7 +39,7 @@ Use `server/data/visual-reports.md` from the loaded plugin root for substantial 
 - A behavior that changes, such as a renamed tool, goes in the CHANGELOG under Changed with the version bump that `agentskills-publish-plugin` makes. A rename people have to act on starts with "Breaking:" and says what they do.
 - The parity records and the list of differences stay in the scratch folder and the PR body. Nothing about the rebuild itself, such as "candidate", "comparison" or "unpublished", goes into the repo's files.
 
-## When it goes wrong
+## Resolve rebuild problems
 
 - **A tool's output differs and the house style doesn't explain it:** that is a regression. Fix the port before going on.
 - **A skill no longer triggers on one of its recorded requests:** fix its description with `agentskills-write-skill`, then rerun that request.
@@ -48,7 +48,7 @@ Use `server/data/visual-reports.md` from the loaded plugin root for substantial 
 
 ## Done when
 
-`bun run check` passes on the branch, and the comparison shows the same tools, skills, hard rules, hook decisions and checks, with every difference explained. Every place that used an old name is updated, or the user has chosen to leave it.
+`npm run check` passes on the branch, and the comparison shows the same tools, skills, hard rules, hook decisions and checks, with every difference explained. Every place that used an old name is updated, or the user has chosen to leave it.
 
 ## References
 

@@ -26,12 +26,12 @@ For an existing hosted server or registered app connector, follow [remote-server
 
 1. Design each tool before writing it, following [tool-design.md](references/tool-design.md): one job, a verb-then-object name, inputs with a description each, an output schema and all four hints.
 2. Write it in `server/src/` with `registerTool`. Resolve any file the server reads from `import.meta.url`, never from the working directory.
-3. Bundle the server into `server/index.mjs` with the repo's build command, `bun run build` in a repo made from the template.
+3. Bundle the server into `server/index.mjs` with the repo's build command, `npm run build` in a repo made from the template.
 4. Add a test that starts the bundle over stdio, calls the tool and checks its structured result. In a repo made from the template it goes in `tests/plugin.test.ts`.
 
 ### 3. Check the affected host
 
-1. Run the repo's checks, `bun run check` in a repo made from the template. Check declaration names and manifest paths for a managed connector, as the remote-server reference describes.
+1. Run the repo's checks, `npm run check` in a repo made from the template. Check declaration names and manifest paths for a managed connector, as the remote-server reference describes.
 2. For a local server, load it with `claude --plugin-dir plugins/<plugin-id>` and use an isolated Codex profile, following [codex-testing.md](references/codex-testing.md). Confirm the agent picks its tool for a request that needs it.
 3. For a hosted connection, check installation and connector authentication separately in the intended host. Use a harmless read or a test account; preserve unrelated connections and permissions.
 4. If views changed, verify one rendered tool result in the intended chat host. Report structural checks, installed version, authentication and rendered views separately; name any part that could not be exercised.
@@ -46,9 +46,9 @@ Use `server/data/visual-reports.md` from the loaded plugin root for useful archi
 - Rename a published tool only in a new minor or major version, and say so in the CHANGELOG.
 - The server runs on Node. When a tool calls a program that needs another runtime, such as Bun, the plugin's README lists it under what the plugin needs.
 
-## When it goes wrong
+## Recover a failed build
 
-- **`SERVER_BUNDLE_STALE`:** run `bun run build` and commit `server/index.mjs`.
+- **`SERVER_BUNDLE_STALE`:** run `npm run build` and commit `server/index.mjs`.
 - **`SERVER_START`:** run `node plugins/<plugin-id>/server/index.mjs` from another folder and read the error it prints.
 - **Codex logs "MCP server startup failed":** check `mcp.json` has `"args": ["server/index.mjs"]` and `"cwd": "."`. Codex fills in no root variable for MCP servers.
 - **A tool reads the wrong project in Codex:** Codex starts the server in the plugin's folder, not the user's project. Take the project's path as an input.

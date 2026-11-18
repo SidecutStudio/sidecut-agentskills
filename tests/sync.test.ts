@@ -1,8 +1,8 @@
-import { afterAll, beforeAll, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterAll, beforeAll, expect, test } from 'vitest';
 import { checkRepo } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
 import { Report } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
 import {
@@ -150,8 +150,8 @@ test('a keep that covers nothing, or has no reason, is a problem', () => {
 test('a check script may add its own steps around the standard ones', () => {
   const root = copy();
   pkg(root, (v) => {
-    v.scripts.check = `${v.scripts.check} && bun scripts/extra.ts`;
-    v.scripts.build = `${v.scripts.build} && bun scripts/extra.ts`;
+    v.scripts.check = `${v.scripts.check} && node scripts/extra.ts`;
+    v.scripts.build = `${v.scripts.build} && node scripts/extra.ts`;
   });
   const report = new Report();
   checkRepo(root, report);
@@ -175,9 +175,13 @@ const git = (root: string, ...args: string[]) =>
     env: cleanEnv,
   });
 const cli = (root: string, ...args: string[]) =>
-  spawnSync('bun', [join(import.meta.dir, '..', 'scripts', 'sync.ts'), root, ...args], {
-    encoding: 'utf8',
-  });
+  spawnSync(
+    process.execPath,
+    [join(import.meta.dirname, '..', 'scripts', 'sync.ts'), root, ...args],
+    {
+      encoding: 'utf8',
+    },
+  );
 
 test('sidecut-sync --check lists the change, refuses uncommitted work, then syncs', () => {
   const root = copy();
@@ -186,20 +190,20 @@ test('sidecut-sync --check lists the change, refuses uncommitted work, then sync
   const check = cli(root, '--check');
   expect(check.status).toBe(1);
   expect(check.stdout).toContain('Would change CLAUDE.md');
-  const dirty = cli(root, '--offline');
+  const dirty = cli(root);
   expect(dirty.status).toBe(1);
   expect(dirty.stderr).toContain('uncommitted changes');
   expect(read(root, 'CLAUDE.md')).toBe('Read AGENTS.md.\n');
   git(root, 'add', '-A');
   git(root, 'commit', '-qm', 'base');
-  expect(cli(root, '--offline').status).toBe(0);
+  expect(cli(root).status).toBe(0);
   expect(read(root, 'CLAUDE.md')).toBe('@AGENTS.md\n');
 });
 
 test('sidecut-sync refuses a folder that is not a git repo', () => {
   const root = copy();
   write(root, 'CLAUDE.md', 'Read AGENTS.md.\n');
-  expect(cli(root, '--offline').stderr).toContain('not a git repo');
+  expect(cli(root).stderr).toContain('not a git repo');
   expect(read(root, 'CLAUDE.md')).toBe('Read AGENTS.md.\n');
 });
 
@@ -211,7 +215,7 @@ test('a folder, code or "CODE file" keep protects files from sync too', () => {
     git(root, 'init', '-q');
     git(root, 'add', '-A');
     git(root, 'commit', '-qm', 'base');
-    cli(root, '--offline');
+    cli(root);
     expect(read(root, 'scripts/release.ts')).toBe('// mine\n');
   }
 });

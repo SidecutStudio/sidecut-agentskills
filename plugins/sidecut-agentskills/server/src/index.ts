@@ -109,6 +109,7 @@ server.registerTool(
     outputSchema: z.object({
       scope: z.string().describe('Whether the whole repo or only its plugins was checked, and why'),
       problems: z.array(problem),
+      advisories: z.array(problem),
       kept: z.array(problem.extend({ reason: z.string() })),
     }),
     annotations: readOnly,
@@ -118,7 +119,12 @@ server.registerTool(
     if (!root) return failure('Give the repo as an absolute path.');
     const report = new Report();
     checkRepo(root, report);
-    const output = { scope: report.scope, problems: report.problems, kept: report.kept };
+    const output = {
+      scope: report.scope,
+      problems: report.problems,
+      advisories: report.advisories,
+      kept: report.kept,
+    };
     return { ...text(output), structuredContent: output };
   },
 );
@@ -128,7 +134,7 @@ server.registerTool(
   {
     title: 'Scaffold plugin',
     description:
-      'Writes a new plugin repo into an empty folder and returns the files it wrote. Use it to start a plugin; then run bun install, bun run fix and bun run build in that folder.',
+      'Writes a new plugin repo into an empty folder and returns the files it wrote. Use it to start a plugin; then run npm install, npm run fix and npm run build in that folder.',
     inputSchema: z.object({
       out: z.string().describe('Absolute path to an empty or missing folder'),
       id: z.string().describe('sidecut-<name>'),

@@ -26,7 +26,7 @@ The change to publish is merged to `main` first.
 
 1. On a branch, set the new version in `plugins/<plugin-id>/.claude-plugin/plugin.json`, `plugins/<plugin-id>/.codex-plugin/plugin.json` and `package.json`.
 2. Add a CHANGELOG entry for it at the top, with today's date and one line per change under Added, Changed, Fixed or Removed. Copy it to the plugin's CHANGELOG so the two stay identical.
-3. Run `bun run check`, then merge through `solo-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
+3. Run `npm run check`, then merge through `solo-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
 4. Confirm the release in the plugin's own repo: `gh release view v<version> --repo SidecutStudio/<repo>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`, and `gh api repos/SidecutStudio/<repo>/commits/v<version> --jq .sha` is the merge commit. If the Release run failed, read its log and re-run it; never tag by hand.
 5. In `sidecut-plugins`, run `bun scripts/bundle.ts <plugin-id> v<version>`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
 6. In a public repo, prove its own install source from GitHub, as [public-install.md](references/public-install.md) describes.
@@ -54,12 +54,12 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 - Leave a commit-pinned plugin pinned by commit; it has no tags to point at.
 - Never edit a copy under `sidecut-plugins/bundled/` by hand. Change the plugin in its own repo, release it and bundle that version.
 
-## When it goes wrong
+## Recover a release
 
 - **`VERSION_SYNC`:** one of the version fields or the CHANGELOG still has the old version.
-- **`REPO_SYNC`:** the repo is behind sidecut-agentskills. Run `bunx sidecut-sync` and commit what it changes with the release.
-- **`REPO_CHECKER_VERSION`:** `node_modules` holds another sidecut-agentskills than `package.json` pins, often right after `bunx sidecut-sync` raised the pin. Run `bun install` and check again.
-- **`CI_RELEASE` or `REPO_SYNC` on `scripts/release.ts`:** the repo predates automatic releases. Run `bunx sidecut-sync` and copy `release.yml` from the template, together with the next version bump, so the first run publishes it. Remove any old release job from `check.yml`, such as one that calls `./.github/workflows/release.yml`, and any old release script and its tests. The ZIP is now named `<plugin-id>-<version>.zip`. A public repo runs the job on `ubuntu-24.04` without sidecut-ops' setup action.
+- **`REPO_SYNC`:** the repo is behind sidecut-agentskills. Run `npm exec --no -- sidecut-sync` and commit what it changes with the release.
+- **`REPO_CHECKER_VERSION`:** `node_modules` holds another sidecut-agentskills than `package.json` pins, often right after `npm exec --no -- sidecut-sync` raised the pin. Run `npm install` and check again.
+- **`CI_RELEASE` or `REPO_SYNC` on `scripts/release.ts`:** the repo predates automatic releases. Run `npm exec --no -- sidecut-sync` and copy `release.yml` from the template, together with the next version bump, so the first run publishes it. Remove any old release job from `check.yml`, such as one that calls `./.github/workflows/release.yml`, and any old release script and its tests. The ZIP is now named `<plugin-id>-<version>.zip`. A public repo runs the job on `ubuntu-24.04` without sidecut-ops' setup action.
 - **The Release run says the tag is on another commit:** a hand-made tag got there first. Bump to the next version instead of moving it.
 - **`bundle.ts` fails to clone:** `gh` isn't signed in, or the account can't read the plugin's repo. Check `gh auth status`.
 - **`bundle.ts` says the commit isn't on `main`:** use the merge commit from the merged PR, not one from a branch.

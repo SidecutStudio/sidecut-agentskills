@@ -1,4 +1,3 @@
-import { afterAll, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -13,9 +12,10 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterAll, expect, test } from 'vitest';
 
 const SCRIPT = join(
-  import.meta.dir,
+  import.meta.dirname,
   '..',
   'plugins',
   'sidecut-agentskills',

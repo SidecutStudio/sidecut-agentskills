@@ -31,7 +31,7 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 | `allowed-tools` scoped to the skill's CLI | Expo, Firecrawl | Adopt | Fewer permission prompts without opening everything |
 | Mixed quoting, literal `\n` in descriptions | Expo, Firecrawl | Skip | One quoting rule, checked |
 | Description: what it does, then "Use when" | All four | Adopt | The common shape across 60+ skills |
-| "Not for" clause naming the sibling skill | Expo (5 of 24), Vercel (1 of 37) | Adopt | Stops two skills firing for the same request |
+| "Not for" clause naming the sibling skill | Expo (5 of 24), Vercel (1 of 37) | Adopt | Use only where two skills would otherwise overlap |
 | Descriptions from 71 to 1,012 characters | Expo, Firecrawl, Vercel | Adapt | Cap the length; the long ones repeated their own bodies |
 
 ## SKILL.md body
@@ -39,18 +39,18 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 | Pattern | Seen in | Verdict | Why |
 | --- | --- | --- | --- |
 | `Done when` line ending every task skill | Firecrawl | Adopt | Gives the agent a clear stopping point |
-| Phases that open with a goal and end with a checklist | Apify | Adapt | Becomes the fixed Steps then Done when order |
-| Required section list enforced by a validator | Vercel commands | Adopt | The only example where structure stayed consistent across files |
+| Phases that open with a goal and end with a checklist | Apify | Adapt | Use when it clarifies the procedure |
+| Required section list enforced by a validator | Vercel commands | Skip | Validate behaviour and references, not the writing outline |
 | "When to use this skill" section | Apify, Expo, Vercel | Skip | Repeats the description |
 | Copied footer in every skill (feedback, see also) | Expo (24 copies), Firecrawl | Skip | Boilerplate that costs context in every skill |
 | Stub sections that only say "see references/x.md" | Apify (6 in one skill) | Skip | Use one References table instead |
 | Shouting: `IMPORTANT`, `MUST`, `NEVER`, `CRITICAL` | Apify, Expo, Vercel | Skip | Plain instructions work as well and read calmer |
 | Role line ("You are a ...") | Apify, Vercel | Skip | Says nothing the steps don't |
 | Missing H1, H1 reused as a divider mid-file | Expo, Vercel | Skip | One H1 per file, checked |
-| Five closing-section names, five cross-reference syntaxes | Vercel | Skip | One name and one link style, checked |
+| Five closing-section names, five cross-reference syntaxes | Vercel | Skip | Check references; use meaningful headings |
 | Mixed fence tags (`sh` and `bash`, `ts` and `typescript`), untagged trees | Expo, Vercel | Skip | One tag per language, `text` for trees |
-| Lines over 1,000 characters next to hard-wrapped files | Expo, Firecrawl, Vercel | Adapt | No hard wrap, one paragraph per line, short paragraphs |
-| Mixed dash styles in one plugin (em dashes in one skill, hyphens in another) | Expo | Skip | One dash rule |
+| Lines over 1,000 characters next to hard-wrapped files | Expo, Firecrawl, Vercel | Adapt | Prefer readable paragraphs |
+| Mixed dash styles in one plugin (em dashes in one skill, hyphens in another) | Expo | Skip | Prefer straightforward punctuation |
 
 ## References, examples and scripts
 

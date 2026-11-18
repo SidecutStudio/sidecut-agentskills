@@ -1,22 +1,22 @@
 {
   "name": "sidecut-agentskills",
-  "version": "0.12.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.4",
+  "packageManager": "npm@11.19.1",
   "bin": {
-    "sidecut-check": "scripts/check.ts",
-    "sidecut-icon": "scripts/icon.ts",
-    "sidecut-sync": "scripts/sync.ts"
+    "sidecut-check": "bin/check.mjs",
+    "sidecut-icon": "bin/icon.mjs",
+    "sidecut-sync": "bin/sync.mjs"
   },
   "scripts": {
-    "build": "bun scripts/build-server.ts",
-    "check": "biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check",
+    "build": "node scripts/build-server.ts && node scripts/build-cli.ts",
+    "check": "biome check . && tsc --noEmit && npm run style && npm test && node scripts/build-server.ts --check && node scripts/build-cli.ts --check",
     "fix": "biome check --write .",
-    "icon": "bun scripts/icon.ts",
-    "new": "bun scripts/new.ts",
-    "style": "bun scripts/check.ts",
-    "test": "bun test"
+    "icon": "node scripts/icon.ts",
+    "new": "node scripts/new.ts",
+    "style": "node scripts/check.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "@resvg/resvg-js": "2.6.2",
@@ -25,9 +25,15 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
     "@modelcontextprotocol/server": "2.4.0",
-    "@types/bun": "1.4.4",
+    "@types/node": "24.19.2",
     "lefthook": "2.2.2",
     "typescript": "7.0.2",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "esbuild": "0.28.2",
+    "vitest": "5.1.1",
+    "smol-toml": "1.9.1"
+  },
+  "engines": {
+    "node": ">=24.2.0"
   }
 }

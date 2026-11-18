@@ -7,7 +7,9 @@ import { sentences } from './check/report.ts';
 const here = dirname(fileURLToPath(import.meta.url));
 export const dataRoot = existsSync(join(here, 'data'))
   ? join(here, 'data')
-  : join(here, '..', 'data');
+  : existsSync(join(here, '..', 'data'))
+    ? join(here, '..', 'data')
+    : join(here, '..', 'plugins', 'sidecut-agentskills', 'server', 'data');
 export const templatesRoot = join(dataRoot, 'templates');
 
 /** This plugin's own version, from its manifest beside the data folder. */
