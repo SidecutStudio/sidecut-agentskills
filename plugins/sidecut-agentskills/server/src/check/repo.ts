@@ -17,7 +17,7 @@ const REQUIRED_ENTRIES = [
   'README.md',
   'SECURITY.md',
   'biome.json',
-  'bun.lock',
+  'package-lock.json',
   'lefthook.yml',
   'package.json',
   'plugins',
@@ -29,7 +29,10 @@ const REQUIRED_ENTRIES = [
 const OPTIONAL_ENTRIES = [
   '.git',
   'node_modules',
-  'bunfig.toml',
+  'vitest.config.ts',
+  'bin',
+  'VOICE.md',
+  'RELEASING.md',
   'docs',
   '.claude-plugin',
   '.agents',
@@ -39,9 +42,9 @@ const MARKETPLACES = ['.claude-plugin/marketplace.json', '.agents/plugins/market
 const CHECK_STEPS = [
   'biome check .',
   'tsc --noEmit',
-  'bun run style',
-  'bun test',
-  'bun scripts/build-server.ts --check',
+  'npm run style',
+  'npm test',
+  'node scripts/build-server.ts --check',
 ];
 
 /** Whether the `&&` steps of `script` include every one of `steps`, in that order. */
@@ -111,7 +114,7 @@ function onlyHostState(root: string, folder: string): boolean {
 
 /**
  * The repo's installed sidecut-check, from node_modules, must be the tag package.json pins, or
- * `bun run style` checks other rules than CI does. It reads node_modules rather than this
+ * `npm run style` checks other rules than CI does. It reads node_modules rather than this
  * checker's own version, which is the marketplace plugin's when check_plugin runs it.
  */
 function checkCheckerVersion(root: string, report: Report): void {
@@ -134,8 +137,8 @@ function checkCheckerVersion(root: string, report: Report): void {
       'REPO_CHECKER_VERSION',
       'package.json',
       undefined,
-      `package.json pins sidecut-agentskills v${pinned}, but node_modules holds v${installed}, so \`bun run style\` can differ from CI.`,
-      'Run `bun install`, then check again.',
+      `package.json pins sidecut-agentskills v${pinned}, but node_modules holds v${installed}, so \`npm run style\` can differ from CI.`,
+      'Run `npm install`, then check again.',
     );
 }
 
@@ -210,13 +213,13 @@ function checkPackage(
       'Make them the same.',
     );
   }
-  if (!/^bun@\d+\.\d+\.\d+$/.test(String(pkg.packageManager ?? ''))) {
+  if (!/^npm@\d+\.\d+\.\d+$/.test(String(pkg.packageManager ?? ''))) {
     report.add(
       'REPO_PACKAGE_MANAGER',
       'package.json',
       undefined,
-      '`packageManager` is not a pinned bun@x.y.z.',
-      'Set it, for example `bun@1.4.4`.',
+      '`packageManager` is not a pinned npm@x.y.z.',
+      'Set it, for example `npm@11.19.1`.',
     );
   }
   const scripts = (pkg.scripts ?? {}) as Record<string, string>;
@@ -237,12 +240,12 @@ function checkPackage(
       'There is no `style` script.',
       'Add `"style": "sidecut-check"`.',
     );
-  if (!inOrder(scripts.build ?? '', ['bun scripts/build-server.ts']))
+  if (!inOrder(scripts.build ?? '', ['node scripts/build-server.ts']))
     report.add(
       'REPO_BUILD_SCRIPT',
       'package.json',
       undefined,
-      '`build` does not run `bun scripts/build-server.ts`.',
+      '`build` does not run `node scripts/build-server.ts`.',
       'Add it, so the bundle and its licences are built the same way everywhere.',
     );
   for (const [name, spec] of Object.entries({
@@ -301,7 +304,7 @@ function checkAgents(
     const rows = tableAfter(doc, commands)
       .slice(1)
       .map((r) => r[0] ?? '');
-    const want = Object.keys(scripts).map((s) => `\`bun run ${s}\``);
+    const want = Object.keys(scripts).map((s) => `\`npm run ${s}\``);
     if (rows.join() !== want.join()) {
       report.add(
         'AGENTS_COMMANDS',
@@ -368,13 +371,13 @@ function checkCi(root: string, report: Report): void {
           'Use `ubuntu-24.04` in a public repo, or the sidecut-ops runner picker in a private one.',
         );
       }
-      if (/bun-version:/.test(line))
+      if (/node-version:\s*(?:latest|node|\*)\s*$/.test(line))
         report.add(
-          'CI_BUN',
+          'CI_NODE',
           file,
           i + 1,
-          'Bun version set in the workflow.',
-          'Use `bun-version-file: package.json`.',
+          'Node version is not pinned.',
+          'Pin an exact Node.js version.',
         );
     });
   }
@@ -698,7 +701,7 @@ export function checkRepo(root: string, report: Report): void {
       change.file,
       undefined,
       change.what,
-      'Run `bunx sidecut-sync`. If this repo got it right, change the template in sidecut-agentskills instead.',
+      'Run `npm exec --no -- sidecut-sync`. If this repo got it right, change the template in sidecut-agentskills instead.',
     );
   const security = join(root, 'SECURITY.md');
   if (existsSync(security)) {

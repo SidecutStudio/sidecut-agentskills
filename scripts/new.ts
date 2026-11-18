@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { scaffoldPlugin } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
-const usage = `Usage: bun run new plugin <id> --description <text> --long-description <text> --keywords <a,b,c> [--checker <package spec>] [--out <dir>]
+const usage = `Usage: npm run new plugin <id> --description <text> --long-description <text> --keywords <a,b,c> [--checker <package spec>] [--out <dir>]
 
 Creates a new plugin repo with Claude Code and Codex manifests, one skill and a bundled MCP server.`;
 
@@ -51,9 +51,9 @@ try {
 }
 
 for (const args of [['install'], ['run', 'fix'], ['run', 'build']]) {
-  const result = spawnSync('bun', args, { cwd: out, stdio: 'inherit' });
+  const result = spawnSync('npm', args, { cwd: out, stdio: 'inherit' });
   if (result.status !== 0) {
-    console.error(`bun ${args.join(' ')} failed in ${out}`);
+    console.error(`npm ${args.join(' ')} failed in ${out}`);
     process.exit(1);
   }
 }

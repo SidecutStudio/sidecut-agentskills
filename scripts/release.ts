@@ -1,13 +1,15 @@
 // Publishes the plugin version from a checked main commit: tag, GitHub Release, ZIP and SHA-256
 // checksum. The Release workflow runs it after Check passes on main. Locally it only prints the
-// plan: bun scripts/release.ts <version>. --auto prints the manifest version and whether it still
+// plan: node scripts/release.ts <version>. --auto prints the manifest version and whether it still
 // needs publishing, as GITHUB_OUTPUT lines. A published release is never replaced. Every Sidecut
 // plugin repo has this file unchanged.
-import { readFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { $ } from 'bun';
+import { parse } from 'smol-toml';
 
-const root = join(import.meta.dir, '..');
+const root = join(import.meta.dirname, '..');
 const id = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).name as string;
 const plugin = join(root, 'plugins', id);
 const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -62,16 +64,23 @@ export function requiredChecksPass(
   }
 }
 
-const manifests = async () => ({
-  codex: await Bun.file(join(plugin, '.codex-plugin/plugin.json')).json(),
-  claude: await Bun.file(join(plugin, '.claude-plugin/plugin.json')).json(),
-  changelog: await Bun.file(join(plugin, 'CHANGELOG.md')).text(),
+const manifests = () => ({
+  codex: JSON.parse(readFileSync(join(plugin, '.codex-plugin/plugin.json'), 'utf8')),
+  claude: JSON.parse(readFileSync(join(plugin, '.claude-plugin/plugin.json'), 'utf8')),
+  changelog: readFileSync(join(plugin, 'CHANGELOG.md'), 'utf8'),
 });
 
+const run = (command: string, args: string[]) =>
+  execFileSync(command, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+const json = (args: string[]) => JSON.parse(run('gh', args));
+
 async function releaseState(tag: string, repo: string) {
-  const view = await $`gh release view ${tag} --repo ${repo} --json isDraft`.quiet().nothrow();
-  return view.exitCode === 0
-    ? { found: true, isDraft: JSON.parse(view.text()).isDraft as boolean }
+  const view = spawnSync('gh', ['release', 'view', tag, '--repo', repo, '--json', 'isDraft'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  return view.status === 0
+    ? { found: true, isDraft: JSON.parse(view.stdout).isDraft as boolean }
     : { found: false };
 }
 
@@ -83,13 +92,15 @@ function githubRepo() {
 
 /** The commit a version tag points to, following an annotated tag; undefined when untagged. */
 async function tagCommit(repo: string, tag: string) {
-  const refs: { ref: string; object: { type: string; sha: string } }[] =
-    await $`gh api repos/${repo}/git/matching-refs/tags/v`.json();
+  const refs: { ref: string; object: { type: string; sha: string } }[] = json([
+    'api',
+    'repos/' + repo + '/git/matching-refs/tags/v',
+  ]);
   const found = refs.find((ref) => ref.ref === `refs/tags/${tag}`);
   if (!found) return { refs, commit: undefined };
   let object = found.object;
   if (object.type === 'tag')
-    object = (await $`gh api repos/${repo}/git/tags/${object.sha}`.json()).object;
+    object = json(['api', 'repos/' + repo + '/git/tags/' + object.sha]).object;
   return { refs, commit: object.type === 'commit' ? object.sha : '' };
 }
 
@@ -101,7 +112,7 @@ async function auto() {
   let needed = releaseNeeded(existing);
   if (needed) {
     const { commit } = await tagCommit(repo, plan.tag);
-    const head = (await $`git rev-parse HEAD`.cwd(root).text()).trim();
+    const head = run('git', ['rev-parse', 'HEAD']).trim();
     if (commit !== undefined && commit !== head) {
       // A tag made by hand before this workflow existed: leave it, and release the next version.
       if (!existing.found) {
@@ -126,7 +137,7 @@ async function main() {
   if (process.argv[2] === '--auto' && process.argv.length === 3) return auto();
   const [version, mode, ...extra] = process.argv.slice(2);
   if (!version || (mode && mode !== '--publish') || extra.length)
-    throw new Error('Usage: bun scripts/release.ts <version> [--publish] | --auto');
+    throw new Error('Usage: node scripts/release.ts <version> [--publish] | --auto');
   const { codex, claude, changelog } = await manifests();
   const plan = releasePlan(version, codex, claude, changelog);
   if (!mode) {
@@ -137,23 +148,27 @@ async function main() {
   if (process.env.GITHUB_ACTIONS !== 'true' || !expected || !/^[0-9a-f]{40}$/.test(expected))
     throw new Error('Publish only through the Release workflow, which sets RELEASE_SHA.');
   const repo = githubRepo();
-  const head = (await $`git rev-parse HEAD`.cwd(root).text()).trim();
+  const head = run('git', ['rev-parse', 'HEAD']).trim();
   if (head !== expected) throw new Error('Checkout differs from the commit Check passed on.');
   const assertMain = async () => {
-    const remote = await $`gh api repos/${repo}/git/ref/heads/main`.json();
+    const remote = json(['api', 'repos/' + repo + '/git/ref/heads/main']);
     if (remote.object.sha !== head) throw new Error('Main moved on; the next Check run releases.');
   };
   // A newer push has its own Check and Release run, which publishes this version if it's still due.
-  const tip = (await $`gh api repos/${repo}/git/ref/heads/main`.json()).object.sha;
+  const tip = json(['api', 'repos/' + repo + '/git/ref/heads/main']).object.sha;
   if (tip !== head) {
     console.log(`Main moved on to ${tip}; its own Release run publishes ${plan.tag}.`);
     return;
   }
-  const policy = Bun.TOML.parse(await Bun.file(join(root, 'solo-workflow.toml')).text()) as {
+  const policy = parse(readFileSync(join(root, 'solo-workflow.toml'), 'utf8')) as {
     required_checks: string[];
   };
-  const pages =
-    await $`gh api --paginate --slurp repos/${repo}/commits/${head}/check-runs?per_page=100`.json();
+  const pages = json([
+    'api',
+    '--paginate',
+    '--slurp',
+    'repos/' + repo + '/commits/' + head + '/check-runs?per_page=100',
+  ]);
   requiredChecksPass(
     policy.required_checks,
     pages.flatMap((page: { check_runs: [] }) => page.check_runs),
@@ -163,18 +178,21 @@ async function main() {
     throw new Error('This release is already published; published assets are never replaced.');
 
   // The installable folder exactly as committed, under a top folder named after the plugin.
-  await $`mkdir -p dist`.cwd(root);
+  mkdirSync(join(root, 'dist'), { recursive: true });
   const archive = join(root, 'dist', plan.archive);
-  await $`git archive --format=zip --prefix=${`${id}/`} -o ${archive} ${`${head}:plugins/${id}`}`.cwd(
-    root,
-  );
+  run('git', [
+    'archive',
+    '--format=zip',
+    '--prefix=' + id + '/',
+    '-o',
+    archive,
+    head + ':plugins/' + id,
+  ]);
   const checksum = `${archive}.sha256`;
-  const hash = new Bun.CryptoHasher('sha256')
-    .update(await Bun.file(archive).arrayBuffer())
-    .digest('hex');
-  await Bun.write(checksum, `${hash}  ${plan.archive}\n`);
+  const hash = createHash('sha256').update(readFileSync(archive)).digest('hex');
+  writeFileSync(checksum, `${hash}  ${plan.archive}\n`);
   const notes = join(root, 'dist/release-notes.md');
-  await Bun.write(notes, plan.notes);
+  writeFileSync(notes, plan.notes);
   const { refs, commit } = await tagCommit(repo, plan.tag);
   for (const ref of refs) {
     const tagged = ref.ref.slice('refs/tags/v'.length);
@@ -185,16 +203,56 @@ async function main() {
     if (commit !== head) throw new Error('The version tag already points to a different commit.');
   } else {
     await assertMain();
-    await $`gh api --method POST repos/${repo}/git/refs -f ${`ref=refs/tags/${plan.tag}`} -f ${`sha=${head}`}`.quiet();
+    run('gh', [
+      'api',
+      '--method',
+      'POST',
+      'repos/' + repo + '/git/refs',
+      '-f',
+      'ref=refs/tags/' + plan.tag,
+      '-f',
+      'sha=' + head,
+    ]);
   }
   const title = `${codex.interface?.displayName ?? id} ${version}`;
   if (!existing.found)
-    await $`gh release create ${plan.tag} --repo ${repo} --verify-tag --target ${head} --draft --title ${title} --notes-file ${notes}`;
-  await $`gh release upload ${plan.tag} ${archive} ${checksum} --repo ${repo} --clobber`;
+    run('gh', [
+      'release',
+      'create',
+      plan.tag,
+      '--repo',
+      repo,
+      '--verify-tag',
+      '--target',
+      head,
+      '--draft',
+      '--title',
+      title,
+      '--notes-file',
+      notes,
+    ]);
+  run('gh', ['release', 'upload', plan.tag, archive, checksum, '--repo', repo, '--clobber']);
   await assertMain();
-  await $`gh release edit ${plan.tag} --repo ${repo} --draft=false --latest --notes-file ${notes}`;
-  const published =
-    await $`gh release view ${plan.tag} --repo ${repo} --json isDraft,assets,url`.json();
+  run('gh', [
+    'release',
+    'edit',
+    plan.tag,
+    '--repo',
+    repo,
+    '--draft=false',
+    '--latest',
+    '--notes-file',
+    notes,
+  ]);
+  const published = json([
+    'release',
+    'view',
+    plan.tag,
+    '--repo',
+    repo,
+    '--json',
+    'isDraft,assets,url',
+  ]);
   if (
     published.isDraft ||
     ![plan.archive, `${plan.archive}.sha256`].every((name) =>

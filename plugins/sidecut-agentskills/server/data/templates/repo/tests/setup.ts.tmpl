@@ -1,4 +1,4 @@
-// Loaded before every test file (bunfig.toml). Keeps tests from writing the usage log or reaching
+// Loaded before every test file (vitest.config.ts). Keeps tests from writing the usage log or reaching
 // the network.
 process.env.SIDECUT_SKILL_LOG = '0';
 globalThis.fetch = (() => {

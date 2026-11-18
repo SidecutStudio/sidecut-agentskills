@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+
+// scripts/icon.ts
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { Resvg } from "@resvg/resvg-js";
+var TILE = "#0a0a0a";
+var ORANGE = "#ff6b00";
+function iconSvg(lucideSvg) {
+  const shapes = [
+    ...lucideSvg.matchAll(/<(path|rect|circle|line|polyline|polygon|ellipse)\b[^>]*\/>/g)
+  ].map((m) => m[0]).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="10" fill="${TILE}"/><g transform="translate(7.4 8.2) scale(0.98)" fill="none" stroke="#ffffff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${shapes}</g><circle cx="31.5" cy="30.5" r="2.6" fill="${ORANGE}"/></svg>`;
+}
+function iconPng(svg) {
+  return Buffer.from(new Resvg(svg, { fitTo: { mode: "width", value: 512 } }).render().asPng());
+}
+if (import.meta.main) {
+  const usage = "Usage: sidecut-icon <lucide-icon-name> [--out <file>]";
+  const args = process.argv.slice(2);
+  if (args.includes("--help")) {
+    console.log(usage);
+    process.exit(0);
+  }
+  const outFlag = args.indexOf("--out");
+  const out = outFlag >= 0 ? args[outFlag + 1] : void 0;
+  const names = outFlag >= 0 ? args.filter((_, i) => i !== outFlag && i !== outFlag + 1) : args;
+  const name = names[0];
+  if (names.length !== 1 || !name || !/^[a-z0-9-]+$/.test(name) || outFlag >= 0 && !out) {
+    console.error(usage);
+    process.exit(1);
+  }
+  const lucide = join(
+    dirname(createRequire(import.meta.url).resolve("lucide-static/package.json")),
+    "icons",
+    `${name}.svg`
+  );
+  if (!existsSync(lucide)) {
+    console.error(`No Lucide icon is named ${name}. Pick one from https://lucide.dev/icons.`);
+    process.exit(1);
+  }
+  const target = out ?? join("plugins", JSON.parse(readFileSync("package.json", "utf8")).name, "assets", "icon.png");
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, iconPng(iconSvg(readFileSync(lucide, "utf8"))));
+  console.log(`Wrote ${target}.`);
+}
+export {
+  ORANGE,
+  TILE,
+  iconPng,
+  iconSvg
+};

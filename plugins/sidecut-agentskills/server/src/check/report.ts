@@ -13,6 +13,7 @@ export function keepCovers(key: string, code: string, file: string): boolean {
 
 export class Report {
   problems: Problem[] = [];
+  readonly advisories: Problem[] = [];
   /** Problems the repo lists under `sidecut.keep` in package.json, each with the reason given. */
   readonly kept: (Problem & { reason: string })[] = [];
   /** What was checked, for example the whole repo or only its plugins, and why. */
@@ -48,7 +49,10 @@ export class Report {
   }
 
   add(code: string, file: string, line: number | undefined, message: string, fix: string): void {
-    this.problems.push({ code, file, line, message, fix });
+    const target = ['SKILL_LENGTH', 'REF_LENGTH', 'SKILL_DESCRIPTION_LENGTH'].includes(code)
+      ? this.advisories
+      : this.problems;
+    target.push({ code, file, line, message, fix });
   }
 
   format(): string {

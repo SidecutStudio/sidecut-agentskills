@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
+import type { buildSync } from 'esbuild';
 import { listFiles } from '../scaffold.ts';
 import { type Report, sentences } from './report.ts';
 
@@ -66,7 +68,7 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
       where,
       undefined,
       'Local server needs server/src/index.ts and server/index.mjs.',
-      'Add the source and run `bun run build`.',
+      'Add the source and run `npm run build`.',
     );
     return null;
   }
@@ -84,28 +86,37 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
   const out = mkdtempSync(join(tmpdir(), 'sidecut-check-'));
   try {
     const built = join(out, 'index.mjs');
-    const result = spawnSync(
-      'bun',
-      [
-        'build',
-        source,
-        '--target=node',
-        '--format=esm',
-        `--outfile=${built}`,
-        `--metafile=${join(out, 'meta.json')}`,
-      ],
-      {
-        cwd: root,
-        encoding: 'utf8',
-      },
-    );
-    if (result.status !== 0) {
+    let inputs: string[] | undefined;
+    let failure: string | undefined;
+    try {
+      const build = createRequire(join(root, 'package.json'))('esbuild')
+        .buildSync as typeof buildSync;
+      const result = build({
+        absWorkingDir: root,
+        entryPoints: [relative(root, source)],
+        bundle: true,
+        platform: 'node',
+        format: 'esm',
+        target: 'node24',
+        preserveSymlinks: true,
+        outfile: built,
+        metafile: true,
+        logLevel: 'silent',
+        banner: {
+          js: "import { createRequire as __sidecutRequire } from 'node:module'; const require = __sidecutRequire(import.meta.url);",
+        },
+      });
+      inputs = Object.keys(result.metafile.inputs);
+    } catch (error) {
+      failure = error instanceof Error ? error.message : String(error);
+    }
+    if (failure !== undefined) {
       report.add(
         'SERVER_BUILD',
         where,
         undefined,
-        `The server doesn't build: ${result.stderr.trim().split('\n')[0]}`,
-        'Run `bun install`, then fix the build error.',
+        `The server doesn't build: ${failure.split('\n')[0]}`,
+        'Run `npm install`, then fix the build error.',
       );
     } else if (!readFileSync(built).equals(readFileSync(bundle))) {
       report.add(
@@ -113,14 +124,11 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
         relative(root, bundle),
         undefined,
         "The committed bundle doesn't match the source.",
-        'Run `bun run build` and commit server/index.mjs.',
+        'Run `npm run build` and commit server/index.mjs.',
       );
     }
-    if (result.status === 0) {
+    if (inputs) {
       // Every package the bundle inlines ships its licence notice next to the bundle.
-      const inputs = Object.keys(
-        JSON.parse(readFileSync(join(out, 'meta.json'), 'utf8')).inputs as object,
-      );
       const packages = [
         ...new Set(
           // The last node_modules folder in a path, so nested and isolated-store copies count as themselves.
@@ -138,7 +146,7 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
           relative(root, notices),
           undefined,
           `The bundle inlines ${missing.join(', ')} without its licence notice.`,
-          'Run `bun run build`, which writes server/THIRD_PARTY_LICENSES.txt.',
+          'Run `npm run build`, which writes server/THIRD_PARTY_LICENSES.txt.',
         );
       }
     }

@@ -194,7 +194,7 @@ function checkLayout(pluginDir: string, root: string, report: Report): void {
           relative(root, profile),
           undefined,
           'The subagent has no Codex profile.',
-          'Run `bun run build`, which writes codex/agents/ from agents/.',
+          'Run `npm run build`, which writes codex/agents/ from agents/.',
         );
       }
     }

@@ -3,21 +3,27 @@
   "version": "{{version}}",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.4",
+  "packageManager": "npm@11.19.1",
   "scripts": {
-    "build": "bun scripts/build-server.ts",
-    "check": "biome check . && tsc --noEmit && bun run style && bun test && bun scripts/build-server.ts --check",
+    "build": "node scripts/build-server.ts",
+    "check": "biome check . && tsc --noEmit && npm run style && npm test && node scripts/build-server.ts --check",
     "fix": "biome check --write .",
     "style": "sidecut-check",
-    "test": "bun test"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
     "@modelcontextprotocol/server": "2.4.0",
-    "@types/bun": "1.4.4",
+    "@types/node": "24.19.2",
     "lefthook": "2.2.2",
     "sidecut-agentskills": "{{checkerSource}}",
     "typescript": "7.0.2",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "esbuild": "0.28.2",
+    "vitest": "5.1.1",
+    "smol-toml": "1.9.1"
+  },
+  "engines": {
+    "node": ">=24.2.0"
   }
 }

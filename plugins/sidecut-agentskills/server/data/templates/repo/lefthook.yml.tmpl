@@ -2,10 +2,10 @@ pre-commit:
   jobs:
     - name: tidy
       glob: "*.{ts,js,mjs,json}"
-      run: bunx biome check --write --no-errors-on-unmatched {staged_files}
+      run: npm exec --no -- biome check --write --no-errors-on-unmatched {staged_files}
       stage_fixed: true
 
 pre-push:
   jobs:
     - name: check
-      run: bun run check
+      run: npm run check

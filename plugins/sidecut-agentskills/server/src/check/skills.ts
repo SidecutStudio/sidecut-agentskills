@@ -7,14 +7,7 @@ import {
   skillPrefixOf,
   skillTitleOf,
 } from '../scaffold.ts';
-import {
-  checkMarkdown,
-  paragraphAfter,
-  parseMarkdown,
-  prose,
-  sections,
-  tableAfter,
-} from './markdown.ts';
+import { checkMarkdown, parseMarkdown, prose } from './markdown.ts';
 import { type Report, sentences } from './report.ts';
 
 export type SkillInfo = {
@@ -39,15 +32,6 @@ const FRONTMATTER_ORDER = [
   'agent',
 ];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
-const TASK_SECTIONS = [
-  'Before you start',
-  'Steps',
-  'Rules',
-  'When it goes wrong',
-  'Done when',
-  'References',
-];
-const ROUTER_SECTIONS = ['Pick a skill', 'Not this plugin', 'Done when'];
 const SUPPORT_FOLDERS: Record<string, RegExp> = {
   references: /^[a-z0-9]+(-[a-z0-9]+)*\.md$/,
   examples: /^[a-z0-9]+(-[a-z0-9]+)*\.md$/,
@@ -56,7 +40,7 @@ const SUPPORT_FOLDERS: Record<string, RegExp> = {
 // Backticked names that read as MCP tools: a verb, then an object, in snake_case.
 const TOOL_NAME =
   /^(get|list|add|check|scaffold|create|update|delete|remove|set|run|publish|call|search|fetch|read|write|send|start|stop)(_[a-z]+)+$/;
-const DESCRIPTION_SHAPE = /^[A-Z][a-z]+s [^.]*(\.[^ ][^.]*)*\. Use when .+\. Not for .+\.$/;
+const DESCRIPTION_SHAPE = /^[A-Z][a-z]+s [^.]*(\.[^ ][^.]*)*\. Use when .+\.$/;
 
 type Frontmatter = { keys: string[]; values: Map<string, string>; lines: Map<string, number> };
 
@@ -153,8 +137,8 @@ function checkFrontmatter(
       'SKILL_DESCRIPTION_SHAPE',
       file,
       fm.lines.get('description'),
-      'Description is not "<Does what>. Use when <situations>. Not for <thing>."',
-      'Start with a third-person verb, then "Use when", then "Not for".',
+      'Description needs a capability and concrete trigger.',
+      'Describe what the skill does, then when to use it. Add an exclusion only if useful.',
     );
   }
   if (fm.keys.includes('allowed-tools')) {
@@ -337,102 +321,21 @@ function checkSections(
     );
   }
   const prefix = skillPrefixOf(plugin);
-  const router = name === prefix;
   const title = skillTitleOf(name, prefix);
   const h1 = doc.headings.find((h) => h.level === 1);
   if (h1 && h1.text !== title) {
     report.add('SKILL_TITLE', file, h1.line, `H1 is "${h1.text}".`, `Make it "# ${title}".`);
   }
-  const intro = h1 ? paragraphAfter(doc, h1.line) : null;
-  if (!intro) {
-    report.add(
-      'SKILL_INTRO',
-      file,
-      h1?.line,
-      'No paragraph after the H1.',
-      'Add 1 to 3 sentences saying what the skill produces.',
-    );
-  } else if (sentences(prose(intro.text)).length > 3) {
-    report.add(
-      'SKILL_INTRO',
-      file,
-      intro.line,
-      'The opening paragraph is longer than 3 sentences.',
-      'Keep it to 1 to 3 sentences.',
-    );
-  }
-  const order = router ? ROUTER_SECTIONS : TASK_SECTIONS;
-  const found = sections(doc);
-  const names = found.map((h) => h.text);
   const support = supportFiles(dir);
-  const required = router
-    ? ROUTER_SECTIONS
-    : ['Steps', 'Done when', ...(support.length > 0 ? ['References'] : [])];
-  for (const h of found) {
-    if (!order.includes(h.text)) {
-      report.add(
-        'SKILL_SECTION_UNKNOWN',
-        file,
-        h.line,
-        `Section "${h.text}" isn't part of the layout.`,
-        `Use only: ${order.join(', ')}.`,
-      );
-    }
-  }
-  const knownNames = names.filter((n) => order.includes(n));
-  if (
-    knownNames.join() !== [...knownNames].sort((a, b) => order.indexOf(a) - order.indexOf(b)).join()
-  ) {
-    report.add(
-      'SKILL_SECTION_ORDER',
-      file,
-      found[0]?.line,
-      'Sections are out of order.',
-      `Order them: ${order.join(', ')}.`,
-    );
-  }
-  for (const want of required) {
-    if (!names.includes(want))
-      report.add(
-        'SKILL_SECTION_MISSING',
-        file,
-        undefined,
-        `No "${want}" section.`,
-        `Add \`## ${want}\`.`,
-      );
-  }
-  if (support.length === 0 && names.includes('References')) {
-    report.add(
-      'SKILL_REFERENCES',
-      file,
-      found.find((h) => h.text === 'References')?.line,
-      'References section with no supporting files.',
-      'Remove the section.',
-    );
-  }
-  const refs = found.find((h) => h.text === 'References');
-  if (refs && support.length > 0) {
-    const rows = tableAfter(doc, refs);
-    if ((rows[0] ?? []).join('|') !== 'Read|When') {
+  for (const f of support) {
+    if (!text.includes(f)) {
       report.add(
         'SKILL_REFERENCES',
         file,
-        refs.line,
-        'References is not a `Read | When` table.',
-        'Use a table with columns `Read` and `When`.',
+        undefined,
+        f + ' is not referenced from SKILL.md.',
+        'Reference the supporting file where it helps.',
       );
-    }
-    const linked = rows.slice(1).map((r) => /\]\(([^)]+)\)/.exec(r[0] ?? '')?.[1] ?? '');
-    for (const f of support) {
-      if (!linked.includes(f)) {
-        report.add(
-          'SKILL_REFERENCES',
-          file,
-          refs.line,
-          `${f} isn't in the References table.`,
-          `Add a row linking [${f.split('/')[1]}](${f}).`,
-        );
-      }
     }
   }
   doc.lines.forEach((line, i) => {
@@ -471,12 +374,12 @@ function checkSections(
   });
   for (const f of support) {
     const p = join(dir, f);
-    if (f.endsWith('.md')) checkSupportDoc(p, f.startsWith('examples/'), root, report);
+    if (f.endsWith('.md')) checkSupportDoc(p, root, report);
     else checkScript(p, root, report);
   }
 }
 
-function checkSupportDoc(path: string, isExample: boolean, root: string, report: Report): void {
+function checkSupportDoc(path: string, root: string, report: Report): void {
   const file = relative(root, path);
   const text = readFileSync(path, 'utf8');
   const doc = parseMarkdown(path, text);
@@ -496,32 +399,6 @@ function checkSupportDoc(path: string, isExample: boolean, root: string, report:
       301,
       `File has ${doc.lines.length} lines.`,
       'Split it to stay at 300 or fewer.',
-    );
-  }
-  const h1 = doc.headings.find((h) => h.level === 1);
-  if (isExample) {
-    const names = sections(doc)
-      .map((h) => h.text)
-      .join('|');
-    if (names !== 'Request|What the agent does|Result') {
-      report.add(
-        'EXAMPLE_SECTIONS',
-        file,
-        h1?.line,
-        'Example sections are not Request, What the agent does, Result.',
-        'Use exactly those three sections.',
-      );
-    }
-    return;
-  }
-  const intro = h1 ? paragraphAfter(doc, h1.line) : null;
-  if (!intro?.text.startsWith('Read this when')) {
-    report.add(
-      'REF_OPENING',
-      file,
-      h1?.line,
-      'Reference file does not open with "Read this when".',
-      'Follow the H1 with one sentence starting "Read this when".',
     );
   }
 }

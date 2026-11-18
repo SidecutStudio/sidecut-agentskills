@@ -1,10 +1,10 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const root = join(import.meta.dir, '..', 'plugins', '{{id}}');
+const root = join(import.meta.dirname, '..', 'plugins', '{{id}}');
 const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
 
 function callServer(messages: object[]): Record<string, unknown>[] {

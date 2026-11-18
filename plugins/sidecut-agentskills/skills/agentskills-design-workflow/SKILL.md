@@ -23,7 +23,7 @@ Produces the smallest mechanism that makes the behavior happen every time, in th
    - **Subagent:** follow [subagents.md](references/subagents.md).
    - **CI job:** add a step or job to `.github/workflows/check.yml` and, when it gates merges, its job name to `required_checks` in `solo-workflow.toml`.
 3. Add a test that fails without the change: a hook test that pipes sample input into the script, or a CI step that runs a command a test already covers.
-4. Run `bun run check`, then try it in a `--plugin-dir` session.
+4. Run `npm run check`, then try it in a `--plugin-dir` session.
 
 | Need | Mechanism |
 | --- | --- |
@@ -38,10 +38,10 @@ Use `server/data/visual-reports.md` from the loaded plugin root when a flow or a
 
 - A hook is never a safety boundary; when it fails or is missing, everything carries on.
 - Every hook has a timeout of 5 seconds or less and makes no network calls.
-- Every hook and subagent works in both Claude Code and Codex: register hooks in both hook files, and ship each subagent's Codex profile with `bun run build`.
+- Every hook and subagent works in both Claude Code and Codex: register hooks in both hook files, and ship each subagent's Codex profile with `npm run build`.
 - CI uses the sidecut-ops runner picker and pins every action by SHA.
 
-## When it goes wrong
+## Resolve workflow problems
 
 - **A hook never fires:** check its event and matcher in `hooks.json` or `codex-hooks.json`, then run the script by hand with sample input. In Codex, check the user has trusted the plugin's hooks.
 - **A hook slows every session:** move the work into a skill step or a CI job.
@@ -49,7 +49,7 @@ Use `server/data/visual-reports.md` from the loaded plugin root when a flow or a
 
 ## Done when
 
-The behavior happens in a real session or CI run, a test covers it, and `bun run check` passes.
+The behavior happens in a real session or CI run, a test covers it, and `npm run check` passes.
 
 ## References
 

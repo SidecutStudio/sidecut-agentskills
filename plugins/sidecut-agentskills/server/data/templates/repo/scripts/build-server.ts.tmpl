@@ -2,7 +2,7 @@
 // every package it inlines in server/THIRD_PARTY_LICENSES.txt, and a Codex profile in codex/agents/
 // for each subagent in agents/. `--check` builds into a temporary folder and fails when a committed
 // file differs. Every Sidecut plugin repo has this file unchanged.
-import { spawnSync } from 'node:child_process';
+
 import {
   existsSync,
   mkdirSync,
@@ -15,15 +15,15 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { buildSync } from 'esbuild';
 
 const id = JSON.parse(readFileSync('package.json', 'utf8')).name as string;
 const plugin = join('plugins', id);
 const check = process.argv.includes('--check');
 const output = check ? mkdtempSync(join(tmpdir(), 'build-server-')) : plugin;
-const meta = mkdtempSync(join(tmpdir(), 'build-meta-'));
 
 // Each bundled package and the folder it was read from: the last node_modules folder in a path, so
-// a nested copy or Bun's isolated store (node_modules/.bun/<pkg>@<version>/node_modules/<pkg>)
+// nested installations are handled correctly.
 // counts as itself.
 function packagesOf(inputs: string[]): Map<string, string> {
   const found = new Map<string, string>();
@@ -100,22 +100,20 @@ function generated(): string[] {
   const server = join(plugin, 'server');
   mkdirSync(join(output, 'server'), { recursive: true });
   // The same command the house-style checker uses, so its stale-bundle check compares like with like.
-  const build = spawnSync(
-    'bun',
-    [
-      'build',
-      join(server, 'src', 'index.ts'),
-      '--target=node',
-      '--format=esm',
-      `--outfile=${join(output, 'server', 'index.mjs')}`,
-      `--metafile=${join(meta, 'meta.json')}`,
-    ],
-    { stdio: ['ignore', 'ignore', 'inherit'] },
-  );
-  if (build.status !== 0) throw new Error('The MCP server failed to build.');
-  const inputs = Object.keys(
-    JSON.parse(readFileSync(join(meta, 'meta.json'), 'utf8')).inputs as object,
-  );
+  const built = buildSync({
+    entryPoints: [join(server, 'src', 'index.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node24',
+    preserveSymlinks: true,
+    outfile: join(output, 'server', 'index.mjs'),
+    metafile: true,
+    banner: {
+      js: "import { createRequire as __sidecutRequire } from 'node:module'; const require = __sidecutRequire(import.meta.url);",
+    },
+  });
+  const inputs = Object.keys(built.metafile.inputs);
   const notices = [...packagesOf(inputs)].map(([pkg, dir]) => licence(pkg, dir));
   writeFileSync(join(output, 'server', 'THIRD_PARTY_LICENSES.txt'), notices.join('\n---\n\n'));
   files.push(join('server', 'index.mjs'), join('server', 'THIRD_PARTY_LICENSES.txt'));
@@ -160,11 +158,10 @@ try {
       const wanted = existsSync(join(output, file)) ? readFileSync(join(output, file)) : null;
       const actual = existsSync(join(plugin, file)) ? readFileSync(join(plugin, file)) : null;
       if (!wanted || !actual || !wanted.equals(actual)) {
-        throw new Error(`${file} is stale. Run bun run build and commit it.`);
+        throw new Error(`${file} is stale. Run npm run build and commit it.`);
       }
     }
   }
 } finally {
-  rmSync(meta, { recursive: true, force: true });
   if (check) rmSync(output, { recursive: true, force: true });
 }

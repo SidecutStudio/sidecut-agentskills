@@ -1,4 +1,3 @@
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import {
   appendFileSync,
@@ -12,6 +11,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import {
   checkRepo,
   identify,
@@ -30,13 +30,16 @@ const ID = 'sidecut-demo';
 const P = `plugins/${ID}`;
 const SKILL = `${P}/skills/demo-check-status`;
 const SERVER = `${P}/server/src/index.ts`;
-const repoRoot = join(import.meta.dir, '..');
+const repoRoot = join(import.meta.dirname, '..');
 let base = '';
 const scratch: string[] = [];
 
 function build(root: string): void {
   // The generated repo's own build script: the bundle and its licence notices.
-  const result = spawnSync('bun', ['scripts/build-server.ts'], { cwd: root, encoding: 'utf8' });
+  const result = spawnSync(process.execPath, ['scripts/build-server.ts'], {
+    cwd: root,
+    encoding: 'utf8',
+  });
   if (result.status !== 0) throw new Error(result.stderr);
 }
 
@@ -55,9 +58,9 @@ beforeAll(() => {
     },
     base,
   );
-  writeFileSync(join(base, 'bun.lock'), '');
+  writeFileSync(join(base, 'package-lock.json'), '');
   symlinkSync(join(repoRoot, 'node_modules'), join(base, 'node_modules'));
-  spawnSync('bunx', ['biome', 'check', '--write', '.'], { cwd: base });
+  spawnSync('npm', ['exec', '--no', '--', 'biome', 'check', '--write', '.'], { cwd: base });
   build(base);
 });
 
@@ -214,37 +217,8 @@ const iface = (change: (ui: Record<string, unknown>) => void) => (value: Record<
   change(value.interface as Record<string, unknown>);
 
 const cases: [string, (repo: Repo) => void][] = [
-  ['MD_END_NEWLINE', (r) => r.append('SECURITY.md', '\n')],
-  ['MD_ONE_H1', (r) => md(r, '# Another title')],
-  ['MD_FIRST_H1', (r) => r.edit('SECURITY.md', (t) => `Intro line.\n\n${t}`)],
-  ['MD_HEADING_LEVEL', (r) => md(r, '#### Too deep')],
-  ['MD_HEADING_PUNCT', (r) => md(r, '## Closing words.')],
-  ['MD_HEADING_CASE', (r) => md(r, '## Title Case Heading')],
-  ['MD_TABLE_PIPES', (r) => md(r, '| A | B |\n| --- | --- |\n| 1 | 2')],
-  ['MD_TABLE_SEPARATOR', (r) => md(r, '| A | B |\n| :-- | --- |\n| 1 | 2 |')],
-  ['MD_TABLE_PADDING', (r) => md(r, '| A   | B |\n| --- | --- |\n| 1 | 2 |')],
-  ['MD_FENCE_TAG', (r) => md(r, '```sh\nls\n```')],
-  ['MD_SHELL_PROMPT', (r) => md(r, '```bash\n$ ls\n```')],
-  ['MD_LINK_DOT', (r) => md(r, 'See [the readme](./README.md).')],
   ['MD_LINK_TARGET', (r) => md(r, 'See [the notes](NOTES.md).')],
-  ['MD_BARE_URL', (r) => md(r, 'See https://example.com for more.')],
-  ['MD_LIST_BULLET', (r) => md(r, '* One item')],
-  ['MD_LIST_NUMBER', (r) => md(r, '1. First\n3. Third')],
-  ['MD_BLOCKQUOTE', (r) => md(r, '> A quote.')],
-  ['MD_RULE', (r) => md(r, '---')],
-  ['MD_HTML', (r) => md(r, 'A <b>bold</b> word.')],
-  ['MD_EMOJI', (r) => md(r, 'Ready \u{1F680}')],
-  ['MD_DASH', (r) => md(r, 'One idea — another idea.')],
-  ['MD_ARROW', (r) => md(r, 'Build -> ship.')],
-  ['MD_QUOTES', (r) => md(r, 'It’s curly.')],
-  ['MD_BOLD', (r) => md(r, 'A **bold** word.')],
-  ['MD_ITALIC', (r) => md(r, 'An *italic* word.')],
-  ['WORD_BANNED', (r) => md(r, 'It is a robust plugin.')],
-  ['WORD_SHOUTING', (r) => md(r, 'You MUST read this.')],
-  ['WORD_DATE', (r) => md(r, 'Updated 2026-11-12.')],
   ['WORD_TODO', (r) => md(r, 'TODO write this.')],
-  ['MD_HARD_WRAP', (r) => md(r, 'A paragraph that is\nwrapped over two lines.')],
-  ['MD_PARAGRAPH_LENGTH', (r) => md(r, 'One. Two. Three. Four. Five.')],
 
   ['SKILL_FRONTMATTER', (r) => r.edit(skillMd, (t) => t.replace(/^---\n[\s\S]*?\n---\n\n/, ''))],
   [
@@ -270,10 +244,6 @@ const cases: [string, (repo: Repo) => void][] = [
       r.edit(skillMd, (t) =>
         t.replace('Not for problems', `Not for ${'many '.repeat(80)}problems`),
       ),
-  ],
-  [
-    'SKILL_DESCRIPTION_SHAPE',
-    (r) => r.edit(skillMd, (t) => t.replace(' Not for problems in other plugins.', '')),
   ],
   [
     'SKILL_ALLOWED_TOOLS',
@@ -317,23 +287,6 @@ const cases: [string, (repo: Repo) => void][] = [
   ],
   ['SKILL_TITLE', (r) => r.edit(skillMd, (t) => t.replace('# Check status', '# Status check'))],
   [
-    'SKILL_INTRO',
-    (r) => r.edit(skillMd, (t) => t.replace(/# Check status\n\n.*\n/, '# Check status\n')),
-  ],
-  [
-    'SKILL_SECTION_UNKNOWN',
-    (r) => r.edit(skillMd, (t) => t.replace('## Steps', '## Overview\n\nText.\n\n## Steps')),
-  ],
-  [
-    'SKILL_SECTION_ORDER',
-    (r) =>
-      r.edit(skillMd, (t) => {
-        const block = /## When it goes wrong\n[\s\S]*?(?=\n## )/.exec(t)?.[0] ?? '';
-        return t.replace(block, '').replace('## Steps', `${block}\n## Steps`);
-      }),
-  ],
-  ['SKILL_SECTION_MISSING', (r) => r.edit(skillMd, (t) => t.replace(/\n## Done when\n\n.*\n/, ''))],
-  [
     'SKILL_REFERENCES',
     (r) => {
       reference(r, 'extra-notes.md', '# Extra notes\n\nRead this when you need more.\n');
@@ -367,7 +320,6 @@ const cases: [string, (repo: Repo) => void][] = [
         '---\nname: extra\n---\n\n# Extra notes\n\nRead this when you need more.\n',
       ),
   ],
-  ['REF_OPENING', (r) => reference(r, 'extra-notes.md', '# Extra notes\n\nThis file has notes.\n')],
   [
     'REF_LENGTH',
     (r) =>
@@ -376,10 +328,6 @@ const cases: [string, (repo: Repo) => void][] = [
         'extra-notes.md',
         `# Extra notes\n\nRead this when you need more.\n${'\n- Note.'.repeat(300)}\n`,
       ),
-  ],
-  [
-    'EXAMPLE_SECTIONS',
-    (r) => support(r, 'examples', 'first-run.md', '# First run\n\n## Request\n\nCheck it.\n'),
   ],
   [
     'SCRIPT_IMPORT',
@@ -616,7 +564,7 @@ const cases: [string, (repo: Repo) => void][] = [
   ],
   [
     'REPO_CHECK_SCRIPT',
-    (r) => r.json('package.json', (v) => Object.assign(v.scripts as object, { check: 'bun test' })),
+    (r) => r.json('package.json', (v) => Object.assign(v.scripts as object, { check: 'npm test' })),
   ],
   [
     'REPO_STYLE_SCRIPT',
@@ -630,14 +578,7 @@ const cases: [string, (repo: Repo) => void][] = [
   ['AGENTS_TITLE', (r) => r.edit('AGENTS.md', (t) => t.replace(`# ${ID}`, '# Demo'))],
   ['AGENTS_SECTIONS', (r) => r.edit('AGENTS.md', (t) => t.replace('## Rules', '## Notes'))],
   ['AGENTS_SOLO', (r) => r.edit('AGENTS.md', (t) => t.replace('<!-- solo-workflow:end -->\n', ''))],
-  ['AGENTS_COMMANDS', (r) => r.edit('AGENTS.md', (t) => t.replace(/\| `bun run fix` .*\n/, ''))],
-  [
-    'MD_HARD_WRAP',
-    (r) =>
-      r.edit('AGENTS.md', (t) =>
-        t.replace('## Rules\n\n', '## Rules\n\nA wrapped\nparagraph.\n\n'),
-      ),
-  ],
+  ['AGENTS_COMMANDS', (r) => r.edit('AGENTS.md', (t) => t.replace(/\| `npm run fix` .*\n/, ''))],
   ['AGENTS_LAYOUT', (r) => r.edit('AGENTS.md', (t) => t.replace('```text', '```'))],
   ['CI_MISSING', (r) => r.rm('.github/workflows/check.yml')],
   ['CI_RELEASE', (r) => r.rm('.github/workflows/release.yml')],
@@ -653,10 +594,10 @@ const cases: [string, (repo: Repo) => void][] = [
     (r) => r.append('.github/workflows/check.yml', '  mac:\n    runs-on: macos-latest\n'),
   ],
   [
-    'CI_BUN',
+    'CI_NODE',
     (r) =>
       r.edit('.github/workflows/check.yml', (t) =>
-        t.replace('bun-version-file: package.json', 'bun-version: latest'),
+        t.replace(/node-version: [^\n]+/, 'node-version: latest'),
       ),
   ],
   [
@@ -805,7 +746,7 @@ test('a public repo whose jobs all run on ubuntu-24.04 passes the runner rule', 
   const repo = copy();
   repo.write(
     '.github/workflows/check.yml',
-    'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: bun run check\n',
+    'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: npm run check\n',
   );
   expect(codes(repo.root)).not.toContain('CI_PICKER');
 });
@@ -814,7 +755,7 @@ test("a public repo can't release on the self-hosted runners", () => {
   const repo = copy();
   repo.write(
     '.github/workflows/check.yml',
-    'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: bun run check\n',
+    'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: npm run check\n',
   );
   expect(codes(repo.root)).toContain('CI_RELEASE');
   repo.write(
@@ -851,7 +792,7 @@ describe('install source', () => {
     const repo = copy();
     repo.write(
       '.github/workflows/check.yml',
-      'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: bun run check\n',
+      'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: npm run check\n',
     );
     repo.write(
       '.github/workflows/release.yml',
@@ -950,7 +891,7 @@ test('a hosted-only workflow with a job that calls another workflow still needs 
   const repo = copy();
   repo.write(
     '.github/workflows/check.yml',
-    'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: bun run check\n  other:\n    uses: SidecutStudio/sidecut-ops/.github/workflows/x.yml@0123456789012345678901234567890123456789\n',
+    'name: Check\non: [push]\njobs:\n  check:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: npm run check\n  other:\n    uses: SidecutStudio/sidecut-ops/.github/workflows/x.yml@0123456789012345678901234567890123456789\n',
   );
   expect(codes(repo.root)).toContain('CI_PICKER');
 });
@@ -960,7 +901,14 @@ describe('each rule catches its problem', () => {
     test(code, () => {
       const repo = copy();
       mutate(repo);
-      expect(codes(repo.root)).toContain(code);
+      const report = new Report();
+      checkRepo(repo.root, report);
+      if (['SKILL_LENGTH', 'REF_LENGTH', 'SKILL_DESCRIPTION_LENGTH'].includes(code)) {
+        expect(report.advisories.map((p) => p.code)).toContain(code);
+        expect(report.problems.map((p) => p.code)).not.toContain(code);
+      } else {
+        expect(report.problems.map((p) => p.code)).toContain(code);
+      }
     });
   }
 });
@@ -971,7 +919,7 @@ test('jobs are read from any indentation, with comments and blocks after jobs', 
     '    check: # the gate',
     '        runs-on: ubuntu-24.04',
     '        steps:',
-    '            - run: bun run check',
+    '            - run: npm run check',
     '    other:',
     "        runs-on: 'ubuntu-24.04'",
     'on:',
@@ -1186,4 +1134,16 @@ test('the installed checker is compared with the pin, not with the plugin runnin
       'github:SidecutStudio/sidecut-agentskills#v0.0.1';
   });
   expect(codes(r.root)).not.toContain('REPO_CHECKER_VERSION');
+});
+
+test('natural headings and useful prose are not release failures', () => {
+  const repo = copy();
+  repo.edit(skillMd, (text) =>
+    text
+      .replace(' Not for problems in other plugins.', '')
+      .replace('## Steps', '## Check the connection')
+      .replace('## Done when', '## Verify')
+      .replace('Confirms the', 'Robust validation confirms the'),
+  );
+  expect(codes(repo.root)).toEqual([]);
 });

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0] - 2026-11-18
+
+### Changed
+
+- Use Node.js, npm, esbuild and Vitest for plugin development, checks and distribution.
+- Separate editorial guidance from functional standards; remove mandatory prose structures.
+
 ## [0.12.0] - 2026-11-17
 
 ### Changed

@@ -4,7 +4,7 @@ description: "Reviews a Sidecut plugin repo against the house style, listing wha
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
   - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
-  - Bash(bun run style)
+  - Bash(npm run style)
   - Bash(claude plugin validate *)
 ---
 
@@ -29,7 +29,7 @@ Use `server/data/visual-reports.md` from the loaded plugin root when examples or
 
 ## Rules
 
-- Leave the reviewed repository unchanged. When the user asks for fixes, make them, run `bun run check`, and report what changed.
+- Leave the reviewed repository unchanged. When the user asks for fixes, make them, run `npm run check`, and report what changed.
 - Report each problem once, even when the checker finds it in both copies of a file.
 
 ## Done when

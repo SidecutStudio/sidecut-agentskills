@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 // Draws a plugin's icon in the Sidecut style: a near-black rounded tile, one white Lucide mark and
 // Sidecut Builder's orange full stop. `sidecut-icon <lucide-name>` writes the 512 px PNG to
 // plugins/<package name>/assets/icon.png; `--out <file>` writes it somewhere else.
