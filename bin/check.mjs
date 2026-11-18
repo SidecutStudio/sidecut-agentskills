@@ -932,8 +932,7 @@ var PLUGIN_ENTRIES = /* @__PURE__ */ new Set([
   "codex",
   "hooks",
   "server",
-  "skills",
-  "evals"
+  "skills"
 ]);
 var SHARED_FIELDS = [
   "name",
@@ -1013,7 +1012,7 @@ function checkLayout2(pluginDir, root, report2) {
   for (const name of readdirSync3(pluginDir)) {
     if (name === ".DS_Store") continue;
     if (!PLUGIN_ENTRIES.has(name)) {
-      const hint = name === "plugin.json" ? "Codex reads .codex-plugin/plugin.json; a root plugin.json stops it loading hooks." : name === "commands" ? "Turn commands into skills." : "Move or remove it.";
+      const hint = name === "plugin.json" ? "Codex reads .codex-plugin/plugin.json; a root plugin.json stops it loading hooks." : name === "commands" ? "Turn commands into skills." : name === "evals" ? "Move evaluation cases to the repository root, outside the installed plugin." : "Move or remove it.";
       report2.add(
         "PLUGIN_ENTRY_UNEXPECTED",
         relative5(root, join5(pluginDir, name)),
@@ -1512,8 +1511,8 @@ function checkHooks(pluginDir, root, report2) {
       );
   }
 }
-function checkEvals(pluginDir, skills, root, report2) {
-  const dir = join5(pluginDir, "evals");
+function checkEvals(skills, root, report2) {
+  const dir = join5(root, "evals");
   const cases = existsSync5(dir) ? readdirSync3(dir).filter((n) => statSync3(join5(dir, n)).isDirectory()) : [];
   for (const name of cases) {
     const where = relative5(root, join5(dir, name));
@@ -1727,17 +1726,17 @@ function checkPlugin(pluginDir, root, report2, repoName) {
   const tools = checkMcp(pluginDir, id, root, report2);
   const skills = checkSkills(pluginDir, root, report2, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report2);
-  checkEvals(
-    pluginDir,
-    skills.map((s) => s.name),
-    root,
-    report2
-  );
+  if (repoName)
+    checkEvals(
+      skills.map((s) => s.name),
+      root,
+      report2
+    );
   const version = typeof manifest?.version === "string" ? manifest.version : null;
   checkReadme(pluginDir, String(manifest?.description ?? ""), skills, root, report2);
   if (version) checkChangelog(pluginDir, version, root, report2);
   for (const path of listFiles(pluginDir)) {
-    if (path.endsWith(".md") && !path.includes("/skills/") && !path.includes("/evals/") && !/\/(README|CHANGELOG)\.md$/.test(path)) {
+    if (path.endsWith(".md") && !path.includes("/skills/") && !/\/(README|CHANGELOG)\.md$/.test(path)) {
       const text = readFileSync4(path, "utf8");
       checkMarkdown(parseMarkdown(path, text), text, root, report2);
     }
@@ -1751,6 +1750,7 @@ import { dirname as dirname3, join as join6 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
   "VOICE.md",
+  "scripts/eval.mjs",
   "scripts/build-server.ts",
   "scripts/release.ts"
 ];
@@ -1948,6 +1948,7 @@ var REQUIRED_ENTRIES = [
   "scripts",
   "solo-workflow.toml",
   "tests",
+  "evals",
   "tsconfig.json"
 ];
 var OPTIONAL_ENTRIES = [

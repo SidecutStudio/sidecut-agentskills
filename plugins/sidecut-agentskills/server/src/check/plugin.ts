@@ -28,7 +28,6 @@ const PLUGIN_ENTRIES = new Set([
   'hooks',
   'server',
   'skills',
-  'evals',
 ]);
 const SHARED_FIELDS = [
   'name',
@@ -126,7 +125,9 @@ function checkLayout(pluginDir: string, root: string, report: Report): void {
           ? 'Codex reads .codex-plugin/plugin.json; a root plugin.json stops it loading hooks.'
           : name === 'commands'
             ? 'Turn commands into skills.'
-            : 'Move or remove it.';
+            : name === 'evals'
+              ? 'Move evaluation cases to the repository root, outside the installed plugin.'
+              : 'Move or remove it.';
       report.add(
         'PLUGIN_ENTRY_UNEXPECTED',
         relative(root, join(pluginDir, name)),
@@ -674,8 +675,8 @@ function checkHooks(pluginDir: string, root: string, report: Report): void {
   }
 }
 
-function checkEvals(pluginDir: string, skills: string[], root: string, report: Report): void {
-  const dir = join(pluginDir, 'evals');
+function checkEvals(skills: string[], root: string, report: Report): void {
+  const dir = join(root, 'evals');
   const cases = existsSync(dir)
     ? readdirSync(dir).filter((n) => statSync(join(dir, n)).isDirectory())
     : [];
@@ -912,12 +913,12 @@ export function checkPlugin(
   const tools = checkMcp(pluginDir, id, root, report);
   const skills = checkSkills(pluginDir, root, report, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report);
-  checkEvals(
-    pluginDir,
-    skills.map((s) => s.name),
-    root,
-    report,
-  );
+  if (repoName)
+    checkEvals(
+      skills.map((s) => s.name),
+      root,
+      report,
+    );
   const version = typeof manifest?.version === 'string' ? manifest.version : null;
   checkReadme(pluginDir, String(manifest?.description ?? ''), skills, root, report);
   if (version) checkChangelog(pluginDir, version, root, report);
@@ -925,7 +926,6 @@ export function checkPlugin(
     if (
       path.endsWith('.md') &&
       !path.includes('/skills/') &&
-      !path.includes('/evals/') &&
       !/\/(README|CHANGELOG)\.md$/.test(path)
     ) {
       const text = readFileSync(path, 'utf8');

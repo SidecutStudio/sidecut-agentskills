@@ -6,6 +6,7 @@ import { displayNameOf, renderFile } from '../scaffold.ts';
 export const OWNED_FILES = [
   'CLAUDE.md',
   'VOICE.md',
+  'scripts/eval.mjs',
   'scripts/build-server.ts',
   'scripts/release.ts',
 ];

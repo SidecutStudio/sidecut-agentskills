@@ -24,6 +24,7 @@ const REQUIRED_ENTRIES = [
   'scripts',
   'solo-workflow.toml',
   'tests',
+  'evals',
   'tsconfig.json',
 ];
 const OPTIONAL_ENTRIES = [

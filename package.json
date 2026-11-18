@@ -1,6 +1,6 @@
 {
   "name": "sidecut-agentskills",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.19.1",
@@ -16,6 +16,7 @@
     "icon": "node scripts/icon.ts",
     "new": "node scripts/new.ts",
     "style": "node scripts/check.ts",
+    "eval": "node scripts/eval.mjs",
     "test": "vitest run"
   },
   "dependencies": {

@@ -12,6 +12,7 @@ This repo ships the Sidecut Agentskills plugin, the template every Sidecut plugi
 | `npm run icon` | Draws a plugin icon in the Sidecut style from a Lucide icon name, for example `npm run icon blocks`; other repos run it as `npm exec --no -- sidecut-icon` |
 | `npm run new` | Creates a new plugin repo from the template, for example `npm run new plugin sidecut-notes --description ... --long-description ... --keywords a,b,c` |
 | `npm run style` | Checks this repo against the house style |
+| `npm run eval` | Runs behavioural evals with Claude Code (explicit, may use model credits) |
 | `npm run test` | Runs the tests, including one that breaks each checker rule on purpose |
 
 ## Layout
@@ -22,8 +23,8 @@ plugins/sidecut-agentskills/
   server/data/             house style, patterns and the templates the generator copies
   skills/                  the plugin's skills
   agents/                  the reviewer subagent; codex/agents/ holds its generated Codex profile
-  evals/                   trigger and near-miss evals for the skills
 scripts/                   new.ts, check.ts and sync.ts (npm run new, sidecut-check, sidecut-sync), and release.ts, which the Release workflow runs
+evals/                     development-only trigger and near-miss cases
 tests/                     checker and template tests
 ```
 
@@ -41,9 +42,7 @@ tests/                     checker and template tests
 - Other repos depend on this one by tag for `sidecut-check`, so a change to a checker rule is a new version.
 
 <!-- solo-workflow:start -->
-## Solo Workflow
+## Sidecut Solo
 
-This project uses Sidecut Solo (settings in `solo-workflow.toml`). The owner asks in plain words
-and doesn't name skills: load the Solo skill that fits before starting the work, or the
-`solo` skill when it's unclear which one fits.
+Follow `solo-workflow.toml`. Use the relevant Solo skill, or `solo` to route the request.
 <!-- solo-workflow:end -->
