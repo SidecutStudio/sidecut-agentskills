@@ -4,7 +4,7 @@ Read this when adding or running evals that prove a skill fires on the right req
 
 ## Where they live
 
-Each case is a folder in the plugin's `evals/` folder. A skill's cases are named `<skill>-<what>`, such as `write-skill-new`, and cases that no skill in the plugin should answer are named `negative-<what>`. A case holds `prompt.md` and a `graders/` folder. Every skill has at least one trigger case.
+Each case is a folder in the repository-root `evals/` folder, outside the installed plugin. A skill's cases are named `<skill>-<what>`, such as `write-skill-new`, and cases that no skill in the plugin should answer are named `negative-<what>`. A case holds `prompt.md` and a `graders/` folder. Every skill has at least one trigger case.
 
 ## A trigger case
 
@@ -45,7 +45,9 @@ Use the same `prompt.md` shape with `tags: [negative]` and the close request tha
 ## Running them
 
 ```bash
-claude plugin eval plugins/<plugin-id> --case "<skill>-*" --ablation none --no-publish
+npm run eval -- --case "<skill>-*" --ablation none
 ```
+
+The dev command stages the plugin and cases in a temporary folder, runs Claude Code with publication disabled, and removes the staged files. Reports go in the ignored repository folder `eval-results/`. Evals may use model credits; run them only with permission.
 
 Run every case after changing any description in the plugin. A case that fails twice in a row is a description problem; fix it with [descriptions.md](descriptions.md).

@@ -133,7 +133,6 @@ plugins/<plugin-id>/
   assets/icon.png             512 by 512 PNG from sidecut-icon, the only asset
   agents/<role>.md            only with subagents
   codex/agents/<prefix>-<role>.toml  Codex profile of each subagent, generated
-  evals/<case>/               trigger and near-miss evals, one folder per case
   hooks/hooks.json            Claude Code hooks, only with hooks
   hooks/codex-hooks.json      Codex hooks, the same scripts
   hooks/<event>-<what>.mjs
@@ -260,10 +259,10 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Location | `evals/` in the plugin folder, one folder per case, run with `claude plugin eval` | yes |
+| Location | Repository-root `evals/`, one folder per case; never in the installed plugin. Run `npm run eval` to stage a temporary plugin for Claude Code | yes |
 | Case names | `<skill>-<what>` for a skill's cases, `negative-<what>` for requests no skill in the plugin should answer | yes |
 | Case files | `prompt.md` with frontmatter, then `graders/` with at least one grader | yes |
-| Coverage | Every skill has at least one trigger case; the plugin has at least one `negative-` case | yes |
+| Coverage | Every skill in a development repo has at least one trigger case; the repo has at least one `negative-` case | yes |
 | Graders | `tool_used` graders on the `Skill` tool; an `llm` grader only for what a tool grader can't see | review |
 
 ## Hooks

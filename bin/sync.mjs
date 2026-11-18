@@ -71,6 +71,7 @@ import { dirname as dirname2, join as join2 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
   "VOICE.md",
+  "scripts/eval.mjs",
   "scripts/build-server.ts",
   "scripts/release.ts"
 ];

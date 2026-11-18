@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0] - 2026-11-18
+
+### Changed
+
+- Keep behavioural eval cases in the development repository, outside installed plugins. Stage a temporary plugin for native Claude Code evals.
+- Simplify the Solo project instruction.
+
 ## [1.0.0] - 2026-11-18
 
 ### Changed

@@ -9,6 +9,7 @@
     "check": "biome check . && tsc --noEmit && npm run style && npm test && node scripts/build-server.ts --check",
     "fix": "biome check --write .",
     "style": "sidecut-check",
+    "eval": "node scripts/eval.mjs",
     "test": "vitest run"
   },
   "devDependencies": {
