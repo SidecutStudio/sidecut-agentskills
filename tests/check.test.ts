@@ -773,10 +773,20 @@ test("a public repo can't release on the self-hosted runners", () => {
     '.github/workflows/release.yml',
     repo
       .read('.github/workflows/release.yml')
-      .replace(/ {4}runs-on:\n {6}group: .*\n {6}labels: .*\n/, '    runs-on: ubuntu-24.04\n')
-      .replace(/ {6}- uses: SidecutStudio\/sidecut-ops\/.*\n {8}with:\n {10}tools: gh\n/, ''),
+      .replace(/ {4}runs-on:\n {6}group: .*\n {6}labels: .*\n/, '    runs-on: ubuntu-24.04\n'),
   );
   expect(codes(repo.root)).not.toContain('CI_RELEASE');
+  // On hosted runners, a private sidecut-ops action can't load either.
+  repo.write(
+    '.github/workflows/release.yml',
+    repo
+      .read('.github/workflows/release.yml')
+      .replace(
+        /( {6}- name: Install gh)/,
+        '      - uses: SidecutStudio/sidecut-ops/.github/actions/required-gate@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab\n$1',
+      ),
+  );
+  expect(codes(repo.root)).toContain('CI_RELEASE');
 });
 
 describe('install source', () => {
@@ -1183,4 +1193,12 @@ test('setup-ci-tools passes once its job installs Bun first', () => {
   expect(bunlessToolSteps(steps(false))).toEqual([5, 9]);
   // Bun in one job doesn't cover the next.
   expect(bunlessToolSteps(steps(true))).toEqual([10]);
+  // A comment after `jobs:` still starts the jobs.
+  expect(bunlessToolSteps(steps(false).replace('jobs:\n', 'jobs: # all of them\n'))).toEqual([
+    5, 9,
+  ]);
+  // Bun installed after the tool step comes too late.
+  const late =
+    'jobs:\n  a:\n    steps:\n      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab\n      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6\n';
+  expect(bunlessToolSteps(late)).toEqual([4]);
 });

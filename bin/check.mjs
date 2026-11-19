@@ -2286,7 +2286,7 @@ function checkCi(root, report2) {
       ".github/workflows/release.yml",
       void 0,
       "A public repo releases on a self-hosted runner or with a private sidecut-ops action.",
-      "Run the release job on `ubuntu-24.04` and drop the setup-ci-tools step; gh is already there."
+      "Run the release job on `ubuntu-24.04` with no sidecut-ops action; gh is already there."
     );
   }
   if (check && !check.includes("/pick-runner@") && !hostedOnly) {
@@ -2301,7 +2301,7 @@ function checkCi(root, report2) {
 }
 function bunlessToolSteps(workflow) {
   const lines = workflow.split("\n");
-  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  const start = lines.findIndex((line) => /^jobs:\s*(#.*)?$/.test(line));
   if (start < 0) return [];
   const found = [];
   let jobIndent = -1;
