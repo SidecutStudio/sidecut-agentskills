@@ -624,9 +624,8 @@ test('a docs folder is part of the layout', () => {
 describe('host-created worktrees', () => {
   function fixture(name = 'task') {
     const repo = copy();
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
-    );
+    // tests/setup.ts already cleared inherited GIT_* variables and set the quiet Git config.
+    const env = process.env;
     const git = (...args: string[]) => {
       const result = spawnSync(
         'git',
@@ -1095,9 +1094,8 @@ test('add_skill writes a router whose display-name title passes the checker', ()
 describe('host-created Codex folder', () => {
   function gitRepo() {
     const repo = copy();
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
-    );
+    // tests/setup.ts already cleared inherited GIT_* variables and set the quiet Git config.
+    const env = process.env;
     const git = (...args: string[]) =>
       spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args], {
         cwd: repo.root,
