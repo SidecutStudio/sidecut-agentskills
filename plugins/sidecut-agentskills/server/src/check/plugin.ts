@@ -801,7 +801,7 @@ function checkReadme(
     }
   }
   const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(text)?.[1];
-  if (install !== undefined && !/^```/m.test(install)) {
+  if (install !== undefined && !/^ {0,3}(```|~~~)/m.test(install)) {
     const at = found.find((h) => h.text === 'Install');
     report.add(
       'README_INSTALL_BLOCK',

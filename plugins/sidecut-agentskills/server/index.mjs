@@ -23341,7 +23341,7 @@ function checkReadme(pluginDir, description, skills, root, report) {
     }
   }
   const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(text2)?.[1];
-  if (install !== void 0 && !/^```/m.test(install)) {
+  if (install !== void 0 && !/^ {0,3}(```|~~~)/m.test(install)) {
     const at = found.find((h) => h.text === "Install");
     report.add(
       "README_INSTALL_BLOCK",
