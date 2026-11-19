@@ -44,3 +44,26 @@ jobs:
           tar -xzf "$RUNNER_TEMP/trufflehog.tar.gz" -C "$RUNNER_TEMP" trufflehog
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - run: trufflehog git "file://$PWD" --branch HEAD --results=verified,unknown --fail --no-update
+  # The repository's one gate over the jobs above (sidecut-ops README, "Workflow shape"). It does
+  # what sidecut-ops' required-gate action does, inline, because a public repo can't use that
+  # repo's private actions. It always runs, since GitHub counts a skipped required check as passed.
+  gate:
+    name: gate
+    needs: [check, secrets]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every needed job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -eu
+          {
+            echo '| Job | Result |'
+            echo '| --- | --- |'
+            jq -r 'to_entries[] | "| \(.key) | \(.value.result) |"' <<<"$NEEDS"
+          } >> "$GITHUB_STEP_SUMMARY"
+          bad=$(jq -r 'to_entries[] | select(.value.result != "success") | "\(.key) \(.value.result)"' <<<"$NEEDS")
+          if [ -n "$bad" ]; then echo "Failed: $bad"; exit 1; fi
+          echo "All needed jobs passed."

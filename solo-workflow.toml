@@ -1,8 +1,8 @@
 base_branch = "main"
 merge = "when-green"
 merge_method = "squash"
-# CI jobs that gate a PR (.github/workflows/check.yml); the required-checks ruleset enforces them.
-required_checks = ["check", "secrets"]
+# CI checks that gate a PR (.github/workflows/check.yml): gate covers check and secrets; the house-style checker also wants check listed.
+required_checks = ["gate", "check"]
 worktrees = "when-overlapping"
 
 protected_paths = [
