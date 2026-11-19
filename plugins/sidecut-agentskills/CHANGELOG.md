@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.2] - 2026-11-18
+
+- New skills from the template point to the owner-input guide in a plain sentence instead of a leftover comment.
+
 ## [1.2.1] - 2026-11-18
 
 - Ask for material owner choices through the active host's question tool, with a chat fallback. Reuse settled requirements and keep unanswered permission requests pending.

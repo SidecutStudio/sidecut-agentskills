@@ -5,5 +5,15 @@ merge_method = "squash"
 required_checks = ["check", "secrets"]
 worktrees = "when-overlapping"
 
+protected_paths = [
+  "plugins/sidecut-agentskills/codex/agents/agentskills-reviewer.toml",  # node scripts/build-server.ts
+  "bin/check.mjs",  # node scripts/build-cli.ts
+  "bin/icon.mjs",  # node scripts/build-cli.ts
+  "bin/sync.mjs",  # node scripts/build-cli.ts
+  "bin/version.mjs",  # node scripts/build-cli.ts
+  "plugins/sidecut-agentskills/server/index.mjs",  # node scripts/build-server.ts
+  "plugins/sidecut-agentskills/server/THIRD_PARTY_LICENSES.txt",  # node scripts/build-server.ts
+]
+
 [checks]
 check = "npm run check"
