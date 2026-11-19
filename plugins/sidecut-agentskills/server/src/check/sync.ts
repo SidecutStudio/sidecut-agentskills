@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { displayNameOf, renderFile } from '../scaffold.ts';
+import { displayNameOf, OWNER_INPUT_PATH, ownerInput, renderFile } from '../scaffold.ts';
 
 /** Files sidecut-agentskills owns whole in every plugin repo. */
 export const OWNED_FILES = [
@@ -10,6 +10,10 @@ export const OWNED_FILES = [
   'scripts/build-server.ts',
   'scripts/release.ts',
 ];
+export function pluginOwnedFile(id: string): string {
+  return `plugins/${id}/${OWNER_INPUT_PATH}`;
+}
+
 /** Files where sidecut-agentskills owns only the marked blocks; the rest belongs to the repo. */
 export const BLOCK_FILES = ['.gitignore', 'AGENTS.md', 'SECURITY.md'];
 /** devDependencies sync raises to the template's version, never lowers. */
@@ -196,9 +200,10 @@ export function planSync(
       repo: vars.repo,
       displayName: displayNameOf(vars.id),
     });
-  for (const file of OWNED_FILES) {
+  const guide = pluginOwnedFile(vars.id);
+  for (const file of [...OWNED_FILES, guide]) {
     if (kept(file)) continue;
-    const want = render(file);
+    const want = file === guide ? ownerInput() : render(file);
     const path = join(root, file);
     const have = existsSync(path) ? readFileSync(path, 'utf8') : null;
     if (have !== want)

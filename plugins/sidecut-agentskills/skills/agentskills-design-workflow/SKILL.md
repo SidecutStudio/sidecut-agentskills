@@ -11,7 +11,7 @@ Produces the smallest mechanism that makes the behavior happen every time, in th
 
 ## Before you start
 
-- Ask the user what should happen, when, and what they see when it has happened.
+- Identify what should happen, when and what the user sees. Ask only about missing choices that change the workflow or its effects. Follow `server/data/owner-input.md` from the loaded plugin root.
 - Read the "Hooks" and "Usage log" sections of `get_house_style`.
 
 ## Steps

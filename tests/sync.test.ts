@@ -71,6 +71,15 @@ test('a changed owned file goes back to the Sidecut copy', () => {
   expect(planSync(root, vars)).toEqual([]);
 });
 
+test('sync restores the packaged owner-input guide from its source', () => {
+  const root = copy();
+  const guide = `plugins/${ID}/server/data/owner-input.md`;
+  rmSync(join(root, guide));
+  expect(files(root)).toEqual([guide]);
+  applySync(root, planSync(root, vars));
+  expect(read(root, guide)).toBe(read(base, guide));
+});
+
 test("a block is rewritten and the repo's own lines around it stay", () => {
   const root = copy();
   write(root, '.gitignore', `${read(root, '.gitignore').replace('*.log\n', '')}dist/\n`);

@@ -1048,6 +1048,25 @@ test('a scaffold without a checker source pins sidecut-check to this release', (
   );
 });
 
+test('scaffolds the shared owner-input guide and adds it to older plugins without overwriting', () => {
+  const r = copy();
+  const guide = `${P}/server/data/owner-input.md`;
+  const canonical = r.read(guide);
+  expect(canonical).toBe(
+    readFileSync(join(repoRoot, 'plugins/sidecut-agentskills/server/data/owner-input.md'), 'utf8'),
+  );
+
+  r.rm(guide);
+  const files = addSkill(join(r.root, P), { name: 'demo', does: 'Routes demo requests.' });
+  expect(files).toContain('server/data/owner-input.md');
+  expect(r.read(`${P}/skills/demo/SKILL.md`)).toContain('server/data/owner-input.md');
+  expect(r.read(guide)).toBe(canonical);
+
+  r.write(guide, 'Local owner-input guide.');
+  addSkill(join(r.root, P), { name: 'demo-write-note', does: 'Writes a note.' });
+  expect(r.read(guide)).toBe('Local owner-input guide.');
+});
+
 test('add_skill writes a router whose display-name title passes the checker', () => {
   const r = copy();
   for (const name of ['demo-write-note', 'demo-read-note', 'demo-list-notes']) {
