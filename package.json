@@ -1,6 +1,6 @@
 {
   "name": "sidecut-agentskills",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.19.1",

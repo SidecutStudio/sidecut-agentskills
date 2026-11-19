@@ -1631,6 +1631,17 @@ function checkReadme(pluginDir, description, skills, root, report2) {
       );
     }
   }
+  const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(text)?.[1];
+  if (install !== void 0 && !/^ {0,3}(```|~~~)/m.test(install)) {
+    const at = found.find((h) => h.text === "Install");
+    report2.add(
+      "README_INSTALL_BLOCK",
+      file,
+      at?.line,
+      "The Install section has no code block.",
+      "Put the install commands in a code block, as the template does."
+    );
+  }
   if (!text.includes("## License\n\nMIT. See [LICENSE](LICENSE).\n")) {
     report2.add(
       "README_LICENSE",
@@ -2421,7 +2432,7 @@ function checkInstallSource(root, id, repo, report2) {
     `codex plugin ${add}`,
     `codex plugin add ${id}@${id}`
   ];
-  const lines = new Set(install.split("\n").map((line) => line.trim()));
+  const lines = new Set(install.split("\n").map((line) => line.replace(/\s+#.*$/, "").trim()));
   const missing = steps.filter((step) => !lines.has(step));
   if (missing.length > 0)
     report2.add(

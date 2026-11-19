@@ -317,12 +317,14 @@ Use standard Markdown with readable headings and code fences. The checker fails 
 
 ## README
 
+The template's README is the pattern: say in one paragraph what the plugin does, then show it. People scan a README, so commands, requests and settings go in code blocks and tables, with at most a line of prose around each.
+
 Sections in this order:
 
 1. `# <Display name>`, then one paragraph that is the manifest description.
 2. `## What it does`: a table with columns `Skill` and `Does`, one row per skill, using each description's first sentence.
-3. `## Install`: in a public repo, the steps under Install source; in a private repo, install from the `sidecut-plugins` marketplace in Claude Code and Codex. No command output.
-4. `## Use`: 2 or 3 example requests.
+3. `## Install`: the install commands in a code block, with a short `#` comment naming the host where it helps. In a public repo, the steps under Install source; in a private repo, install from the `sidecut-plugins` marketplace in Claude Code and Codex. No command output.
+4. `## Use`: 2 or 3 example requests. A plugin built around a file people write, such as a definition or a config, ends the section with one complete example of that file, with a short comment on each line that needs one.
 5. `## Settings`: a table of environment variables with default and meaning, or the line "None." A plugin with hooks then says Codex runs them only once trusted.
 6. `## Privacy`: every field the usage log records and where it goes, or the line "This plugin records nothing."
 7. `## Develop`: the line "The commands are in `AGENTS.md` at the root of the repo."
@@ -331,6 +333,7 @@ Sections in this order:
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Section names and order | Exactly as above | yes |
+| Install | Holds a code block | yes |
 | Skill table | Lists every skill and nothing else | yes |
 | Counts typed by hand | None | review |
 

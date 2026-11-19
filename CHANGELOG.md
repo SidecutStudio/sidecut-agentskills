@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.0] - 2026-11-19
+
+### Added
+
+- `README_INSTALL_BLOCK` in `check_plugin` and `sidecut-check` flags a plugin README whose Install section has no code block.
+
+### Changed
+
+- The README pattern shows rather than tells: install commands sit in a code block with short `#` comments, and a plugin built around a file people write ends Use with one commented example of it. The template's README follows it.
+- The public install check ignores a trailing `#` comment on each step.
+
 ## [1.3.0] - 2026-11-19
 
 ### Added
