@@ -10,12 +10,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  # Picks where check and secrets run on a pull request: the MacBook Air while it has a free
-  # runner, otherwise a GitHub-hosted machine (SidecutStudio/sidecut-ops README, "Runner picker").
-  # Pushes to main and dispatched runs skip it and run on the Air.
+  # Picks where check and secrets run on a pull request: the self-hosted light lane while it has a
+  # free runner, otherwise a GitHub-hosted machine (SidecutStudio/sidecut-ops README, "Runner
+  # picker"). Pushes to main and dispatched runs skip it and run on the light lane.
   runner:
     if: github.event_name == 'pull_request'
-    runs-on: ${{ contains(vars.SIDECUT_RUNNER_MODE, 'air') && fromJSON('{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-ci"]}') || 'ubuntu-slim' }}
+    runs-on: ${{ contains(vars.SIDECUT_RUNNER_MODE, 'air') && fromJSON('{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}') || 'ubuntu-slim' }}
     timeout-minutes: 5
     outputs:
       runs-on: ${{ steps.pick.outputs.runs-on }}
@@ -29,9 +29,9 @@ jobs:
   check:
     needs: runner
     # A skipped or failed picker must not skip this job, since GitHub counts a skipped required
-    # check as passed; without the picker's answer it runs on the Air.
+    # check as passed; without the picker's answer it runs on the light lane.
     if: ${{ !cancelled() }}
-    runs-on: ${{ fromJSON(needs.runner.outputs.runs-on || '{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-ci"]}') }}
+    runs-on: ${{ fromJSON(needs.runner.outputs.runs-on || '{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -46,21 +46,22 @@ jobs:
   secrets:
     needs: runner
     # A skipped or failed picker must not skip this job, since GitHub counts a skipped required
-    # check as passed; without the picker's answer it runs on the Air.
+    # check as passed; without the picker's answer it runs on the light lane.
     if: ${{ !cancelled() }}
-    runs-on: ${{ fromJSON(needs.runner.outputs.runs-on || '{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-ci"]}') }}
+    runs-on: ${{ fromJSON(needs.runner.outputs.runs-on || '{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}') }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: 24.22.2
-          cache: npm
-      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab
-        with:
-          tools: trufflehog
-      # The Air keeps old remote branches between jobs, so scan only what this commit reaches.
+      # The pinned build and checksum from sidecut-ops' tools.json. Its setup-ci-tools action needs
+      # Bun, which plugin repos don't install.
+      - name: Install trufflehog 3.99.2
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/trufflehog.tar.gz" https://github.com/trufflesecurity/trufflehog/releases/download/v3.99.2/trufflehog_3.99.2_linux_amd64.tar.gz
+          echo "3c7b0d1dc4278294269bfdd7594bca8bb28c78da0a4a06ad202ded37b48deca4  $RUNNER_TEMP/trufflehog.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/trufflehog.tar.gz" -C "$RUNNER_TEMP" trufflehog
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      # Self-hosted runners keep old remote branches between jobs, so scan only what this commit reaches.
       - run: trufflehog git "file://$PWD" --branch HEAD --results=verified,unknown --fail --no-update

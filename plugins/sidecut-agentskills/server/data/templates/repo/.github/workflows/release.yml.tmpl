@@ -33,9 +33,14 @@ jobs:
         with:
           node-version: 24.22.2
           cache: npm
-      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab
-        with:
-          tools: gh
+      # The pinned build and checksum from sidecut-ops' tools.json. Its setup-ci-tools action needs
+      # Bun, which plugin repos don't install.
+      - name: Install gh 2.102.0
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/gh.tar.gz" https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz
+          echo "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386  $RUNNER_TEMP/gh.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/gh.tar.gz" -C "$RUNNER_TEMP" --strip-components=2 gh_2.102.0_linux_amd64/bin/gh
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - run: npm ci
       - name: Choose the version
         id: version

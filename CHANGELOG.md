@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0] - 2026-11-19
+
+### Added
+
+- `CI_TOOLS` in `check_plugin` and `sidecut-check` flags a job that uses `setup-ci-tools` without installing Bun first.
+
+### Changed
+
+- The template's pull request jobs ask for the `sidecut-light` runner label, as the sidecut-ops runner picker now routes them, and the secrets job no longer installs Node.js.
+
+### Fixed
+
+- The template's Check and Release workflows install trufflehog and gh from their pinned downloads with a checksum check. sidecut-ops' `setup-ci-tools` action runs on Bun, which plugin repos no longer install, so repos made from 1.2.x failed their secrets job and would fail their first release.
+
 ## [1.2.2] - 2026-11-18
 
 - New skills from the template point to the owner-input guide in a plain sentence instead of a leftover comment.
