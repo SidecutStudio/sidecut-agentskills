@@ -175,9 +175,8 @@ test('the checker says what it checked', () => {
   expect(report.scope).toBe(`Checked the whole repo for ${ID}.`);
 });
 
-const cleanEnv = Object.fromEntries(
-  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
-);
+// tests/setup.ts already cleared inherited GIT_* variables and set the quiet Git config.
+const cleanEnv = process.env;
 const git = (root: string, ...args: string[]) =>
   spawnSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...args], {
     cwd: root,
