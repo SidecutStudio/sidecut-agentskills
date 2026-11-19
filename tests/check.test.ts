@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import {
+  bunlessToolSteps,
   checkRepo,
   identify,
   jobsOf,
@@ -602,6 +603,16 @@ const cases: [string, (repo: Repo) => void][] = [
       ),
   ],
   [
+    'CI_TOOLS',
+    (r) =>
+      r.edit('.github/workflows/check.yml', (t) =>
+        t.replace(
+          / {6}- name: Install trufflehog[^\n]*\n(?: {8}[^\n]*\n)+/,
+          '      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab\n        with:\n          tools: trufflehog\n',
+        ),
+      ),
+  ],
+  [
     'CI_PICKER',
     (r) =>
       r.edit('.github/workflows/check.yml', (t) =>
@@ -1164,4 +1175,12 @@ test('natural headings and useful prose are not release failures', () => {
       .replace('Confirms the', 'Robust validation confirms the'),
   );
   expect(codes(repo.root)).toEqual([]);
+});
+
+test('setup-ci-tools passes once its job installs Bun first', () => {
+  const steps = (bun: boolean) =>
+    `jobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n${bun ? '      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6\n' : ''}      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab\n  b:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab\n`;
+  expect(bunlessToolSteps(steps(false))).toEqual([5, 9]);
+  // Bun in one job doesn't cover the next.
+  expect(bunlessToolSteps(steps(true))).toEqual([10]);
 });

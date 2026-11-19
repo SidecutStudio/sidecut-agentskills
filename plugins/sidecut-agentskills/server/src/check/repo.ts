@@ -382,6 +382,18 @@ function checkCi(root: string, report: Report): void {
         );
     });
   }
+  for (const name of readdirSync(dir)) {
+    const file = `.github/workflows/${name}`;
+    for (const line of bunlessToolSteps(readFileSync(join(dir, name), 'utf8'))) {
+      report.add(
+        'CI_TOOLS',
+        file,
+        line,
+        "sidecut-ops' setup-ci-tools runs on Bun, and this job doesn't install Bun.",
+        "Download the tool's pinned build and check its checksum from sidecut-ops' tools.json, as the template does.",
+      );
+    }
+  }
   const check = existsSync(join(dir, 'check.yml'))
     ? readFileSync(join(dir, 'check.yml'), 'utf8')
     : '';
@@ -409,6 +421,31 @@ function checkCi(root: string, report: Report): void {
       'Copy the runner job from the template; a public repo runs every job on ubuntu-24.04 instead.',
     );
   }
+}
+
+/**
+ * The 1-based lines where a job uses sidecut-ops' setup-ci-tools without an earlier setup-bun step
+ * in the same job. That action starts its installer with `bun`, so without Bun the job fails.
+ */
+export function bunlessToolSteps(workflow: string): number[] {
+  const lines = workflow.split('\n');
+  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  if (start < 0) return [];
+  const found: number[] = [];
+  let jobIndent = -1;
+  let hasBun = false;
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = (lines[i] ?? '').replace(/(^|\s+)#.*$/, '');
+    if (line.trim() === '') continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) break;
+    if (jobIndent < 0) jobIndent = indent;
+    if (indent === jobIndent) hasBun = false;
+    const uses = /uses:\s*(\S+)/.exec(line)?.[1] ?? '';
+    if (uses.includes('/setup-bun@')) hasBun = true;
+    if (uses.includes('/actions/setup-ci-tools@') && !hasBun) found.push(i + 1);
+  }
+  return found;
 }
 
 /** Whether every job in a workflow runs on GitHub-hosted Linux, which marks a public repo. */

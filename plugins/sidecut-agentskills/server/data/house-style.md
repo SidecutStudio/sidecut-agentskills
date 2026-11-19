@@ -379,6 +379,7 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
 | CI | `check.yml` copied from sidecut-ops' runner-picker pattern; actions pinned by full SHA; Node.js pinned to an exact version and npm ci; no hosted macOS or Windows | yes |
+| CI tools | Tools such as trufflehog and gh come from their pinned download with a checksum check, using sidecut-ops' `tools.json` values; sidecut-ops' `setup-ci-tools` action runs on Bun, so a job uses it only after installing Bun | yes |
 | Release | `release.yml` runs `node scripts/release.ts`, the same file in every plugin repo, after Check passes on a push to `main`. It publishes the manifest version when that version has no published release: the `v<version>` tag on the checked commit, a GitHub Release with the CHANGELOG entry as notes, `<plugin-id>-<version>.zip` of the plugin folder and its `.sha256`. It never replaces a published release or moves Latest backwards, so merging a version bump is the release | yes |
 | Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses the self-hosted runners or sidecut-ops' private actions | yes |
 | Private repo CI | Keeps the runner picker, whose budget guard stops hosted jobs near the monthly credit; the checker can't tell a private repo from a public one, so a hosted-only private repo is caught in review | review |
