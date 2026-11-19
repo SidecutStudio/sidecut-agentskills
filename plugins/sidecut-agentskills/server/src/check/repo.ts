@@ -572,7 +572,7 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
     `codex plugin ${add}`,
     `codex plugin add ${id}@${id}`,
   ];
-  const lines = new Set(install.split('\n').map((line) => line.trim()));
+  const lines = new Set(install.split('\n').map((line) => line.replace(/\s+#.*$/, '').trim()));
   const missing = steps.filter((step) => !lines.has(step));
   if (missing.length > 0)
     report.add(

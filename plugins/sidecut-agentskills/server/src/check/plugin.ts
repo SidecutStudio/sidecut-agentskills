@@ -800,6 +800,17 @@ function checkReadme(
       );
     }
   }
+  const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(text)?.[1];
+  if (install !== undefined && !/^```/m.test(install)) {
+    const at = found.find((h) => h.text === 'Install');
+    report.add(
+      'README_INSTALL_BLOCK',
+      file,
+      at?.line,
+      'The Install section has no code block.',
+      'Put the install commands in a code block, as the template does.',
+    );
+  }
   if (!text.includes('## License\n\nMIT. See [LICENSE](LICENSE).\n')) {
     report.add(
       'README_LICENSE',

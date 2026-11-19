@@ -533,6 +533,13 @@ const cases: [string, (repo: Repo) => void][] = [
       ),
   ],
   [
+    'README_INSTALL_BLOCK',
+    (r) =>
+      r.edit(`${P}/README.md`, (t) =>
+        t.replace(/## Install\n\n```text\n([\s\S]*?)```\n/, '## Install\n\n$1'),
+      ),
+  ],
+  [
     'README_LICENSE',
     (r) =>
       r.edit(`${P}/README.md`, (t) => t.replace('MIT. See [LICENSE](LICENSE).', 'MIT licensed.')),
@@ -790,7 +797,13 @@ test("a public repo can't release on the self-hosted runners", () => {
 });
 
 describe('install source', () => {
-  const PRIVATE_INSTALL = `In Claude Code, run \`/plugin install ${ID}@sidecut-plugins\`. In Codex, run \`codex plugin add ${ID}@sidecut-plugins\`.\n`;
+  const PRIVATE_INSTALL = [
+    '```text',
+    `/plugin install ${ID}@sidecut-plugins      # Claude Code`,
+    `codex plugin add ${ID}@sidecut-plugins     # Codex`,
+    '```',
+    '',
+  ].join('\n');
   const PUBLIC_INSTALL = [
     "In Claude Code, add this repo's marketplace, then install the plugin:",
     '',
