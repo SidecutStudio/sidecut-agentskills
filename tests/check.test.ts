@@ -498,7 +498,8 @@ const cases: [string, (repo: Repo) => void][] = [
   ['HOOK_PARITY', (r) => r.rm(`${P}/hooks/codex-hooks.json`)],
   [
     'HOOK_COMMAND',
-    (r) => r.edit(`${P}/hooks/hooks.json`, (t) => t.replace('node \\"$', 'bun \\"$')),
+    (r) =>
+      r.edit(`${P}/hooks/hooks.json`, (t) => t.replace('"command": "node"', '"command": "bun"')),
   ],
   [
     'NAME_HOOK',

@@ -272,7 +272,7 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Files | `hooks/hooks.json` for Claude Code and `hooks/codex-hooks.json` for Codex, registering the same scripts with each host's event and matcher names. Codex loads plugin hooks only once the user trusts them | yes |
-| Command | `node "${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"`; Codex fills in the same variable | yes |
+| Command | `"command": "node"` with `"args": ["${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"]` in hooks.json, so it starts on Windows too; one line, `node "${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"`, in codex-hooks.json, where Codex fills in the same variable | yes |
 | Timeout | Every hook sets `"timeout"` of at most 5 | yes |
 | Scripts | Node ESM, built-in modules only, no network, exit 0 even when they fail themselves | yes |
 | Output | Nothing on stdout unless the hook's job is to add context | review |

@@ -293,6 +293,12 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join as join3, relative as relative3 } from "node:path";
 var HINTS = ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"];
+var PASSED_ENV = ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "LANG", "SystemRoot", "USERPROFILE"];
+function serverEnv(env = process.env) {
+  return Object.fromEntries(
+    PASSED_ENV.flatMap((key) => env[key] === void 0 ? [] : [[key, env[key]]])
+  );
+}
 function listTools(bundle) {
   const messages = [
     {
@@ -312,7 +318,8 @@ function listTools(bundle) {
 `,
     encoding: "utf8",
     timeout: 1e4,
-    cwd: tmpdir()
+    cwd: tmpdir(),
+    env: serverEnv()
   });
   const replies = result.stdout.split("\n").filter(Boolean).flatMap((line) => {
     try {
@@ -1395,7 +1402,8 @@ function checkHookConfig(config, file, registered, report2) {
   for (const [event, groups] of Object.entries(config.hooks ?? {})) {
     for (const group of groups) {
       for (const handler of group.hooks ?? []) {
-        const match = /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/([a-z0-9-]+\.mjs)"$/.exec(
+        const args = handler.args;
+        const match = Array.isArray(args) ? handler.command === "node" && args.length === 1 ? /^\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/([a-z0-9-]+\.mjs)$/.exec(String(args[0])) : null : /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/([a-z0-9-]+\.mjs)"$/.exec(
           String(handler.command ?? "")
         );
         if (!match) {
@@ -1403,8 +1411,8 @@ function checkHookConfig(config, file, registered, report2) {
             "HOOK_COMMAND",
             file,
             void 0,
-            `A ${event} hook isn't \`node "\${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"\`.`,
-            "Run a hook script with node from the plugin root; Codex fills in the same variable."
+            `A ${event} hook doesn't run \`\${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs\` with node.`,
+            'Use `"command": "node"` with the script as the only `args` entry in hooks.json, and the one-line node command in codex-hooks.json.'
           );
           continue;
         }

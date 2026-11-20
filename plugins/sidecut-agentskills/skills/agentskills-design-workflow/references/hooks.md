@@ -15,7 +15,8 @@ Claude Code reads `hooks/hooks.json` and Codex reads `hooks/codex-hooks.json`, w
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-skill-log.mjs\"",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-skill-log.mjs"],
             "timeout": 5
           }
         ]
@@ -25,7 +26,7 @@ Claude Code reads `hooks/hooks.json` and Codex reads `hooks/codex-hooks.json`, w
 }
 ```
 
-The Codex file is the same except for `"matcher": "Bash"`. Codex fills in `${CLAUDE_PLUGIN_ROOT}` for plugin hooks, so the command is identical.
+In Claude Code the interpreter goes in `command` and the script in `args`, so the hook starts on Windows without Git Bash. The Codex file uses `"matcher": "Bash"` and the one-line form, `"command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-skill-log.mjs\""`; Codex fills in `${CLAUDE_PLUGIN_ROOT}` for plugin hooks.
 
 The script's file name starts with its event in kebab-case, then what it does: `session-start-load-rules.mjs`.
 

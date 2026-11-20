@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.1] - 2026-11-20
+
+### Changed
+
+- `check_plugin` and `sidecut-check` start the checked repo's server with only `PATH`, `HOME`, temp and locale variables, so it never sees a token from the environment they run in. The tool description and server instructions say it builds that server with the repo's own `esbuild` and starts it.
+- The usage log hook in `hooks.json` runs as `"command": "node"` with the script in `args`, so it starts on Windows without Git Bash. The template and `HOOK_COMMAND` follow; `codex-hooks.json` keeps the one-line form.
+- The README's Privacy section lists what the plugin runs on your machine and what each part reads and writes.
+
+### Removed
+
+- The rules hook that rebuilt `~/.codex/AGENTS.md` from `~/.claude/rules` at the start of each session. It moves to the separate `sidecut-rules` plugin, so Agentskills runs no hook at session start.
+
 ## [1.4.0] - 2026-11-19
 
 ### Added
@@ -193,7 +205,7 @@
 
 ### Added
 
-- `bunx sidecut-sync` keeps a plugin repo up to date with sidecut-agentskills. It moves the repo to the latest release, then rewrites the files the house style owns (`CLAUDE.md`, `scripts/build-server.ts`, `scripts/release.ts`), the blocks marked `sidecut:start house-style` in `.gitignore`, `AGENTS.md` and `SECURITY.md`, and raises the shared tool versions in `package.json`. Everything outside the blocks stays the repo's. `--check` lists the changes without making them.
+- `sidecut-sync` keeps a plugin repo up to date with sidecut-agentskills. It moves the repo to the latest release, then rewrites the files the house style owns (`CLAUDE.md`, `scripts/build-server.ts`, `scripts/release.ts`), the blocks marked `sidecut:start house-style` in `.gitignore`, `AGENTS.md` and `SECURITY.md`, and raises the shared tool versions in `package.json`. Everything outside the blocks stays the repo's. `--check` lists the changes without making them.
 - A repo lists deliberate differences under `sidecut.keep` in `package.json`, each with its reason. The checker shows them as kept and fails a key with no reason or one that no longer covers anything.
 - The checker's first line says whether it checked the whole repo or only its plugins, and why. `check_plugin` returns the same, plus the kept differences.
 

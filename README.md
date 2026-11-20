@@ -48,13 +48,21 @@ Plugin repos also run two commands from it. `npm exec --no -- sidecut-check` che
 | --- | --- | --- |
 | `SIDECUT_SKILL_LOG` | on | Set to `0` to turn off the local usage log described under Privacy |
 
-To keep your personal rules the same in both hosts: Claude Code reads your rules from `~/.claude/rules/*.md`, and Codex reads one file, `~/.codex/AGENTS.md`. To have Codex follow the same rules, run `node <plugin folder>/hooks/session-start-rules.mjs --init` once; it moves your current `~/.codex/AGENTS.md` to `~/.codex/AGENTS.md.before-sidecut-rules` first, so copy anything you still want from it into a rules file. From then on, each new session rebuilds `~/.codex/AGENTS.md` from the rules folder, so you only ever edit `~/.claude/rules`. Without that one run, the hook leaves `~/.codex/AGENTS.md` alone.
+The rules sync that rebuilt `~/.codex/AGENTS.md` from `~/.claude/rules` moved to the separate `sidecut-rules` plugin.
 
-In Codex, the usage log and the rules hook are plugin hooks, and Codex runs plugin hooks only after you trust them. Codex asks again whenever a hook changes.
+In Codex, the usage log is a plugin hook, and Codex runs plugin hooks only after you trust them. Codex asks again whenever a hook changes.
 
 ## Privacy
 
-The plugin keeps a local usage log unless you set `SIDECUT_SKILL_LOG=0`, and never when `DO_NOT_TRACK=1` is set or it runs in CI. Each time one of its skills runs in Claude Code or Codex, it adds one line to `~/.sidecut/skill-log.jsonl` with the fields `time`, `plugin`, `skill` and `host`. Nothing is sent anywhere.
+Nothing in the plugin makes network calls or sends data anywhere. What it runs on your machine:
+
+| Part | Runs | Reads and writes |
+| --- | --- | --- |
+| MCP server | `node` runs `server/index.mjs` locally | `get_house_style`, `get_patterns` and `check_plugin` only read. `scaffold_plugin` and `add_skill` write files only into the folder you name, and refuse one that already has files |
+| `check_plugin` | Read-only `git` commands in the repo you name, then that repo's own `esbuild` to build its server into a temporary folder, then that server, started with only `PATH`, `HOME`, temp and locale variables so it sees no tokens | Reads the repo; deletes the temporary folder after |
+| Usage log hook | `node` runs `hooks/post-tool-use-skill-log.mjs` after a skill runs | Adds one line to `~/.sidecut/skill-log.jsonl` |
+
+The usage log is on unless you set `SIDECUT_SKILL_LOG=0`, and never runs when `DO_NOT_TRACK=1` is set or in CI. Each line has the fields `time`, `plugin`, `skill` and `host`.
 
 ## Develop
 
