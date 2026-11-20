@@ -10,7 +10,6 @@ Report it privately to Sidecut Studio through a GitHub security advisory on Side
 
 ## What the plugin runs
 
-- **MCP server:** `node` runs `server/index.mjs` on your machine. `scaffold_plugin` and `add_skill` write files only into the folder you give them, and refuse a folder that already has files. `check_plugin` reads the repo you give it and runs `esbuild` in a temporary folder. Nothing makes network calls.
+- **MCP server:** `node` runs `server/index.mjs` on your machine. `scaffold_plugin` and `add_skill` write files only into the folder you give them, and refuse a folder that already has files. `check_plugin` reads the repo you give it, builds its server with that repo's `esbuild` in a temporary folder and starts it with only `PATH`, `HOME`, temp and locale variables, so it sees no tokens. Nothing makes network calls.
 - **Usage log hook:** unless `SIDECUT_SKILL_LOG=0`, `DO_NOT_TRACK=1` or CI is set, a hook writes one line per skill run to `~/.sidecut/skill-log.jsonl`. It sends nothing anywhere.
-- **Rules hook:** at the start of each session, a hook rebuilds `~/.codex/AGENTS.md` from `~/.claude/rules/*.md`, but only once that file starts with the line the hook writes. You opt in by running it once with `--init`, which first moves the existing file to `AGENTS.md.before-sidecut-rules`. It reads those two places, writes that one file and sends nothing anywhere.
 - **`sidecut-check`:** other repos run it from this package during `npm run check`. It reads that repo, builds its MCP server into a temporary folder and starts the bundle to list its tools.

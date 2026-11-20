@@ -17,6 +17,17 @@ type Listing = { instructions?: string; tools: Tool[] };
 
 const HINTS = ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'];
 
+// The checked server starts with only what node needs to run, so it never sees tokens or other
+// secrets from the environment check_plugin runs in.
+const PASSED_ENV = ['PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'LANG', 'SystemRoot', 'USERPROFILE'];
+
+/** The environment the checked server starts with. */
+export function serverEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    PASSED_ENV.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]])),
+  );
+}
+
 /** Starts the bundled server over stdio and reads its instructions and tools. */
 export function listTools(bundle: string): Listing | null {
   const messages = [
@@ -37,6 +48,7 @@ export function listTools(bundle: string): Listing | null {
     encoding: 'utf8',
     timeout: 10_000,
     cwd: tmpdir(),
+    env: serverEnv(),
   });
   const replies = result.stdout
     .split('\n')

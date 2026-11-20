@@ -551,16 +551,22 @@ function checkHookConfig(
   for (const [event, groups] of Object.entries((config.hooks ?? {}) as Record<string, Json[]>)) {
     for (const group of groups) {
       for (const handler of (group.hooks ?? []) as Json[]) {
-        const match = /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/([a-z0-9-]+\.mjs)"$/.exec(
-          String(handler.command ?? ''),
-        );
+        // Claude Code takes the interpreter in `command` and the script in `args`; Codex takes one line.
+        const args = handler.args as unknown;
+        const match = Array.isArray(args)
+          ? handler.command === 'node' && args.length === 1
+            ? /^\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/([a-z0-9-]+\.mjs)$/.exec(String(args[0]))
+            : null
+          : /^node "\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/([a-z0-9-]+\.mjs)"$/.exec(
+              String(handler.command ?? ''),
+            );
         if (!match) {
           report.add(
             'HOOK_COMMAND',
             file,
             undefined,
-            `A ${event} hook isn't \`node "\${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"\`.`,
-            'Run a hook script with node from the plugin root; Codex fills in the same variable.',
+            `A ${event} hook doesn't run \`\${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs\` with node.`,
+            'Use `"command": "node"` with the script as the only `args` entry in hooks.json, and the one-line node command in codex-hooks.json.',
           );
           continue;
         }
