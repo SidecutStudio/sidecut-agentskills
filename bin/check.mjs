@@ -77,7 +77,9 @@ var CI_SNIPPETS = {
   ciOwnLaneTitle: "Self-hosted",
   ciLightRunner: `'{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}'`,
   ciReleaseLabels: "[self-hosted, Linux, X64, sidecut-ci]",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
   ciAppKey: "${{ secrets.SIDECUT_CI_APP_KEY }}",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
   ghTokenEnv: "GH_TOKEN: ${{ github.token }}",
   secretScanInstall: [
     'curl -fsSL -o "$RUNNER_TEMP/trufflehog.tar.gz" https://github.com/trufflesecurity/trufflehog/releases/download/v3.99.2/trufflehog_3.99.2_linux_amd64.tar.gz',
