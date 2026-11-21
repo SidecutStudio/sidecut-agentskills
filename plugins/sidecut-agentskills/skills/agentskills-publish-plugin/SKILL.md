@@ -1,13 +1,17 @@
 ---
 name: agentskills-publish-plugin
-description: "Publishes a new version of a Sidecut plugin through the sidecut-plugins marketplace, with the version, CHANGELOG and both listings in step. Use when the user says ship, release or publish a plugin, or wants it to show up in Claude Code or Codex. Not for merging a change to the plugin's code (use `solo-finish-change`)."
+description: "Publishes a new version of a plugin through its marketplace, with the version, CHANGELOG and both listings in step. Use when the user says ship, release or publish a plugin, or wants it to show up in Claude Code or Codex. Not for merging a change to the plugin's code (use `solo-finish-change`)."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
 ---
 
 # Publish plugin
 
-Produces a new version of the plugin that the sidecut-plugins marketplace serves to Claude Code and Codex. A plugin in its own repo ships as a tagged release; a plugin inside another product's repo ships as one pinned commit of `main`. Either way, sidecut-plugins copies that version into its `bundled/` folder for the owner's installs, and a public repo also installs from its own marketplace files.
+Produces a new version of the plugin that its marketplace serves to Claude Code and Codex. The marketplace is the repo's `marketplace` setting (its `.agentskills.json`, or the `sidecut` profile for a SidecutStudio repo without one):
+
+- **The plugin's own repo** (the default, no marketplace set): the tagged release in step 2 is the whole publish. Skip every `sidecut-plugins` step and prove the repo's own install source (step 2, item 6).
+- **`SidecutStudio/sidecut-plugins`** (the `sidecut` profile): a plugin in its own repo ships as a tagged release; a plugin inside another product's repo ships as one pinned commit of `main`. Either way, sidecut-plugins copies that version into its `bundled/` folder for the owner's installs, and a public repo also installs from its own marketplace files.
+- **Any other marketplace:** release as in step 2, then update that marketplace's listing the way its own repo says.
 
 ## Before you start
 
@@ -27,7 +31,7 @@ The change to publish is merged to `main` first. For either release type, reuse 
 1. On a branch, add the dated version entry to the top of the root CHANGELOG.
 2. For Agentskills, run `node scripts/version.ts <version>`. Repositories that have adopted the shared release workflow run `npm exec --no -- sidecut-version <version>`. The command updates the package and lockfile versions, both host manifests and the plugin CHANGELOG. In older repositories, follow their own version instructions.
 3. Run `npm run check`, then merge through `solo-finish-change`. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
-4. Confirm the release in the plugin's own repo: `gh release view v<version> --repo SidecutStudio/<repo>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`, and `gh api repos/SidecutStudio/<repo>/commits/v<version> --jq .sha` is the merge commit. If the Release run failed, read its log and re-run it; never tag by hand.
+4. Confirm the release in the plugin's own repo: `gh release view v<version> --repo <org>/<repo>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`, and `gh api repos/<org>/<repo>/commits/v<version> --jq .sha` is the merge commit. If the Release run failed, read its log and re-run it; never tag by hand.
 5. In `sidecut-plugins`, check and update the shared bundle using [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change the same way.
 6. In a public repo, prove its own install source from GitHub, as [public-install.md](references/public-install.md) describes.
 
@@ -36,7 +40,7 @@ The change to publish is merged to `main` first. For either release type, reuse 
 The product repo has no plugin tags or Release workflow, so the merge commit on `main` is the release.
 
 1. With the change, or on its own branch, set the new version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` under `plugins/<plugin-id>/`. Add an entry to `plugins/<plugin-id>/CHANGELOG.md` in the same format.
-2. Merge to `main` through that repo's own flow and checks, read from its `AGENTS.md`. Take the full 40-character merge commit from the merged PR: `gh pr view <number> --repo SidecutStudio/<repo> --json mergeCommit --jq .mergeCommit.oid`. Don't use the newest `main` commit, which a later sync may have moved past it.
+2. Merge to `main` through that repo's own flow and checks, read from its `AGENTS.md`. Take the full 40-character merge commit from the merged PR: `gh pr view <number> --repo <org>/<repo> --json mergeCommit --jq .mergeCommit.oid`. Don't use the newest `main` commit, which a later sync may have moved past it.
 3. In `sidecut-plugins`, run `bun scripts/bundle.ts <plugin-id> <merge-commit>`, following [marketplace.md](references/marketplace.md). Run `sh scripts/check.sh` and merge that change.
 
 ### 4. Confirm it arrived

@@ -1,6 +1,6 @@
 # {{id}}
 
-This repo ships the {{displayName}} plugin for Claude Code and Codex. It follows the Sidecut house style, which `npm run style` checks.
+This repo ships the {{displayName}} plugin for Claude Code and Codex. It follows the {{brandSpace}}house style, which `npm run style` checks.
 
 ## Commands
 
@@ -9,7 +9,7 @@ This repo ships the {{displayName}} plugin for Claude Code and Codex. It follows
 | `npm run build` | Bundles the MCP server into `plugins/{{id}}/server/index.mjs`, writes its bundled licences and the Codex profile of each subagent |
 | `npm run check` | Runs everything CI runs: Biome, types, the house-style checker, tests and the stale-bundle check |
 | `npm run fix` | Formats and fixes what Biome can |
-| `npm run style` | Checks the repo against the Sidecut house style |
+| `npm run style` | Checks the repo against the {{brandSpace}}house style |
 | `npm run eval` | Runs behavioural evals with Claude Code (explicit, may use model credits) |
 | `npm run test` | Runs the tests |
 
@@ -17,10 +17,10 @@ This repo ships the {{displayName}} plugin for Claude Code and Codex. It follows
 
 ```text
 plugins/{{id}}/   the plugin; the only folder that gets installed
-scripts/               build-server.ts, the same in every Sidecut plugin repo
+scripts/               build-server.ts, the same in every {{brandSpace}}plugin repo
 evals/                 development-only behavioural tests
 tests/                 tests for the plugin and its MCP server
-.github/workflows/     CI, using sidecut-ops' runner picker
+.github/workflows/     {{ciLayout}}
 ```
 
 ## Rules

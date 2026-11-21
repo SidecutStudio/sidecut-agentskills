@@ -30,6 +30,7 @@ beforeAll(() => {
       keywords: ['example', 'template', 'mcp'],
       date: '2026-11-13',
       checkerSource: 'file:../sidecut-agentskills',
+      settings: { profile: 'sidecut' },
     },
     base,
   );

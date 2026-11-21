@@ -56,6 +56,7 @@ beforeAll(() => {
       keywords: ['example', 'template', 'mcp'],
       date: '2026-11-12',
       checkerSource: 'file:../sidecut-agentskills',
+      settings: { profile: 'sidecut' },
     },
     base,
   );
@@ -1073,6 +1074,7 @@ test('a scaffold without a checker source pins sidecut-check to this release', (
       longDescription: 'A small example plugin. It exists to test the generator.',
       keywords: ['example', 'template', 'mcp'],
       date: '2026-11-12',
+      settings: { profile: 'sidecut' },
     },
     root,
   );

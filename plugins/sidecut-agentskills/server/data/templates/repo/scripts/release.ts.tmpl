@@ -1,7 +1,7 @@
 // Publishes the plugin version from a checked main commit: tag, GitHub Release, ZIP and SHA-256
 // checksum. The Release workflow runs it after Check passes on main. Locally it only prints the
 // plan: node scripts/release.ts <version>. --auto prints the manifest version and whether it still
-// needs publishing, as GITHUB_OUTPUT lines. A published release is never replaced. Every Sidecut
+// needs publishing, as GITHUB_OUTPUT lines. A published release is never replaced. {{everyBrand}}
 // plugin repo has this file unchanged.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

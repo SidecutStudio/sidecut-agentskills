@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.0] - 2026-11-21
+
+### Added
+
+- Settings for who publishes a plugin: GitHub owner, author, homepage, plugin-id prefix, marketplace, CI mode, licence and brand color. They live in `~/.config/agentskills/settings.json` (or under `$XDG_CONFIG_HOME`) and, per repo, in `.agentskills.json` at its root; a tool call's own answers win over the repo's, which win over the user's.
+- The `sidecut` profile, which holds Sidecut Studio's values as one setting.
+- A new plugin lists itself as a marketplace by default, with both marketplace files and the README steps that add this repo.
+- Hosted CI by default: `check`, `secrets` and `gate` on GitHub-hosted `ubuntu-24.04`, and a release job on the same.
+
+### Changed
+
+- `scaffold_plugin` asks once: with no saved settings it writes nothing and returns the questions, then saves the answers when called again with `save: true`. `npm run new` takes the same answers as flags.
+- The templates and `check_plugin` read the owner, author, homepage, prefix, marketplace, CI mode and brand color from settings instead of assuming Sidecut Studio.
+- `agentskills-create-plugin` asks the settings questions once, and `agentskills-publish-plugin` publishes to the repo's marketplace instead of always to sidecut-plugins.
+- Upgrading: existing Sidecut repos keep working unchanged, since a repo with no `.agentskills.json` whose manifest points at a SidecutStudio repo is checked and synced with the `sidecut` profile. To pin it, add `.agentskills.json` with `{ "profile": "sidecut" }`.
+
 ## [1.4.1] - 2026-11-20
 
 ### Changed

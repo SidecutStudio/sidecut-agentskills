@@ -144,7 +144,7 @@ function checkFrontmatter(
   if (fm.keys.includes('allowed-tools')) {
     const start = (fm.lines.get('allowed-tools') ?? 0) - 1;
     // This plugin's MCP tools are named mcp__plugin_<plugin>_<server>__<tool> in Claude Code.
-    const own = `mcp__plugin_${plugin}_${plugin.replace(/^sidecut-/, '')}__`;
+    const own = `mcp__plugin_${plugin}_${skillPrefixOf(plugin)}__`;
     for (let i = start; /^ {2}- /.test(lines[i] ?? ''); i++) {
       const entry = (lines[i] ?? '').slice(4).trim();
       if (!entry.startsWith('mcp__')) continue;

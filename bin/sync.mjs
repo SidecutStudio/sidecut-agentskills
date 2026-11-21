@@ -6,12 +6,12 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
-import { existsSync as existsSync3, lstatSync, readdirSync as readdirSync2, readFileSync as readFileSync3, realpathSync } from "node:fs";
-import { join as join3 } from "node:path";
+import { existsSync as existsSync4, lstatSync, readdirSync as readdirSync3, readFileSync as readFileSync4, realpathSync } from "node:fs";
+import { join as join4 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { existsSync as existsSync2, mkdirSync as mkdirSync2, readdirSync as readdirSync2, readFileSync as readFileSync2, statSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { basename, dirname as dirname2, join as join2, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // plugins/sidecut-agentskills/server/src/check/report.ts
@@ -19,15 +19,167 @@ function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
 }
 
+// plugins/sidecut-agentskills/server/src/settings.ts
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+var DEFAULTS = {
+  profile: "",
+  org: "",
+  authorName: "",
+  authorUrl: "",
+  homepage: "",
+  prefix: "",
+  marketplace: "",
+  ci: "hosted",
+  license: "MIT",
+  brandColor: "#3B82F6",
+  brand: ""
+};
+var PROFILES = {
+  sidecut: {
+    org: "SidecutStudio",
+    authorName: "Sidecut Studio",
+    authorUrl: "https://sidecut.dev",
+    homepage: "https://sidecut.dev",
+    prefix: "sidecut-",
+    marketplace: "SidecutStudio/sidecut-plugins",
+    ci: "sidecut",
+    license: "MIT",
+    brandColor: "#FF6B00",
+    brand: "Sidecut"
+  }
+};
+var REPO_FILE = ".agentskills.json";
+var KEYS = Object.keys(DEFAULTS);
+function cleanSettings(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return {};
+  const out = {};
+  for (const key of KEYS) {
+    const v = value[key];
+    if (typeof v === "string") out[key] = v;
+  }
+  return out;
+}
+function readInput(path) {
+  if (!existsSync(path)) return null;
+  try {
+    return cleanSettings(JSON.parse(readFileSync(path, "utf8")));
+  } catch {
+    throw new Error(`${path} isn't valid JSON.`);
+  }
+}
+function mergeSettings(...layers) {
+  let out = { ...DEFAULTS };
+  for (const layer of layers) {
+    if (!layer) continue;
+    if (layer.profile) {
+      const profile = PROFILES[layer.profile];
+      if (!profile)
+        throw new Error(
+          `Unknown profile "${layer.profile}". Known: ${Object.keys(PROFILES).join(", ")}.`
+        );
+      out = { ...out, ...profile, profile: layer.profile };
+    }
+    for (const key of KEYS) {
+      const v = layer[key];
+      if (key !== "profile" && v !== void 0) out[key] = v;
+    }
+  }
+  if (out.ci !== "hosted" && out.ci !== "sidecut")
+    throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
+    throw new Error(
+      `Marketplace "${out.marketplace}" must be owner/repo, or empty for the plugin's own repo.`
+    );
+  if (out.prefix && !/^[a-z0-9]+(-[a-z0-9]+)*-$/.test(out.prefix))
+    throw new Error(
+      `Prefix "${out.prefix}" must be lowercase kebab-case ending in a hyphen, such as acme-.`
+    );
+  return out;
+}
+function readRepoSettings(root2) {
+  return readInput(join(root2, REPO_FILE));
+}
+function inferRepoSettings(root2) {
+  const plugins = join(root2, "plugins");
+  const ids = existsSync(plugins) ? readdirSync(plugins).filter((n) => n !== ".DS_Store") : [];
+  for (const id of ids) {
+    try {
+      const manifest = JSON.parse(
+        readFileSync(join(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
+      );
+      const owner = /^https:\/\/github\.com\/([\w.-]+)\//.exec(
+        String(manifest.repository ?? "")
+      )?.[1];
+      if (!owner) continue;
+      if (owner === "SidecutStudio") return { profile: "sidecut" };
+      const check = join(root2, ".github", "workflows", "check.yml");
+      const picker = existsSync(check) && readFileSync(check, "utf8").includes("/pick-runner@");
+      return cleanSettings({
+        org: owner,
+        authorName: manifest.author?.name,
+        authorUrl: manifest.author?.url,
+        homepage: manifest.homepage,
+        ci: picker ? "sidecut" : "hosted"
+      });
+    } catch {
+    }
+  }
+  return {};
+}
+function repoSettings(root2) {
+  return mergeSettings(readRepoSettings(root2) ?? inferRepoSettings(root2));
+}
+var active = mergeSettings({ profile: "sidecut" });
+function current() {
+  return active;
+}
+var QUESTIONS = [
+  {
+    key: "profile",
+    ask: `Start from a saved profile? Answer "sidecut" for Sidecut Studio's values, or leave it empty and answer the rest.`,
+    default: ""
+  },
+  { key: "org", ask: "Which GitHub user or organization will hold the repo?", default: "" },
+  { key: "authorName", ask: "Whose name goes in the manifests and the licence?", default: "" },
+  { key: "authorUrl", ask: "The author's web address, if any?", default: "" },
+  { key: "homepage", ask: "The plugin's homepage, if any?", default: "" },
+  {
+    key: "prefix",
+    ask: 'A prefix for every plugin id, such as "acme-", or none?',
+    default: DEFAULTS.prefix
+  },
+  {
+    key: "marketplace",
+    ask: "Which marketplace lists the plugin: its own repo (leave empty), or another repo as owner/repo?",
+    default: DEFAULTS.marketplace
+  },
+  {
+    key: "ci",
+    ask: `Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04) or "sidecut" (Sidecut's self-hosted runner picker)?`,
+    default: DEFAULTS.ci
+  }
+];
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function brandSpace(s = active) {
+  return s.brand ? `${s.brand} ` : "";
+}
+function marketplaceName(id, s = active) {
+  return s.marketplace ? s.marketplace.split("/")[1] ?? s.marketplace : id;
+}
+
 // plugins/sidecut-agentskills/server/src/scaffold.ts
-var here = dirname(fileURLToPath(import.meta.url));
-var dataRoot = existsSync(join(here, "data")) ? join(here, "data") : existsSync(join(here, "..", "data")) ? join(here, "..", "data") : join(here, "..", "plugins", "sidecut-agentskills", "server", "data");
-var templatesRoot = join(dataRoot, "templates");
+var here = dirname2(fileURLToPath(import.meta.url));
+var dataRoot = existsSync2(join2(here, "data")) ? join2(here, "data") : existsSync2(join2(here, "..", "data")) ? join2(here, "..", "data") : join2(here, "..", "plugins", "sidecut-agentskills", "server", "data");
+var templatesRoot = join2(dataRoot, "templates");
 var OWNER_INPUT_PATH = "server/data/owner-input.md";
 function ownerInput() {
-  return readFileSync(join(dataRoot, "owner-input.md"), "utf8");
+  return readFileSync2(join2(dataRoot, "owner-input.md"), "utf8");
 }
-var ownVersion = JSON.parse(readFileSync(join(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
+var ownVersion = JSON.parse(readFileSync2(join2(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
+var BRAND_COLOR = PROFILES.sidecut?.brandColor ?? "#FF6B00";
 var ACRONYMS = /* @__PURE__ */ new Set([
   "ai",
   "api",
@@ -66,12 +218,57 @@ function render(text, vars) {
   });
 }
 function renderFile(path, vars) {
-  return render(readFileSync(join(templatesRoot, path), "utf8"), vars);
+  return render(readFileSync2(join2(templatesRoot, path), "utf8"), vars);
+}
+function settingsVars(id, s = current()) {
+  const brand = brandSpace(s);
+  const market = marketplaceName(id, s);
+  let host = "";
+  try {
+    host = s.homepage ? new URL(s.homepage).host : "";
+  } catch {
+    host = "";
+  }
+  const installBlock = s.marketplace ? [
+    "```text",
+    `/plugin install ${id}@${market}      # Claude Code`,
+    `codex plugin add ${id}@${market}     # Codex`,
+    "```"
+  ].join("\n") : [
+    "In Claude Code, add this repo's marketplace, then install the plugin:",
+    "",
+    "```text",
+    `/plugin marketplace add ${s.org}/${id}`,
+    `/plugin install ${id}@${id}`,
+    "```",
+    "",
+    "In Codex, run:",
+    "",
+    "```bash",
+    `codex plugin marketplace add ${s.org}/${id}`,
+    `codex plugin add ${id}@${id}`,
+    "```"
+  ].join("\n");
+  return {
+    org: s.org,
+    authorName: s.authorName,
+    authorUrl: s.authorUrl,
+    homepage: s.homepage,
+    brandColor: s.brandColor,
+    brandSpace: brand,
+    everyBrand: s.brand ? `Every ${s.brand}` : "Every",
+    voiceTitle: s.brand ? `${s.brand} voice` : "Voice",
+    logTitle: s.brand ? `${s.brand} usage log` : "Usage log",
+    prefixPattern: escapeRegExp(s.prefix),
+    securityAlt: host ? `, or through [${host}](${s.homepage})` : "",
+    ciLayout: s.ci === "sidecut" ? "CI, using sidecut-ops' runner picker" : "CI on GitHub-hosted runners",
+    installBlock
+  };
 }
 
 // plugins/sidecut-agentskills/server/src/check/sync.ts
-import { existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { dirname as dirname2, join as join2 } from "node:path";
+import { existsSync as existsSync3, mkdirSync as mkdirSync3, readFileSync as readFileSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname3, join as join3 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
   "VOICE.md",
@@ -124,10 +321,10 @@ function fenced(lines) {
     return inside;
   });
 }
-function mergeBlocks(current, template, file) {
-  const crlf = current.includes("\r\n");
+function mergeBlocks(current2, template, file) {
+  const crlf = current2.includes("\r\n");
   const want = template.split("\n");
-  let have = current.replaceAll("\r\n", "\n").split("\n");
+  let have = current2.replaceAll("\r\n", "\n").split("\n");
   const templateBlocks = blocksOf(want);
   if (typeof templateBlocks === "string") throw new Error(`Template ${file}: ${templateBlocks}`);
   for (const block of templateBlocks) {
@@ -174,9 +371,9 @@ function newer(a, b) {
   return false;
 }
 function planPackage(root2, vars) {
-  const path = join2(root2, "package.json");
-  if (!existsSync2(path)) return null;
-  const text = readFileSync2(path, "utf8");
+  const path = join3(root2, "package.json");
+  if (!existsSync3(path)) return null;
+  const text = readFileSync3(path, "utf8");
   const pkg = JSON.parse(text);
   const indent = /^\{\r?\n([ \t]+)"/.exec(text)?.[1] ?? "  ";
   const template = JSON.parse(
@@ -215,7 +412,9 @@ function planPackage(root2, vars) {
 }
 function planSync(root2, vars, kept = () => false) {
   const changes2 = [];
+  const settings = settingsVars(vars.id, repoSettings(root2));
   const render2 = (file) => renderFile(`repo/${file}.tmpl`, {
+    ...settings,
     id: vars.id,
     repo: vars.repo,
     displayName: displayNameOf(vars.id)
@@ -224,31 +423,31 @@ function planSync(root2, vars, kept = () => false) {
   for (const file of [...OWNED_FILES, guide]) {
     if (kept(file)) continue;
     const want = file === guide ? ownerInput() : render2(file);
-    const path = join2(root2, file);
-    const have = existsSync2(path) ? readFileSync2(path, "utf8") : null;
+    const path = join3(root2, file);
+    const have = existsSync3(path) ? readFileSync3(path, "utf8") : null;
     if (have !== want)
       changes2.push({
         file,
-        what: have === null ? `${file} is missing.` : `${file} differs from the Sidecut copy.`,
+        what: have === null ? `${file} is missing.` : `${file} differs from the template copy.`,
         next: want
       });
   }
   for (const file of BLOCK_FILES) {
     if (kept(file)) continue;
-    const path = join2(root2, file);
+    const path = join3(root2, file);
     const template = render2(file);
-    if (!existsSync2(path)) {
+    if (!existsSync3(path)) {
       changes2.push({ file, what: `${file} is missing.`, next: template });
       continue;
     }
-    const have = readFileSync2(path, "utf8");
+    const have = readFileSync3(path, "utf8");
     const merged = mergeBlocks(have, template, file);
     if ("error" in merged)
       changes2.push({ file, what: `${merged.error} Fix them by hand.`, next: null });
     else if (merged.text !== have)
       changes2.push({
         file,
-        what: `The Sidecut blocks in ${file} are out of date.`,
+        what: `The template blocks in ${file} are out of date.`,
         next: merged.text
       });
   }
@@ -265,9 +464,9 @@ function applySync(root2, changes2) {
       left2.push(change);
       continue;
     }
-    const path = join2(root2, change.file);
-    mkdirSync2(dirname2(path), { recursive: true });
-    writeFileSync2(path, change.next);
+    const path = join3(root2, change.file);
+    mkdirSync3(dirname3(path), { recursive: true });
+    writeFileSync3(path, change.next);
   }
   return left2;
 }
@@ -275,26 +474,28 @@ function applySync(root2, changes2) {
 // plugins/sidecut-agentskills/server/src/check/repo.ts
 function readJson(path) {
   try {
-    return JSON.parse(readFileSync3(path, "utf8"));
+    return JSON.parse(readFileSync4(path, "utf8"));
   } catch {
     return {};
   }
 }
 function identify(root2) {
-  const pluginsDir = join3(root2, "plugins");
-  const plugins = existsSync3(pluginsDir) ? readdirSync2(pluginsDir).filter((n) => n !== ".DS_Store") : [];
+  const pluginsDir = join4(root2, "plugins");
+  const plugins = existsSync4(pluginsDir) ? readdirSync3(pluginsDir).filter((n) => n !== ".DS_Store") : [];
   const only = plugins.length === 1 ? plugins[0] ?? "" : "";
-  const manifest = readJson(join3(pluginsDir, only, ".claude-plugin", "plugin.json"));
-  const pkg = readJson(join3(root2, "package.json"));
-  const repo = /^https:\/\/github\.com\/SidecutStudio\/([\w.-]+)$/.exec(
+  const manifest = readJson(join4(pluginsDir, only, ".claude-plugin", "plugin.json"));
+  const pkg = readJson(join4(root2, "package.json"));
+  const settings = repoSettings(root2);
+  const owner = settings.org ? escapeRegExp(settings.org) : "[\\w.-]+";
+  const repo = new RegExp(`^https:\\/\\/github\\.com\\/${owner}\\/([\\w.-]+)$`).exec(
     String(manifest.repository ?? "")
   )?.[1] ?? "";
   const keep = pkg.sidecut?.keep ?? {};
-  const olderName = only === `sidecut-${repo}` && pkg.name === only;
+  const olderName = Boolean(settings.prefix) && only === `${settings.prefix}${repo}` && pkg.name === only;
   const renamed = pkg.name === only && Object.hasOwn(keep, "REPO_PLUGIN_ID");
   if (only && repo && (repo === only || olderName || renamed))
     return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
-  const scope = !only ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? "none" : "more than one"}.` : `Checked the plugin only: its manifest points at ${repo || "no SidecutStudio repo"}, not a repo that exists only for ${only}.`;
+  const scope = !only ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? "none" : "more than one"}.` : `Checked the plugin only: its manifest points at ${repo || `no ${settings.org || "GitHub"} repo`}, not a repo that exists only for ${only}.`;
   return { plugins, id: null, repo, scope, keep };
 }
 

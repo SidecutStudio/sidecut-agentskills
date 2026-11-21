@@ -2,12 +2,24 @@
 
 Read this when writing or changing anything in a Sidecut plugin, skill, MCP server or plugin repo. Every rule has one answer. Rules marked yes in the Checked column fail `npm run check`; the rest are for review. The reasons behind the rules are in [patterns.md](patterns.md).
 
+## Settings
+
+Who publishes a plugin comes from settings, not from these rules: the GitHub owner (`org`), the author's name and URL, the homepage, a plugin-id `prefix`, the `marketplace` that lists the plugin, the CI mode (`hosted` or `sidecut`), the licence and the brand color. Where a rule below says `<org>`, `<author>`, `<homepage>` or `<prefix>`, it means the value from settings.
+
+| Where | Holds | Wins over |
+| --- | --- | --- |
+| A tool call or `npm run new` flags | Answers for that one call | everything |
+| `.agentskills.json` at the repo root | The repo's answers, which check and sync reuse | the user's file |
+| `~/.config/agentskills/settings.json` (or under `$XDG_CONFIG_HOME`) | The user's answers, saved once | the defaults |
+
+The defaults are hosted CI, no prefix, MIT, and the plugin's own repo as its marketplace. The `sidecut` profile holds Sidecut Studio's values: owner `SidecutStudio`, author Sidecut Studio at `https://sidecut.dev`, prefix `sidecut-`, marketplace `SidecutStudio/sidecut-plugins`, CI mode `sidecut` and brand color `#FF6B00`. A repo with no answers file whose manifest points at a `SidecutStudio` repo is checked with the `sidecut` profile; any other repo is checked with the owner and author its manifest names. Scaffolding with no settings at all writes nothing and returns the questions to ask.
+
 ## Names
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Repo | `sidecut-<name>`, lowercase kebab-case | yes |
-| Plugin id | `sidecut-<name>`, lowercase kebab-case, at most 64 characters; the same as the repo name when the repo exists to ship it | yes |
+| Repo | `<prefix><name>`, lowercase kebab-case | yes |
+| Plugin id | `<prefix><name>`, lowercase kebab-case, at most 64 characters; the same as the repo name when the repo exists to ship it | yes |
 | Plugin display name | The id with hyphens as spaces, each word capitalized and acronyms in capitals: `sidecut-agentskills` is `Sidecut Agentskills`, `sidecut-ci` is `Sidecut CI`. The acronyms are ai, api, aws, cdn, ci, cli, css, dns, gpu, html, http, json, llm, mcp, pdf, pr, sdk, sql, ssh, ui, url, ux and yaml | yes |
 | Skill | The plugin prefix, then a verb and a singular object of 2 or 3 words, kebab-case: `agentskills-write-skill`, `ci-diagnose-jobs`. The prefix is the plugin id without `sidecut-`. Skills from every installed plugin share one list of names, and Codex prompts and Claude Desktop show the bare name, so the prefix keeps it unique | yes |
 | Router skill | The prefix alone, `agentskills`, present only in plugins with 4 or more other skills | yes |
@@ -21,7 +33,7 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 
 ## Repo layout
 
-A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/SidecutStudio/<plugin-id>`. A repo that kept its older name, the plugin id without `sidecut-`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bunfig.toml` when used, `docs/` for longer documentation, such as a specification, a `.claude/` folder that holds only worktrees Claude Code registered under `.claude/worktrees/` and files `.gitignore` ignores, and a `.codex/` folder that holds only files `.gitignore` ignores, such as the subagent profiles under `.codex/agents/`. A public repo also has its install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, described under Install source.
+A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/<org>/<plugin-id>`. A repo that kept its older name, the plugin id without `<prefix>`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bunfig.toml` when used, `docs/` for longer documentation, such as a specification, a `.claude/` folder that holds only worktrees Claude Code registered under `.claude/worktrees/` and files `.gitignore` ignores, and a `.codex/` folder that holds only files `.gitignore` ignores, such as the subagent profiles under `.codex/agents/`. A public repo also has its install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, described under Install source.
 
 A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `sidecut.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
 
@@ -52,7 +64,7 @@ tsconfig.json
 | Item | Rule | Checked |
 | --- | --- | --- |
 | `CLAUDE.md` | One line: `@AGENTS.md` | yes |
-| `LICENSE` | MIT, `Copyright (c) <year> Sidecut Studio` | yes |
+| `LICENSE` | MIT, `Copyright (c) <year> <author>` | yes |
 | Install source | A public repo, one whose CI jobs all run on `ubuntu-24.04`, carries its own marketplace for each host, listing only its plugin. A private repo has none; its plugin is listed from the `sidecut-plugins` marketplace | yes |
 | Plugins per repo | One | review |
 | `.gitignore` | Starts with the template's `house-style` block; the repo's own lines go after it | yes |
@@ -102,9 +114,9 @@ A public repo has to install for people with no access to anything private. The 
 The README's Install section then gives these steps, with no command output. It says "In Claude Code, add this repo's marketplace, then install the plugin:" above a `text` block with the first two lines, and "In Codex, run:" above a `bash` block with the last two:
 
 ```text
-/plugin marketplace add SidecutStudio/<repo>
+/plugin marketplace add <org>/<repo>
 /plugin install <plugin-id>@<plugin-id>
-codex plugin marketplace add SidecutStudio/<repo>
+codex plugin marketplace add <org>/<repo>
 codex plugin add <plugin-id>@<plugin-id>
 ```
 
@@ -113,7 +125,7 @@ codex plugin add <plugin-id>@<plugin-id>
 | Both files | Present in a public repo | yes |
 | Root `.claude-plugin/` and `.agents/` | Hold nothing but these two files, in any repo; files `.gitignore` ignores don't count | yes |
 | Contents | `name` is the plugin id and `plugins` holds one entry for the plugin at `./plugins/<plugin-id>` | yes |
-| README install steps | In a public repo, both hosts add the marketplace from `SidecutStudio/<repo>` and install `<plugin-id>@<plugin-id>`; no step names a marketplace the repo doesn't provide | yes |
+| README install steps | In a public repo, both hosts add the marketplace from `<org>/<repo>` and install `<plugin-id>@<plugin-id>`; no step names a marketplace the repo doesn't provide | yes |
 | Proof | Before a public repo's install steps are published anywhere, they run from a clean Claude Code profile and a clean Codex home, or `claude plugin validate .` passes and the gap is named | review |
 | Private repo | No marketplace files | yes |
 | Private repo README | Installs from `sidecut-plugins` | review |
@@ -160,14 +172,14 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/
 | `name` | The plugin id | yes |
 | `version` | SemVer; the same in both manifests, `package.json` and the newest CHANGELOG entry | yes |
 | `description` | One sentence, at most 120 characters, ends with a full stop; the same text as the README's first paragraph | yes |
-| `author` | `{ "name": "Sidecut Studio", "url": "https://sidecut.dev" }` | yes |
-| `homepage` | `https://sidecut.dev` | yes |
-| `repository` | `https://github.com/SidecutStudio/<repo>` | yes |
+| `author` | `{ "name": "<author>", "url": "<author URL>" }` | yes |
+| `homepage` | `<homepage>` | yes |
+| `repository` | `https://github.com/<org>/<repo>` | yes |
 | `license` | `MIT` | yes |
 | `keywords` | 3 to 8, lowercase, no plugin name | yes |
 | Claude extra fields | None; skills, agents and hooks are found by folder | yes |
 | Codex extra fields | After the shared fields: `skills` (`./skills/`), `mcpServers` (`./mcp.json`) with an MCP server, `apps` (`./.app.json`) with a registered connector, `hooks` (`./hooks/codex-hooks.json`) with hooks, then `interface` last | yes |
-| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`Sidecut Studio`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (`#FF6B00`, Sidecut Builder's orange), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
+| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`<author>`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (`#FF6B00`, Sidecut Builder's orange), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
 | Unknown fields | None | yes |
 
 ## MCP servers

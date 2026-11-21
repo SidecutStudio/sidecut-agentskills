@@ -2,6 +2,25 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sentences } from './check/report.ts';
+import {
+  answered,
+  brandSpace,
+  current,
+  DEFAULTS,
+  escapeRegExp,
+  marketplaceName,
+  mergeSettings,
+  PROFILES,
+  QUESTIONS,
+  type Question,
+  REPO_FILE,
+  repoSettings,
+  resolveLayers,
+  type Settings,
+  type SettingsInput,
+  useSettings,
+  writeUserSettings,
+} from './settings.ts';
 
 // The data folder sits next to the bundled server/index.mjs, or one level up from server/src/.
 const here = dirname(fileURLToPath(import.meta.url));
@@ -32,19 +51,37 @@ export type PluginInput = {
   date?: string;
   /** Where the generated repo gets the house-style checker from. */
   checkerSource?: string;
+  /** Answers that win over the user's saved settings, such as `{ profile: 'sidecut' }`. */
+  settings?: SettingsInput;
+  /** Save the merged answers as the user's settings, so the next scaffold doesn't ask again. */
+  save?: boolean;
 };
+
+/** Thrown when scaffolding doesn't know enough yet; the tool turns it into questions, not an error. */
+export class SettingsNeeded extends Error {
+  readonly questions: Question[];
+  constructor(questions: Question[]) {
+    super(
+      `Scaffolding needs a few answers first: ${questions.map((q) => q.key).join(', ')}. Ask the user, then call again with settings and save: true.`,
+    );
+    this.questions = questions;
+  }
+}
 
 export type SkillInput = { name: string; does: string };
 
 export type Problem = { code: string; message: string };
 
-export const PLUGIN_ID = /^sidecut-[a-z0-9]+(-[a-z0-9]+)*$/;
+/** A plugin id: the settings' prefix, then lowercase kebab-case. */
+export function pluginIdPattern(s: Settings = current()): RegExp {
+  return new RegExp(`^${escapeRegExp(s.prefix)}[a-z0-9]+(-[a-z0-9]+)*$`);
+}
 /** The verb-object part of a skill name, after the plugin prefix: 2 or 3 words. */
 export const SKILL_NAME = /^[a-z]+(-[a-z]+){1,2}$/;
 
-/** The prefix every skill name starts with: the plugin id without `sidecut-`. It alone names the router. */
-export function skillPrefixOf(pluginId: string): string {
-  return pluginId.replace(/^sidecut-/, '');
+/** The prefix every skill name starts with: the plugin id without the settings' prefix. It alone names the router. */
+export function skillPrefixOf(pluginId: string, s: Settings = current()): string {
+  return pluginId.replace(new RegExp(`^${escapeRegExp(s.prefix)}`), '');
 }
 
 /** Whether a skill name is the router or `<prefix>-<verb>-<object>`. */
@@ -54,16 +91,16 @@ export function isSkillName(name: string, prefix: string): boolean {
     (name.startsWith(`${prefix}-`) && SKILL_NAME.test(name.slice(prefix.length + 1)))
   );
 }
-/** Sidecut Builder's orange, the brand color of every Sidecut plugin. */
-export const BRAND_COLOR = '#FF6B00';
+/** Sidecut Builder's orange, the brand color of the Sidecut profile. */
+export const BRAND_COLOR = PROFILES.sidecut?.brandColor ?? '#FF6B00';
 const DEFAULT_CHECKER = 'github:SidecutStudio/sidecut-agentskills';
 
 export function checkPluginInput(input: PluginInput): Problem[] {
   const problems: Problem[] = [];
-  if (!PLUGIN_ID.test(input.id) || input.id.length > 64) {
+  if (!pluginIdPattern().test(input.id) || input.id.length > 64) {
     problems.push({
       code: 'NAME_PLUGIN_ID',
-      message: `Plugin id "${input.id}" must be sidecut-<name> in lowercase kebab-case, at most 64 characters.`,
+      message: `Plugin id "${input.id}" must be ${current().prefix}<name> in lowercase kebab-case, at most 64 characters.`,
     });
   }
   if (input.description.length > 120 || !input.description.endsWith('.')) {
@@ -154,7 +191,7 @@ export function displayNameOf(id: string): string {
  * acronyms upper case. The router's title is the plugin's display name.
  */
 export function skillTitleOf(name: string, prefix: string): string {
-  if (name === prefix) return displayNameOf(`sidecut-${prefix}`);
+  if (name === prefix) return displayNameOf(`${current().prefix}${prefix}`);
   return name
     .slice(name.startsWith(`${prefix}-`) ? prefix.length + 1 : 0)
     .split('-')
@@ -220,8 +257,106 @@ function writeAll(out: string, files: Map<string, string | Buffer>): string[] {
   return [...files.keys()].sort();
 }
 
-/** Writes a new plugin repo to `out`. Returns the files written, relative to `out`. */
-export function scaffoldPlugin(input: PluginInput, out: string): string[] {
+/**
+ * The settings a new repo is written with: the user's saved settings, then the call's own answers.
+ * Throws SettingsNeeded when neither says who publishes the plugin.
+ */
+export function scaffoldSettings(
+  input: PluginInput,
+  env: NodeJS.ProcessEnv = process.env,
+): { settings: Settings; answers: SettingsInput } {
+  const layers = resolveLayers({ args: input.settings, env });
+  const answers: SettingsInput = Object.assign({}, ...layers);
+  if (!answered(answers)) throw new SettingsNeeded(QUESTIONS);
+  const settings = mergeSettings(...layers);
+  if (settings.license !== 'MIT')
+    throw new Error(
+      `Only an MIT licence template ships. Scaffold with MIT, then replace LICENSE and the manifests' license field.`,
+    );
+  if (input.save) writeUserSettings(answers, env);
+  return { settings, answers };
+}
+
+/** The answers a new repo records in its answers file: the profile and whatever differs from it. */
+export function answersFile(settings: Settings): string {
+  const base = (settings.profile ? PROFILES[settings.profile] : DEFAULTS) ?? DEFAULTS;
+  const out: Record<string, string> = settings.profile ? { profile: settings.profile } : {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (key !== 'profile' && value !== (base as Record<string, string>)[key]) out[key] = value;
+  }
+  return `${JSON.stringify(out, null, 2)}\n`;
+}
+
+/** What the templates fill in from the settings, beside each file's own variables. */
+export function settingsVars(id: string, s: Settings = current()): Record<string, string> {
+  const brand = brandSpace(s);
+  const market = marketplaceName(id, s);
+  let host = '';
+  try {
+    host = s.homepage ? new URL(s.homepage).host : '';
+  } catch {
+    host = '';
+  }
+  const installBlock = s.marketplace
+    ? [
+        '```text',
+        `/plugin install ${id}@${market}      # Claude Code`,
+        `codex plugin add ${id}@${market}     # Codex`,
+        '```',
+      ].join('\n')
+    : [
+        "In Claude Code, add this repo's marketplace, then install the plugin:",
+        '',
+        '```text',
+        `/plugin marketplace add ${s.org}/${id}`,
+        `/plugin install ${id}@${id}`,
+        '```',
+        '',
+        'In Codex, run:',
+        '',
+        '```bash',
+        `codex plugin marketplace add ${s.org}/${id}`,
+        `codex plugin add ${id}@${id}`,
+        '```',
+      ].join('\n');
+  return {
+    org: s.org,
+    authorName: s.authorName,
+    authorUrl: s.authorUrl,
+    homepage: s.homepage,
+    brandColor: s.brandColor,
+    brandSpace: brand,
+    everyBrand: s.brand ? `Every ${s.brand}` : 'Every',
+    voiceTitle: s.brand ? `${s.brand} voice` : 'Voice',
+    logTitle: s.brand ? `${s.brand} usage log` : 'Usage log',
+    prefixPattern: escapeRegExp(s.prefix),
+    securityAlt: host ? `, or through [${host}](${s.homepage})` : '',
+    ciLayout:
+      s.ci === 'sidecut' ? "CI, using sidecut-ops' runner picker" : 'CI on GitHub-hosted runners',
+    installBlock,
+  };
+}
+
+/**
+ * Writes a new plugin repo to `out`. Returns the files written, relative to `out`. Throws
+ * SettingsNeeded, before writing anything, when it doesn't yet know who publishes the plugin.
+ */
+export function scaffoldPlugin(
+  input: PluginInput,
+  out: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const { settings } = scaffoldSettings(input, env);
+  const previous = current();
+  useSettings(settings);
+  try {
+    return writeRepo(input, out, settings);
+  } finally {
+    useSettings(previous);
+  }
+}
+
+function writeRepo(input: PluginInput, out: string, settings: Settings): string[] {
   const problems = checkPluginInput(input);
   if (problems.length > 0)
     throw new Error(problems.map((p) => `${p.code}: ${p.message}`).join('\n'));
@@ -233,14 +368,14 @@ export function scaffoldPlugin(input: PluginInput, out: string): string[] {
   const skillDoes = `Checks that the ${displayName} MCP server is running and reports its version.`;
   const version = '0.1.0';
   const vars: Record<string, string> = {
+    ...settingsVars(input.id, settings),
     id: input.id,
     repo: input.id,
-    key: input.id.replace(/^sidecut-/, ''),
+    key: skillPrefixOf(input.id, settings),
     displayName,
     description: input.description,
     longDescription: input.longDescription,
     keywordsJson: JSON.stringify(input.keywords),
-    brandColor: BRAND_COLOR,
     version,
     date,
     year: date.slice(0, 4),
@@ -251,6 +386,11 @@ export function scaffoldPlugin(input: PluginInput, out: string): string[] {
 
   const files = new Map<string, string | Buffer>();
   for (const [path, text] of renderTree('repo', vars)) files.set(path, text);
+  for (const [path, text] of renderTree(`ci/${settings.ci}`, vars))
+    files.set(`.github/workflows/${path}`, text);
+  if (!settings.marketplace)
+    for (const [path, text] of renderTree('marketplace', vars)) files.set(path, text);
+  files.set(REPO_FILE, answersFile(settings));
   const pluginDir = `plugins/${input.id}`;
   for (const [path, text] of renderTree('plugin', vars)) files.set(`${pluginDir}/${path}`, text);
   for (const name of ['README.md', 'LICENSE', 'CHANGELOG.md']) {
@@ -274,6 +414,16 @@ export function brandColorOf(pluginDir: string): string {
 
 /** Adds a skill skeleton to an existing plugin folder. Returns the files written, relative to the plugin. */
 export function addSkill(pluginDir: string, input: SkillInput): string[] {
+  const previous = current();
+  useSettings(repoSettings(join(pluginDir, '..', '..')));
+  try {
+    return writeSkill(pluginDir, input);
+  } finally {
+    useSettings(previous);
+  }
+}
+
+function writeSkill(pluginDir: string, input: SkillInput): string[] {
   const prefix = skillPrefixOf(basename(pluginDir));
   const problems = checkSkillInput(input, prefix);
   if (problems.length > 0)

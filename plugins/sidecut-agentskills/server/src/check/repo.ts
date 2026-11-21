@@ -2,6 +2,14 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { ownVersion } from '../scaffold.ts';
+import {
+  current,
+  escapeRegExp,
+  marketplaceName,
+  REPO_FILE,
+  repoSettings,
+  useSettings,
+} from '../settings.ts';
 import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { checkPlugin } from './plugin.ts';
 import type { Report } from './report.ts';
@@ -37,6 +45,7 @@ const OPTIONAL_ENTRIES = [
   'docs',
   '.claude-plugin',
   '.agents',
+  REPO_FILE,
 ];
 /** The install source a public repo carries for each host, at the paths each host reads. */
 const MARKETPLACES = ['.claude-plugin/marketplace.json', '.agents/plugins/marketplace.json'];
@@ -177,12 +186,25 @@ function checkLicense(root: string, report: Report): void {
   const license = existsSync(join(root, 'LICENSE'))
     ? readFileSync(join(root, 'LICENSE'), 'utf8')
     : '';
-  if (!/^MIT License\n\nCopyright \(c\) \d{4} Sidecut Studio\n/.test(license)) {
+  const s = current();
+  if (s.license !== 'MIT') {
+    if (license.trim() === '')
+      report.add(
+        'REPO_LICENSE',
+        'LICENSE',
+        1,
+        'LICENSE is empty.',
+        `Add the ${s.license} licence.`,
+      );
+    return;
+  }
+  const holder = s.authorName ? escapeRegExp(s.authorName) : '.+';
+  if (!new RegExp(`^MIT License\\n\\nCopyright \\(c\\) \\d{4} ${holder}\\n`).test(license)) {
     report.add(
       'REPO_LICENSE',
       'LICENSE',
       1,
-      'LICENSE is not MIT with "Copyright (c) <year> Sidecut Studio".',
+      `LICENSE is not MIT with "Copyright (c) <year> ${s.authorName || '<author>'}".`,
       'Copy the template LICENSE.',
     );
   }
@@ -412,7 +434,15 @@ function checkCi(root: string, report: Report): void {
       'Run the release job on `ubuntu-24.04` with no sidecut-ops action; gh is already there.',
     );
   }
-  if (check && !check.includes('/pick-runner@') && !hostedOnly) {
+  if (check && current().ci === 'hosted' && !hostedOnly) {
+    report.add(
+      'CI_PICKER',
+      '.github/workflows/check.yml',
+      undefined,
+      "check.yml doesn't run every job on ubuntu-24.04, which hosted CI needs.",
+      'Copy check.yml from the hosted CI template.',
+    );
+  } else if (check && !check.includes('/pick-runner@') && !hostedOnly) {
     report.add(
       'CI_PICKER',
       '.github/workflows/check.yml',
@@ -471,7 +501,13 @@ function filesUnder(root: string, dir: string, ignored: string[]): string[] {
  */
 function checkInstallSource(root: string, id: string, repo: string, report: Report): void {
   const check = join(root, '.github', 'workflows', 'check.yml');
-  const isPublic = existsSync(check) && isHostedOnly(readFileSync(check, 'utf8'));
+  const s = current();
+  const org = s.org || 'SidecutStudio';
+  const market = marketplaceName(id, s);
+  // With no marketplace set, the plugin lists itself; one listed elsewhere carries its own install
+  // source only once it's public, which its hosted-only CI shows.
+  const isPublic =
+    !s.marketplace || (existsSync(check) && isHostedOnly(readFileSync(check, 'utf8')));
   const gitignore = existsSync(join(root, '.gitignore'))
     ? readFileSync(join(root, '.gitignore'), 'utf8').split('\n').filter(Boolean)
     : [];
@@ -492,7 +528,7 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
         file,
         undefined,
         'A private repo has its own marketplace.',
-        'List the plugin from the sidecut-plugins marketplace only; a public repo, whose jobs all run on ubuntu-24.04, keeps one.',
+        `List the plugin from the ${market} marketplace only; a public repo, whose jobs all run on ubuntu-24.04, keeps one.`,
       );
     return;
   }
@@ -504,7 +540,9 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
         'REPO_MARKETPLACE',
         file,
         undefined,
-        `A public repo has no ${file}, so only people with access to the private sidecut-plugins marketplace can install it.`,
+        s.marketplace
+          ? `A public repo has no ${file}, so only people with access to the ${market} marketplace can install it.`
+          : `There is no ${file}, so nobody can add this repo as a marketplace.`,
         how,
       );
   }
@@ -539,7 +577,7 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
     ? readFileSync(join(root, 'README.md'), 'utf8')
     : '';
   const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(readme)?.[1] ?? '';
-  const add = `marketplace add SidecutStudio/${repo}`;
+  const add = `marketplace add ${org}/${repo}`;
   const named = new Set(
     [...install.matchAll(/plugin (?:install|add) [\w.-]+@([\w.-]+)/g)].map((m) => m[1]),
   );
@@ -547,13 +585,13 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
     [...install.matchAll(/plugin marketplace add (\S+)/g)].map((m) => m[1]?.replace(/`$/, '')),
   );
   for (const source of added) {
-    if (source !== `SidecutStudio/${repo}`)
+    if (source !== `${org}/${repo}`)
       report.add(
         'README_INSTALL',
         'README.md',
         undefined,
         `The Install section adds the marketplace ${source}, which isn't this repo.`,
-        `Add \`SidecutStudio/${repo}\` instead.`,
+        `Add \`${org}/${repo}\` instead.`,
       );
   }
   for (const marketplace of named) {
@@ -664,19 +702,22 @@ export function identify(root: string): Identity {
   const only = plugins.length === 1 ? (plugins[0] ?? '') : '';
   const manifest = readJson(join(pluginsDir, only, '.claude-plugin', 'plugin.json'));
   const pkg = readJson(join(root, 'package.json'));
+  const settings = repoSettings(root);
+  const owner = settings.org ? escapeRegExp(settings.org) : '[\\w.-]+';
   const repo =
-    /^https:\/\/github\.com\/SidecutStudio\/([\w.-]+)$/.exec(
+    new RegExp(`^https:\\/\\/github\\.com\\/${owner}\\/([\\w.-]+)$`).exec(
       String(manifest.repository ?? ''),
     )?.[1] ?? '';
   const keep = ((pkg.sidecut as { keep?: Record<string, string> } | undefined)?.keep ??
     {}) as Record<string, string>;
-  const olderName = only === `sidecut-${repo}` && pkg.name === only;
+  const olderName =
+    Boolean(settings.prefix) && only === `${settings.prefix}${repo}` && pkg.name === only;
   const renamed = pkg.name === only && Object.hasOwn(keep, 'REPO_PLUGIN_ID');
   if (only && repo && (repo === only || olderName || renamed))
     return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
   const scope = !only
     ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? 'none' : 'more than one'}.`
-    : `Checked the plugin only: its manifest points at ${repo || 'no SidecutStudio repo'}, not a repo that exists only for ${only}.`;
+    : `Checked the plugin only: its manifest points at ${repo || `no ${settings.org || 'GitHub'} repo`}, not a repo that exists only for ${only}.`;
   return { plugins, id: null, repo, scope, keep };
 }
 
@@ -693,6 +734,7 @@ export function checkRepo(root: string, report: Report): void {
     );
     return;
   }
+  useSettings(repoSettings(root));
   const { plugins, id: only, repo: repoName, scope, keep } = identify(root);
   report.scope = scope;
   if (!only) {
@@ -702,7 +744,7 @@ export function checkRepo(root: string, report: Report): void {
   }
   const id = only;
   const pluginDir = join(pluginsDir, id);
-  if (repoName !== id && id !== `sidecut-${repoName}`)
+  if (repoName !== id && id !== `${current().prefix}${repoName}`)
     report.add(
       'REPO_PLUGIN_ID',
       'package.json',
