@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sentences } from './check/report.ts';
+import { CI_SNIPPETS } from './ci-snippets.ts';
 import {
   answered,
   answersOf,
@@ -219,7 +220,7 @@ export function defaultPromptOf(does: string): string {
 
 function render(text: string, vars: Record<string, string>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
-    const value = vars[key];
+    const value = vars[key] ?? CI_SNIPPETS[key];
     if (value === undefined) throw new Error(`Template uses unknown variable ${match}`);
     return value;
   });

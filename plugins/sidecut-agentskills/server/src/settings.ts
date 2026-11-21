@@ -189,6 +189,23 @@ export function readRepoSettings(root: string): SettingsInput | null {
   return readInput(join(root, REPO_FILE));
 }
 
+/**
+ * The repo's `scanTextAllow`: globs, relative to each plugin folder, of shipped files whose job is
+ * text that SCAN_TEXT would otherwise flag, such as a CI plugin's docs. Anything that isn't a list of
+ * strings counts as none.
+ */
+export function readScanTextAllow(root: string): string[] {
+  const path = join(root, REPO_FILE);
+  if (!existsSync(path)) return [];
+  try {
+    const value = (JSON.parse(readFileSync(path, 'utf8')) as { scanTextAllow?: unknown })
+      .scanTextAllow;
+    return Array.isArray(value) ? value.filter((g): g is string => typeof g === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Saves `input` as the user's settings; returns where. */
 export function writeUserSettings(
   input: SettingsInput,

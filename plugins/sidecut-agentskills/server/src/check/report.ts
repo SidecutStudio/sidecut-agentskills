@@ -49,7 +49,9 @@ export class Report {
   }
 
   add(code: string, file: string, line: number | undefined, message: string, fix: string): void {
-    const target = ['SKILL_LENGTH', 'REF_LENGTH', 'SKILL_DESCRIPTION_LENGTH'].includes(code)
+    const target = ['SKILL_LENGTH', 'REF_LENGTH', 'SKILL_DESCRIPTION_LENGTH', 'SCAN_TEXT'].includes(
+      code,
+    )
       ? this.advisories
       : this.problems;
     target.push({ code, file, line, message, fix });

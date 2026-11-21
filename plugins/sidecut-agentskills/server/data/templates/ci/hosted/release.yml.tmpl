@@ -20,7 +20,7 @@ jobs:
       contents: write
       checks: read
     env:
-      GH_TOKEN: ${{ github.token }}
+      {{ghTokenEnv}}
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -65,7 +65,7 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 - **`REPO_CHECKER_VERSION`:** `node_modules` holds another sidecut-agentskills than `package.json` pins, often right after `npm exec --no -- sidecut-sync` raised the pin. Run `npm install` and check again.
 - **`CI_RELEASE` or `REPO_SYNC` on `scripts/release.ts`:** the repo predates automatic releases. Run `npm exec --no -- sidecut-sync` and copy `release.yml` from the template, together with the next version bump, so the first run publishes it. Remove any old release job from `check.yml`, such as one that calls `./.github/workflows/release.yml`, and any old release script and its tests. The ZIP is now named `<plugin-id>-<version>.zip`. A public repo runs the job on `ubuntu-24.04` without sidecut-ops' setup action.
 - **The Release run says the tag is on another commit:** a hand-made tag got there first. Bump to the next version instead of moving it.
-- **`bundle.ts` fails to clone:** `gh` isn't signed in, or the account can't read the plugin's repo. Check `gh auth status`.
+- **`bundle.ts` fails to clone:** the GitHub CLI isn't signed in, or your GitHub login can't read the plugin's repo. Sign in again with the GitHub CLI.
 - **`bundle.ts` says the commit isn't on `main`:** use the merge commit from the merged PR, not one from a branch.
 - **`scripts/check.sh` says a copy differs from its pin:** someone edited `bundled/<plugin-id>/` by hand. Run `bun scripts/bundle.ts <plugin-id> <ref>` again to restore it.
 - **The new version doesn't appear:** confirm the sidecut-plugins change merged and `bundled/sources.json` names the new tag or commit, then sync the marketplace again.
