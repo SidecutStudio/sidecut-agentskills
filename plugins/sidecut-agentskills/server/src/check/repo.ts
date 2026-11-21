@@ -495,19 +495,22 @@ function filesUnder(root: string, dir: string, ignored: string[]): string[] {
 }
 
 /**
- * A public repo carries its own install source, so people without access to the private
- * sidecut-plugins marketplace can install it, and its README installs from that source. A private
- * repo has none: claude.ai can't read it, so its plugin is listed from sidecut-plugins only.
+ * A repo that lists itself carries its own install source, and its README installs from it. One
+ * listed in the configured marketplace carries none while private (claude.ai can't read it); once
+ * its CI is hosted-only it may also carry its own, and then that source is checked too.
  */
 function checkInstallSource(root: string, id: string, repo: string, report: Report): void {
   const check = join(root, '.github', 'workflows', 'check.yml');
   const s = current();
   const org = s.org || 'SidecutStudio';
   const market = marketplaceName(id, s);
-  // With no marketplace set, the plugin lists itself; one listed elsewhere carries its own install
-  // source only once it's public, which its hosted-only CI shows.
-  const isPublic =
-    !s.marketplace || (existsSync(check) && isHostedOnly(readFileSync(check, 'utf8')));
+  // With no marketplace set, the plugin lists itself and must carry its own install source. One
+  // listed elsewhere follows its CI mode: in hosted mode its own marketplace files are optional and
+  // checked only when present; in sidecut mode a hosted-only check.yml marks a public repo, which
+  // must carry its own, and any other repo is private and carries none.
+  const hostedOnly = existsSync(check) && isHostedOnly(readFileSync(check, 'utf8'));
+  const hasOwn = MARKETPLACES.some((file) => existsSync(join(root, file)));
+  const isPublic = !s.marketplace || hostedOnly;
   const gitignore = existsSync(join(root, '.gitignore'))
     ? readFileSync(join(root, '.gitignore'), 'utf8').split('\n').filter(Boolean)
     : [];
@@ -521,6 +524,7 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
       `"${file}" isn't part of the repo layout; the root .claude-plugin/ and .agents/ hold only a public repo's marketplace files.`,
       'Move it into the plugin, or remove it.',
     );
+  if (s.marketplace && s.ci === 'hosted' && !hasOwn) return;
   if (!isPublic) {
     for (const file of found.filter((f) => MARKETPLACES.includes(f)))
       report.add(

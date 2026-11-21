@@ -23,6 +23,7 @@ import {
   DEFAULTS,
   REPO_FILE,
   readUserSettings,
+  repoSettings,
   resolveSettings,
   userSettingsPath,
 } from '../plugins/sidecut-agentskills/server/src/settings.ts';
@@ -178,4 +179,108 @@ test('with no settings anywhere, scaffolding writes nothing and returns the ques
   expect(userSettingsPath(env).startsWith(String(env.XDG_CONFIG_HOME))).toBe(true);
   const again = join(temp('again'), 'repo');
   expect(scaffoldPlugin(NOTES, again, env).length).toBeGreaterThan(0);
+});
+
+/** Builds a scaffolded repo's server and runs the repo checker over it. */
+function checkScaffold(out: string): unknown[] {
+  writeFileSync(join(out, 'package-lock.json'), '');
+  symlinkSync(join(repoRoot, 'node_modules'), join(out, 'node_modules'));
+  spawnSync('npm', ['exec', '--no', '--', 'biome', 'check', '--write', '.'], { cwd: out });
+  const built = spawnSync(process.execPath, ['scripts/build-server.ts'], {
+    cwd: out,
+    encoding: 'utf8',
+  });
+  expect(built.status, built.stderr).toBe(0);
+  const report = new Report();
+  checkRepo(out, report);
+  return report.problems;
+}
+
+test('a plugin listed in another marketplace, on the default hosted CI, passes its own check', () => {
+  const out = temp('listed');
+  const files = scaffoldPlugin(
+    { ...NOTES, settings: { ...ACME, marketplace: 'acme-tools/plugins' } },
+    out,
+    envWith(),
+  );
+  expect(files).not.toContain('.claude-plugin/marketplace.json');
+  expect(readFileSync(join(out, 'README.md'), 'utf8')).toContain('notes-helper@plugins');
+  expect(checkScaffold(out)).toEqual([]);
+});
+
+test('a scaffold that fails leaves the saved settings as they were', () => {
+  const env = envWith({ ...ACME, prefix: 'acme-' });
+  const before = readFileSync(userSettingsPath(env), 'utf8');
+  const out = temp('taken');
+  writeFileSync(join(out, 'already-here.txt'), 'x');
+  expect(() =>
+    scaffoldPlugin(
+      { ...NOTES, id: 'acme-notes', settings: { org: 'other-org' }, save: true },
+      out,
+      env,
+    ),
+  ).toThrow(/isn't empty/);
+  expect(readFileSync(userSettingsPath(env), 'utf8')).toBe(before);
+});
+
+test('saved settings resolve to the same values the scaffold just used', () => {
+  const env = envWith(ACME);
+  const first = join(temp('first'), 'repo');
+  scaffoldPlugin(
+    { ...NOTES, id: 'sidecut-notes', settings: { profile: 'sidecut' }, save: true },
+    first,
+    env,
+  );
+  expect(readUserSettings(env)).toEqual({ profile: 'sidecut' });
+  expect(resolveSettings({ env })).toEqual(
+    resolveSettings({ args: { profile: 'sidecut' }, env: envWith() }),
+  );
+});
+
+test('values that would break a JSON or YAML file are refused before anything is written', () => {
+  const out = join(temp('unsafe'), 'repo');
+  const env = envWith();
+  for (const settings of [
+    { ...ACME, authorName: 'Acme "Tools"\nInc' },
+    { ...ACME, org: 'acme tools' },
+    { ...ACME, homepage: 'javascript:alert(1)' },
+    { ...ACME, brandColor: 'orange' },
+  ]) {
+    expect(() => scaffoldPlugin({ ...NOTES, settings, save: true }, out, env)).toThrow();
+  }
+  expect(existsSync(out)).toBe(false);
+  expect(readUserSettings(env)).toBeNull();
+});
+
+test('a repo with no answers file is checked with what its manifest says', () => {
+  const sidecut = temp('no-file-sidecut');
+  scaffoldPlugin(
+    {
+      ...NOTES,
+      id: 'sidecut-notes',
+      settings: { profile: 'sidecut' },
+    },
+    sidecut,
+    envWith(),
+  );
+  rmSync(join(sidecut, REPO_FILE));
+  expect(repoSettings(sidecut).org).toBe('SidecutStudio');
+  expect(repoSettings(sidecut).ci).toBe('sidecut');
+  expect(repoSettings(sidecut).prefix).toBe('sidecut-');
+
+  const acme = temp('no-file-acme');
+  scaffoldPlugin({ ...NOTES, settings: ACME }, acme, envWith());
+  rmSync(join(acme, REPO_FILE));
+  const s = repoSettings(acme);
+  expect(s.org).toBe('acme-tools');
+  expect(s.authorName).toBe('Acme Tools');
+  expect(s.ci).toBe('hosted');
+  expect(s.prefix).toBe('');
+  expect(checkScaffold(acme)).toEqual([]);
+});
+
+test('a relative XDG_CONFIG_HOME is ignored', () => {
+  expect(userSettingsPath({ XDG_CONFIG_HOME: 'relative/dir', HOME: '/home/x' })).not.toContain(
+    'relative/dir',
+  );
 });

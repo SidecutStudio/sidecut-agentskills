@@ -4,7 +4,7 @@
 
 ### Added
 
-- Settings for who publishes a plugin: GitHub owner, author, homepage, plugin-id prefix, marketplace, CI mode, licence and brand color. They live in `~/.config/agentskills/settings.json` (or under `$XDG_CONFIG_HOME`) and, per repo, in `.agentskills.json` at its root; a tool call's own answers win over the repo's, which win over the user's.
+- Settings for who publishes a plugin: GitHub owner, author, homepage, plugin-id prefix, marketplace, CI mode, licence and brand color. Scaffolding reads a call's answers over `~/.config/agentskills/settings.json` (or under an absolute `$XDG_CONFIG_HOME`); each new repo records what it was made with in `.agentskills.json`, which check and sync read, falling back to what the manifests say. Values that would need escaping in JSON or YAML are refused, and `save: true` saves the settings only after the repo is written.
 - The `sidecut` profile, which holds Sidecut Studio's values as one setting.
 - A new plugin lists itself as a marketplace by default, with both marketplace files and the README steps that add this repo.
 - Hosted CI by default: `check`, `secrets` and `gate` on GitHub-hosted `ubuntu-24.04`, and a release job on the same.

@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { sentences } from './check/report.ts';
 import {
   answered,
+  answersOf,
   brandSpace,
   current,
-  DEFAULTS,
   escapeRegExp,
   marketplaceName,
   mergeSettings,
@@ -19,6 +19,7 @@ import {
   type Settings,
   type SettingsInput,
   useSettings,
+  validateSettings,
   writeUserSettings,
 } from './settings.ts';
 
@@ -264,27 +265,21 @@ function writeAll(out: string, files: Map<string, string | Buffer>): string[] {
 export function scaffoldSettings(
   input: PluginInput,
   env: NodeJS.ProcessEnv = process.env,
-): { settings: Settings; answers: SettingsInput } {
+): Settings {
+  // A new repo has no answers file yet, so scaffolding reads the call's answers over the user's.
   const layers = resolveLayers({ args: input.settings, env });
-  const answers: SettingsInput = Object.assign({}, ...layers);
-  if (!answered(answers)) throw new SettingsNeeded(QUESTIONS);
-  const settings = mergeSettings(...layers);
+  if (!answered(Object.assign({}, ...layers))) throw new SettingsNeeded(QUESTIONS);
+  const settings = validateSettings(mergeSettings(...layers));
   if (settings.license !== 'MIT')
     throw new Error(
       `Only an MIT licence template ships. Scaffold with MIT, then replace LICENSE and the manifests' license field.`,
     );
-  if (input.save) writeUserSettings(answers, env);
-  return { settings, answers };
+  return settings;
 }
 
 /** The answers a new repo records in its answers file: the profile and whatever differs from it. */
 export function answersFile(settings: Settings): string {
-  const base = (settings.profile ? PROFILES[settings.profile] : DEFAULTS) ?? DEFAULTS;
-  const out: Record<string, string> = settings.profile ? { profile: settings.profile } : {};
-  for (const [key, value] of Object.entries(settings)) {
-    if (key !== 'profile' && value !== (base as Record<string, string>)[key]) out[key] = value;
-  }
-  return `${JSON.stringify(out, null, 2)}\n`;
+  return `${JSON.stringify(answersOf(settings), null, 2)}\n`;
 }
 
 /** What the templates fill in from the settings, beside each file's own variables. */
@@ -346,14 +341,18 @@ export function scaffoldPlugin(
   out: string,
   env: NodeJS.ProcessEnv = process.env,
 ): string[] {
-  const { settings } = scaffoldSettings(input, env);
+  const settings = scaffoldSettings(input, env);
   const previous = current();
   useSettings(settings);
+  let files: string[];
   try {
-    return writeRepo(input, out, settings);
+    files = writeRepo(input, out, settings);
   } finally {
     useSettings(previous);
   }
+  // Saved only once the repo is written, and as the settings it was written with.
+  if (input.save) writeUserSettings(answersOf(settings), env);
+  return files;
 }
 
 function writeRepo(input: PluginInput, out: string, settings: Settings): string[] {

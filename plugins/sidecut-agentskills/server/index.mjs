@@ -7,7 +7,7 @@ var __export = (target, all) => {
 
 // plugins/sidecut-agentskills/server/src/index.ts
 import { readFileSync as readFileSync8 } from "node:fs";
-import { isAbsolute, join as join9, resolve } from "node:path";
+import { isAbsolute as isAbsolute2, join as join9, resolve } from "node:path";
 
 // node_modules/@modelcontextprotocol/server/dist/chunk-vYduTEsO.mjs
 var __create = Object.create;
@@ -21655,7 +21655,7 @@ function sameJson(a, b) {
 // plugins/sidecut-agentskills/server/src/settings.ts
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 var DEFAULTS = {
   profile: "",
   org: "",
@@ -21686,7 +21686,8 @@ var PROFILES = {
 var REPO_FILE = ".agentskills.json";
 var KEYS = Object.keys(DEFAULTS);
 function userSettingsPath(env = process.env) {
-  const base = env.XDG_CONFIG_HOME || join(homedir(), ".config");
+  const xdg = env.XDG_CONFIG_HOME;
+  const base = xdg && isAbsolute(xdg) ? xdg : join(homedir(), ".config");
   return join(base, "agentskills", "settings.json");
 }
 function cleanSettings(value) {
@@ -21733,6 +21734,47 @@ function mergeSettings(...layers) {
     throw new Error(
       `Prefix "${out.prefix}" must be lowercase kebab-case ending in a hyphen, such as acme-.`
     );
+  return out;
+}
+var OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+function unsafeText(text2) {
+  return [...text2].some(
+    (c) => c === '"' || c === "\\" || c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127
+  );
+}
+function validateSettings(s) {
+  if (s.org && !OWNER.test(s.org))
+    throw new Error(
+      `Owner "${s.org}" must be a GitHub user or organization name: letters, digits and single hyphens.`
+    );
+  for (const key of ["authorName", "brand"]) {
+    if (unsafeText(s[key]))
+      throw new Error(
+        `${key} can't hold quotes, backslashes, line breaks or other control characters.`
+      );
+  }
+  for (const key of ["authorUrl", "homepage"]) {
+    const value = s[key];
+    if (!value) continue;
+    let ok = false;
+    try {
+      const url2 = new URL(value);
+      ok = (url2.protocol === "https:" || url2.protocol === "http:") && !/[\s"\\<>]/.test(value);
+    } catch {
+      ok = false;
+    }
+    if (!ok) throw new Error(`${key} "${value}" must be an http or https URL.`);
+  }
+  if (!/^#[0-9A-Fa-f]{6}$/.test(s.brandColor))
+    throw new Error(`Brand color "${s.brandColor}" must be #RRGGBB.`);
+  return s;
+}
+function answersOf(settings) {
+  const base = (settings.profile ? PROFILES[settings.profile] : DEFAULTS) ?? DEFAULTS;
+  const out = settings.profile ? { profile: settings.profile } : {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (key !== "profile" && value !== base[key]) out[key] = value;
+  }
   return out;
 }
 function readUserSettings(env = process.env) {
@@ -21994,23 +22036,16 @@ function writeAll(out, files) {
 }
 function scaffoldSettings(input, env = process.env) {
   const layers = resolveLayers({ args: input.settings, env });
-  const answers = Object.assign({}, ...layers);
-  if (!answered(answers)) throw new SettingsNeeded(QUESTIONS);
-  const settings = mergeSettings(...layers);
+  if (!answered(Object.assign({}, ...layers))) throw new SettingsNeeded(QUESTIONS);
+  const settings = validateSettings(mergeSettings(...layers));
   if (settings.license !== "MIT")
     throw new Error(
       `Only an MIT licence template ships. Scaffold with MIT, then replace LICENSE and the manifests' license field.`
     );
-  if (input.save) writeUserSettings(answers, env);
-  return { settings, answers };
+  return settings;
 }
 function answersFile(settings) {
-  const base = (settings.profile ? PROFILES[settings.profile] : DEFAULTS) ?? DEFAULTS;
-  const out = settings.profile ? { profile: settings.profile } : {};
-  for (const [key, value] of Object.entries(settings)) {
-    if (key !== "profile" && value !== base[key]) out[key] = value;
-  }
-  return `${JSON.stringify(out, null, 2)}
+  return `${JSON.stringify(answersOf(settings), null, 2)}
 `;
 }
 function settingsVars(id, s = current()) {
@@ -22059,14 +22094,17 @@ function settingsVars(id, s = current()) {
   };
 }
 function scaffoldPlugin(input, out, env = process.env) {
-  const { settings } = scaffoldSettings(input, env);
+  const settings = scaffoldSettings(input, env);
   const previous = current();
   useSettings(settings);
+  let files;
   try {
-    return writeRepo(input, out, settings);
+    files = writeRepo(input, out, settings);
   } finally {
     useSettings(previous);
   }
+  if (input.save) writeUserSettings(answersOf(settings), env);
+  return files;
 }
 function writeRepo(input, out, settings) {
   const problems = checkPluginInput(input);
@@ -24373,7 +24411,9 @@ function checkInstallSource(root, id, repo, report) {
   const s = current();
   const org = s.org || "SidecutStudio";
   const market = marketplaceName(id, s);
-  const isPublic = !s.marketplace || existsSync8(check) && isHostedOnly(readFileSync7(check, "utf8"));
+  const hostedOnly = existsSync8(check) && isHostedOnly(readFileSync7(check, "utf8"));
+  const hasOwn = MARKETPLACES.some((file) => existsSync8(join8(root, file)));
+  const isPublic = !s.marketplace || hostedOnly;
   const gitignore = existsSync8(join8(root, ".gitignore")) ? readFileSync7(join8(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
   const found = [".claude-plugin", ".agents"].flatMap((dir) => filesUnder(root, dir, gitignore));
   const extra = found.filter((f) => !MARKETPLACES.includes(f));
@@ -24385,6 +24425,7 @@ function checkInstallSource(root, id, repo, report) {
       `"${file}" isn't part of the repo layout; the root .claude-plugin/ and .agents/ hold only a public repo's marketplace files.`,
       "Move it into the plugin, or remove it."
     );
+  if (s.marketplace && s.ci === "hosted" && !hasOwn) return;
   if (!isPublic) {
     for (const file of found.filter((f) => MARKETPLACES.includes(f)))
       report.add(
@@ -24636,7 +24677,7 @@ function headings(file) {
   );
 }
 function absolute(path) {
-  return isAbsolute(path) ? resolve(path) : null;
+  return isAbsolute2(path) ? resolve(path) : null;
 }
 var readOnly = {
   readOnlyHint: true,

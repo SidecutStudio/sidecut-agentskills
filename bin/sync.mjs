@@ -21,7 +21,7 @@ function keepCovers(key, code, file) {
 
 // plugins/sidecut-agentskills/server/src/settings.ts
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 var DEFAULTS = {
   profile: "",
   org: "",

@@ -6,13 +6,13 @@ Read this when writing or changing anything in a Sidecut plugin, skill, MCP serv
 
 Who publishes a plugin comes from settings, not from these rules: the GitHub owner (`org`), the author's name and URL, the homepage, a plugin-id `prefix`, the `marketplace` that lists the plugin, the CI mode (`hosted` or `sidecut`), the licence and the brand color. Where a rule below says `<org>`, `<author>`, `<homepage>` or `<prefix>`, it means the value from settings.
 
-| Where | Holds | Wins over |
+| Where | Holds | Read by |
 | --- | --- | --- |
-| A tool call or `npm run new` flags | Answers for that one call | everything |
-| `.agentskills.json` at the repo root | The repo's answers, which check and sync reuse | the user's file |
-| `~/.config/agentskills/settings.json` (or under `$XDG_CONFIG_HOME`) | The user's answers, saved once | the defaults |
+| A tool call or `npm run new` flags | Answers for that one call | scaffolding, over the user's file |
+| `~/.config/agentskills/settings.json` (or under an absolute `$XDG_CONFIG_HOME`) | The user's answers, saved once | scaffolding, over the defaults |
+| `.agentskills.json` at the repo root | The answers a repo was scaffolded with | check and sync, over what the manifests say |
 
-The defaults are hosted CI, no prefix, MIT, and the plugin's own repo as its marketplace. The `sidecut` profile holds Sidecut Studio's values: owner `SidecutStudio`, author Sidecut Studio at `https://sidecut.dev`, prefix `sidecut-`, marketplace `SidecutStudio/sidecut-plugins`, CI mode `sidecut` and brand color `#FF6B00`. A repo with no answers file whose manifest points at a `SidecutStudio` repo is checked with the `sidecut` profile; any other repo is checked with the owner and author its manifest names. Scaffolding with no settings at all writes nothing and returns the questions to ask.
+Scaffolding reads the call's answers, then the user's file, then the defaults; a new repo has no answers file yet. Check and sync read only the repo: its answers file, or, without one, what its manifests say. The defaults are hosted CI, no prefix, MIT, and the plugin's own repo as its marketplace. Owner, author, URLs and brand color are refused if they'd need escaping in JSON or YAML. The `sidecut` profile holds Sidecut Studio's values: owner `SidecutStudio`, author Sidecut Studio at `https://sidecut.dev`, prefix `sidecut-`, marketplace `SidecutStudio/sidecut-plugins`, CI mode `sidecut` and brand color `#FF6B00`. A repo with no answers file whose manifest points at a `SidecutStudio` repo is checked with the `sidecut` profile; any other repo is checked with the owner and author its manifest names. Scaffolding with no settings at all writes nothing and returns the questions to ask.
 
 ## Names
 
@@ -21,7 +21,7 @@ The defaults are hosted CI, no prefix, MIT, and the plugin's own repo as its mar
 | Repo | `<prefix><name>`, lowercase kebab-case | yes |
 | Plugin id | `<prefix><name>`, lowercase kebab-case, at most 64 characters; the same as the repo name when the repo exists to ship it | yes |
 | Plugin display name | The id with hyphens as spaces, each word capitalized and acronyms in capitals: `sidecut-agentskills` is `Sidecut Agentskills`, `sidecut-ci` is `Sidecut CI`. The acronyms are ai, api, aws, cdn, ci, cli, css, dns, gpu, html, http, json, llm, mcp, pdf, pr, sdk, sql, ssh, ui, url, ux and yaml | yes |
-| Skill | The plugin prefix, then a verb and a singular object of 2 or 3 words, kebab-case: `agentskills-write-skill`, `ci-diagnose-jobs`. The prefix is the plugin id without `sidecut-`. Skills from every installed plugin share one list of names, and Codex prompts and Claude Desktop show the bare name, so the prefix keeps it unique | yes |
+| Skill | The plugin prefix, then a verb and a singular object of 2 or 3 words, kebab-case: `agentskills-write-skill`, `ci-diagnose-jobs`. The prefix is the plugin id without the configured prefix (Sidecut profile: `sidecut-`). Skills from every installed plugin share one list of names, and Codex prompts and Claude Desktop show the bare name, so the prefix keeps it unique | yes |
 | Router skill | The prefix alone, `agentskills`, present only in plugins with 4 or more other skills | yes |
 | Subagent | A role noun, one word: `reviewer`, `verifier` | yes |
 | MCP server key | The plugin id without the `sidecut-` prefix | yes |
@@ -65,7 +65,7 @@ tsconfig.json
 | --- | --- | --- |
 | `CLAUDE.md` | One line: `@AGENTS.md` | yes |
 | `LICENSE` | MIT, `Copyright (c) <year> <author>` | yes |
-| Install source | A public repo, one whose CI jobs all run on `ubuntu-24.04`, carries its own marketplace for each host, listing only its plugin. A private repo has none; its plugin is listed from the `sidecut-plugins` marketplace | yes |
+| Install source | A repo with no `marketplace` setting carries its own marketplace for each host, listing only its plugin. A repo listed in the configured marketplace (Sidecut profile: `sidecut-plugins`) may carry its own in `hosted` CI mode; in `sidecut` mode a public repo, one whose CI jobs all run on `ubuntu-24.04`, carries its own and a private repo carries none | yes |
 | Plugins per repo | One | review |
 | `.gitignore` | Starts with the template's `house-style` block; the repo's own lines go after it | yes |
 | `package.json` | `name` is the plugin id, `version` matches the manifests, `packageManager` is a pinned `npm@x.y.z`, every dependency is an exact version or a tagged GitHub source | yes |
@@ -179,7 +179,7 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/
 | `keywords` | 3 to 8, lowercase, no plugin name | yes |
 | Claude extra fields | None; skills, agents and hooks are found by folder | yes |
 | Codex extra fields | After the shared fields: `skills` (`./skills/`), `mcpServers` (`./mcp.json`) with an MCP server, `apps` (`./.app.json`) with a registered connector, `hooks` (`./hooks/codex-hooks.json`) with hooks, then `interface` last | yes |
-| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`<author>`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (`#FF6B00`, Sidecut Builder's orange), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
+| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`<author>`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (the configured brand color; Sidecut profile: `#FF6B00`, Sidecut Builder's orange), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
 | Unknown fields | None | yes |
 
 ## MCP servers

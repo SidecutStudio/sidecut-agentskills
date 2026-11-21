@@ -70,7 +70,7 @@ function sameJson(a, b) {
 
 // plugins/sidecut-agentskills/server/src/settings.ts
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 var DEFAULTS = {
   profile: "",
   org: "",
@@ -2583,7 +2583,9 @@ function checkInstallSource(root, id, repo, report2) {
   const s = current();
   const org = s.org || "SidecutStudio";
   const market = marketplaceName(id, s);
-  const isPublic = !s.marketplace || existsSync8(check) && isHostedOnly(readFileSync7(check, "utf8"));
+  const hostedOnly = existsSync8(check) && isHostedOnly(readFileSync7(check, "utf8"));
+  const hasOwn = MARKETPLACES.some((file) => existsSync8(join8(root, file)));
+  const isPublic = !s.marketplace || hostedOnly;
   const gitignore = existsSync8(join8(root, ".gitignore")) ? readFileSync7(join8(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
   const found = [".claude-plugin", ".agents"].flatMap((dir) => filesUnder(root, dir, gitignore));
   const extra = found.filter((f) => !MARKETPLACES.includes(f));
@@ -2595,6 +2597,7 @@ function checkInstallSource(root, id, repo, report2) {
       `"${file}" isn't part of the repo layout; the root .claude-plugin/ and .agents/ hold only a public repo's marketplace files.`,
       "Move it into the plugin, or remove it."
     );
+  if (s.marketplace && s.ci === "hosted" && !hasOwn) return;
   if (!isPublic) {
     for (const file of found.filter((f) => MARKETPLACES.includes(f)))
       report2.add(

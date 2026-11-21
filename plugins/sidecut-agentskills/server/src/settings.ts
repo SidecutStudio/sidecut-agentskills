@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 
 /** Where CI runs: GitHub-hosted Linux, or Sidecut's self-hosted runners through the runner picker. */
 export type CiMode = 'hosted' | 'sidecut';
@@ -63,9 +63,13 @@ export const REPO_FILE = '.agentskills.json';
 
 const KEYS = Object.keys(DEFAULTS) as (keyof Settings)[];
 
-/** The user's settings file: `$XDG_CONFIG_HOME/agentskills/settings.json`, or under `~/.config`. */
+/**
+ * The user's settings file: `$XDG_CONFIG_HOME/agentskills/settings.json`, or under `~/.config`. A
+ * relative XDG_CONFIG_HOME is ignored, as the XDG spec says.
+ */
 export function userSettingsPath(env: NodeJS.ProcessEnv = process.env): string {
-  const base = env.XDG_CONFIG_HOME || join(homedir(), '.config');
+  const xdg = env.XDG_CONFIG_HOME;
+  const base = xdg && isAbsolute(xdg) ? xdg : join(homedir(), '.config');
   return join(base, 'agentskills', 'settings.json');
 }
 
@@ -121,6 +125,60 @@ export function mergeSettings(...layers: (SettingsInput | null | undefined)[]): 
       `Prefix "${out.prefix}" must be lowercase kebab-case ending in a hyphen, such as acme-.`,
     );
   return out;
+}
+
+const OWNER = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+// Characters that would need escaping in the JSON and YAML templates, or break a line in Markdown.
+/** Whether `text` holds a quote, a backslash or a control character. */
+function unsafeText(text: string): boolean {
+  return [...text].some(
+    (c) => c === '"' || c === '\\' || c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f,
+  );
+}
+
+/**
+ * Throws when a value would break a file it's written into: the templates paste settings into JSON,
+ * YAML and Markdown as they are, so only values that need no escaping are accepted.
+ */
+export function validateSettings(s: Settings): Settings {
+  if (s.org && !OWNER.test(s.org))
+    throw new Error(
+      `Owner "${s.org}" must be a GitHub user or organization name: letters, digits and single hyphens.`,
+    );
+  for (const key of ['authorName', 'brand'] as const) {
+    if (unsafeText(s[key]))
+      throw new Error(
+        `${key} can't hold quotes, backslashes, line breaks or other control characters.`,
+      );
+  }
+  for (const key of ['authorUrl', 'homepage'] as const) {
+    const value = s[key];
+    if (!value) continue;
+    let ok = false;
+    try {
+      const url = new URL(value);
+      ok = (url.protocol === 'https:' || url.protocol === 'http:') && !/[\s"\\<>]/.test(value);
+    } catch {
+      ok = false;
+    }
+    if (!ok) throw new Error(`${key} "${value}" must be an http or https URL.`);
+  }
+  if (!/^#[0-9A-Fa-f]{6}$/.test(s.brandColor))
+    throw new Error(`Brand color "${s.brandColor}" must be #RRGGBB.`);
+  return s;
+}
+
+/**
+ * What to save so the same settings resolve again: the profile, then each value that differs from
+ * it (or from the defaults, with no profile). Resolving it on its own gives back `settings`.
+ */
+export function answersOf(settings: Settings): SettingsInput {
+  const base = (settings.profile ? PROFILES[settings.profile] : DEFAULTS) ?? DEFAULTS;
+  const out: Record<string, string> = settings.profile ? { profile: settings.profile } : {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (key !== 'profile' && value !== (base as Record<string, string>)[key]) out[key] = value;
+  }
+  return out as SettingsInput;
 }
 
 export function readUserSettings(env: NodeJS.ProcessEnv = process.env): SettingsInput | null {
