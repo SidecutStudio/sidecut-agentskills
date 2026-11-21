@@ -1,6 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { displayNameOf, OWNER_INPUT_PATH, ownerInput, renderFile } from '../scaffold.ts';
+import {
+  displayNameOf,
+  OWNER_INPUT_PATH,
+  ownerInput,
+  renderFile,
+  settingsVars,
+} from '../scaffold.ts';
+import { repoSettings } from '../settings.ts';
 
 /** Files sidecut-agentskills owns whole in every plugin repo. */
 export const OWNED_FILES = [
@@ -194,8 +201,10 @@ export function planSync(
   kept: (file: string) => boolean = () => false,
 ): Change[] {
   const changes: Change[] = [];
+  const settings = settingsVars(vars.id, repoSettings(root));
   const render = (file: string) =>
     renderFile(`repo/${file}.tmpl`, {
+      ...settings,
       id: vars.id,
       repo: vars.repo,
       displayName: displayNameOf(vars.id),
@@ -209,7 +218,7 @@ export function planSync(
     if (have !== want)
       changes.push({
         file,
-        what: have === null ? `${file} is missing.` : `${file} differs from the Sidecut copy.`,
+        what: have === null ? `${file} is missing.` : `${file} differs from the template copy.`,
         next: want,
       });
   }
@@ -228,7 +237,7 @@ export function planSync(
     else if (merged.text !== have)
       changes.push({
         file,
-        what: `The Sidecut blocks in ${file} are out of date.`,
+        what: `The template blocks in ${file} are out of date.`,
         next: merged.text,
       });
   }

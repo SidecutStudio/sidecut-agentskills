@@ -1,13 +1,15 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
-  BRAND_COLOR,
   brandColorOf,
   displayNameOf,
   listFiles,
-  PLUGIN_ID,
-  templatesRoot,
+  pluginIdPattern,
+  renderFile,
+  settingsVars,
+  skillPrefixOf,
 } from '../scaffold.ts';
+import { current } from '../settings.ts';
 import { checkMarkdown, paragraphAfter, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { type Report, sameJson, sentences } from './report.ts';
 import { checkServer } from './server.ts';
@@ -182,7 +184,7 @@ function checkLayout(pluginDir: string, root: string, report: Report): void {
         );
       }
       // Codex loads subagents only from a project's .codex/agents/, so each one ships as a profile.
-      const prefix = relative(join(pluginDir, '..'), pluginDir).replace(/^sidecut-/, '');
+      const prefix = skillPrefixOf(relative(join(pluginDir, '..'), pluginDir));
       const profile = join(
         pluginDir,
         'codex',
@@ -262,12 +264,13 @@ function checkManifests(
       );
     }
   }
-  if (claude.name !== id || !PLUGIN_ID.test(id)) {
+  const s = current();
+  if (claude.name !== id || !pluginIdPattern().test(id)) {
     report.add(
       'MANIFEST_NAME',
       claudeFile,
       undefined,
-      `Name must be the folder name "${id}" in the form sidecut-<name>.`,
+      `Name must be the folder name "${id}" in the form ${s.prefix}<name>.`,
       'Rename the plugin or its folder.',
     );
   }
@@ -288,33 +291,38 @@ function checkManifests(
       'Shorten it to one sentence ending with a full stop.',
     );
   }
-  if (!sameJson(claude.author, { name: 'Sidecut Studio', url: 'https://sidecut.dev' })) {
+  const author = { name: s.authorName, url: s.authorUrl };
+  const authorOk = s.authorName
+    ? sameJson(claude.author, author)
+    : isRecord(claude.author) && typeof claude.author.name === 'string';
+  if (!authorOk) {
     report.add(
       'MANIFEST_AUTHOR',
       claudeFile,
       undefined,
-      'Author is not Sidecut Studio.',
-      'Use `{ "name": "Sidecut Studio", "url": "https://sidecut.dev" }`.',
+      s.authorName ? `Author is not ${s.authorName}.` : 'Author has no name.',
+      s.authorName ? `Use \`${JSON.stringify(author)}\`.` : 'Set author.name.',
     );
   }
-  if (claude.homepage !== 'https://sidecut.dev')
+  if (s.homepage && claude.homepage !== s.homepage)
     report.add(
       'MANIFEST_HOMEPAGE',
       claudeFile,
       undefined,
-      'Homepage is not https://sidecut.dev.',
+      `Homepage is not ${s.homepage}.`,
       'Set it.',
     );
   const repository = String(claude.repository ?? '');
+  const owner = s.org || /^https:\/\/github\.com\/([\w.-]+)\//.exec(repository)?.[1] || '';
   const repoOk = repoName
-    ? repository === `https://github.com/SidecutStudio/${repoName}`
-    : repository.startsWith('https://github.com/SidecutStudio/');
+    ? repository === `https://github.com/${owner}/${repoName}`
+    : Boolean(owner) && repository.startsWith(`https://github.com/${owner}/`);
   if (!repoOk)
     report.add(
       'MANIFEST_REPOSITORY',
       claudeFile,
       undefined,
-      `Repository "${repository}" is not this SidecutStudio repo.`,
+      `Repository "${repository}" is not this ${owner || 'GitHub'} repo.`,
       'Point it at the GitHub repo.',
     );
   if (claude.license !== 'MIT')
@@ -344,8 +352,8 @@ function checkManifests(
   const expected: Json = {
     displayName: displayNameOf(id),
     shortDescription: description,
-    developerName: 'Sidecut Studio',
-    websiteURL: 'https://sidecut.dev',
+    developerName: s.authorName || ui.developerName,
+    websiteURL: s.homepage || ui.websiteURL,
     composerIcon: './assets/icon.png',
     logo: './assets/icon.png',
   };
@@ -378,13 +386,15 @@ function checkManifests(
       'Fix the prompt list.',
     );
   }
-  if (ui.brandColor !== BRAND_COLOR) {
+  if (ui.brandColor !== s.brandColor) {
     report.add(
       'MANIFEST_INTERFACE',
       portableFile,
       undefined,
-      `brandColor isn't Sidecut Builder's orange.`,
-      `Use ${BRAND_COLOR}.`,
+      s.profile === 'sidecut'
+        ? "brandColor isn't Sidecut Builder's orange."
+        : `brandColor isn't the settings' ${s.brandColor}.`,
+      `Use ${s.brandColor}.`,
     );
   }
   return claude;
@@ -415,7 +425,7 @@ function checkApps(pluginDir: string, id: string, root: string, report: Report):
     );
     return;
   }
-  const key = id.replace(/^sidecut-/, '');
+  const key = skillPrefixOf(id);
   if (Object.keys(apps).join() !== key) {
     report.add(
       'APP_KEY',
@@ -485,7 +495,7 @@ function checkMcp(pluginDir: string, id: string, root: string, report: Report): 
   checkKeys(portable, ['mcpServers'], portableFile, report, 'MCP_FIELDS');
   const a = (claude.mcpServers ?? {}) as Record<string, Json>;
   const b = (portable.mcpServers ?? {}) as Record<string, Json>;
-  const key = id.replace(/^sidecut-/, '');
+  const key = skillPrefixOf(id);
   if (Object.keys(a).join() !== key || Object.keys(b).join() !== key) {
     report.add(
       'MCP_KEY',
@@ -654,16 +664,16 @@ function checkHooks(pluginDir: string, root: string, report: Report): void {
       );
     }
     if (name === 'post-tool-use-skill-log.mjs') {
-      const canonical = readFileSync(
-        join(templatesRoot, 'plugin', 'hooks', `${name}.tmpl`),
-        'utf8',
+      const canonical = renderFile(
+        `plugin/hooks/${name}.tmpl`,
+        settingsVars(relative(join(pluginDir, '..'), pluginDir)),
       );
       if (text !== canonical) {
         report.add(
           'HOOK_SKILL_LOG',
           relative(root, path),
           undefined,
-          'The usage log hook differs from the Sidecut copy.',
+          'The usage log hook differs from the template copy.',
           'Copy it again from the sidecut-agentskills template.',
         );
       }

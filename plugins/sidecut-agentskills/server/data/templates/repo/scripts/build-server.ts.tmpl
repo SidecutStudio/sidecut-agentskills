@@ -1,7 +1,7 @@
 // Builds what a plugin repo generates: the MCP server bundle in server/index.mjs, the licence of
 // every package it inlines in server/THIRD_PARTY_LICENSES.txt, and a Codex profile in codex/agents/
 // for each subagent in agents/. `--check` builds into a temporary folder and fails when a committed
-// file differs. Every Sidecut plugin repo has this file unchanged.
+// file differs. Every {{brandSpace}}plugin repo has this file unchanged.
 
 import {
   existsSync,
@@ -120,7 +120,7 @@ function generated(): string[] {
   const agents = join(plugin, 'agents');
   const roles = existsSync(agents) ? readdirSync(agents).filter((f) => f.endsWith('.md')) : [];
   if (roles.length > 0) mkdirSync(join(output, 'codex', 'agents'), { recursive: true });
-  const prefix = id.replace(/^sidecut-/, '');
+  const prefix = id.replace(/^{{prefixPattern}}/, '');
   const wanted = new Set<string>();
   for (const file of roles.sort()) {
     const role = file.replace(/\.md$/, '');
