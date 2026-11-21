@@ -12,6 +12,7 @@ import {
 import { current } from '../settings.ts';
 import { checkMarkdown, paragraphAfter, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { type Report, sameJson, sentences } from './report.ts';
+import { checkScanText } from './scan-text.ts';
 import { checkServer } from './server.ts';
 import { checkSkills } from './skills.ts';
 
@@ -949,6 +950,7 @@ export function checkPlugin(
   const version = typeof manifest?.version === 'string' ? manifest.version : null;
   checkReadme(pluginDir, String(manifest?.description ?? ''), skills, root, report);
   if (version) checkChangelog(pluginDir, version, root, report);
+  checkScanText(pluginDir, root, report);
   for (const path of listFiles(pluginDir)) {
     if (
       path.endsWith('.md') &&

@@ -13,7 +13,7 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on:
       group: sidecut-linux-x64
-      labels: [self-hosted, Linux, X64, sidecut-ci]
+      labels: {{ciReleaseLabels}}
     timeout-minutes: 15
     concurrency:
       group: release
@@ -22,7 +22,7 @@ jobs:
       contents: write
       checks: read
     env:
-      GH_TOKEN: ${{ github.token }}
+      {{ghTokenEnv}}
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,10 +37,7 @@ jobs:
       # Bun, which plugin repos don't install.
       - name: Install gh 2.102.0
         run: |
-          curl -fsSL -o "$RUNNER_TEMP/gh.tar.gz" https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz
-          echo "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386  $RUNNER_TEMP/gh.tar.gz" | sha256sum --check
-          tar -xzf "$RUNNER_TEMP/gh.tar.gz" -C "$RUNNER_TEMP" --strip-components=2 gh_2.102.0_linux_amd64/bin/gh
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          {{ghInstall}}
       - run: npm ci
       - name: Choose the version
         id: version

@@ -19,6 +19,33 @@ function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
 }
 
+// plugins/sidecut-agentskills/server/src/ci-snippets.ts
+var INDENT = "          ";
+var CI_SNIPPETS = {
+  ciOwnLane: "self-hosted",
+  ciOwnLaneTitle: "Self-hosted",
+  ciLightRunner: `'{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}'`,
+  ciReleaseLabels: "[self-hosted, Linux, X64, sidecut-ci]",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
+  ciAppKey: "${{ secrets.SIDECUT_CI_APP_KEY }}",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
+  ghTokenEnv: "GH_TOKEN: ${{ github.token }}",
+  secretScanInstall: [
+    'curl -fsSL -o "$RUNNER_TEMP/trufflehog.tar.gz" https://github.com/trufflesecurity/trufflehog/releases/download/v3.99.2/trufflehog_3.99.2_linux_amd64.tar.gz',
+    'echo "3c7b0d1dc4278294269bfdd7594bca8bb28c78da0a4a06ad202ded37b48deca4  $RUNNER_TEMP/trufflehog.tar.gz" | sha256sum --check',
+    'tar -xzf "$RUNNER_TEMP/trufflehog.tar.gz" -C "$RUNNER_TEMP" trufflehog',
+    'echo "$RUNNER_TEMP" >> "$GITHUB_PATH"'
+  ].join(`
+${INDENT}`),
+  ghInstall: [
+    'curl -fsSL -o "$RUNNER_TEMP/gh.tar.gz" https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz',
+    'echo "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386  $RUNNER_TEMP/gh.tar.gz" | sha256sum --check',
+    'tar -xzf "$RUNNER_TEMP/gh.tar.gz" -C "$RUNNER_TEMP" --strip-components=2 gh_2.102.0_linux_amd64/bin/gh',
+    'echo "$RUNNER_TEMP" >> "$GITHUB_PATH"'
+  ].join(`
+${INDENT}`)
+};
+
 // plugins/sidecut-agentskills/server/src/settings.ts
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
@@ -212,7 +239,7 @@ function displayNameOf(id) {
 }
 function render(text, vars) {
   return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    const value = vars[key];
+    const value = vars[key] ?? CI_SNIPPETS[key];
     if (value === void 0) throw new Error(`Template uses unknown variable ${match}`);
     return value;
   });

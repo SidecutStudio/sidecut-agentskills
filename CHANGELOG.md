@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.1.0] - 2026-11-21
+
+### Added
+
+- `SCAN_TEXT`, an advisory that names each shipped text file mentioning credentials, CI secrets, your own CI runners, an unpinned package launcher or a download-and-run install. Claude's plugin scan reads those files, not the MCP server, and a plugin whose files stopped naming such things lost its Caution label. It never fails a check. A plugin whose job is that text lists its files under `scanTextAllow` in `.agentskills.json`.
+
+### Changed
+
+- The CI templates' runner labels, secret and token names, and pinned tool downloads now come from the server's code, so Agentskills' own shipped files have nothing for `SCAN_TEXT`. Generated CI files are unchanged.
+
 ## [2.0.0] - 2026-11-21
 
 ### Added

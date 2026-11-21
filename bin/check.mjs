@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
-import { existsSync as existsSync8, lstatSync, readdirSync as readdirSync5, readFileSync as readFileSync7, realpathSync } from "node:fs";
+import { existsSync as existsSync8, lstatSync, readdirSync as readdirSync5, readFileSync as readFileSync8, realpathSync } from "node:fs";
 import { join as join8 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
@@ -54,7 +54,9 @@ var Report = class {
     }
   }
   add(code, file, line, message, fix) {
-    const target = ["SKILL_LENGTH", "REF_LENGTH", "SKILL_DESCRIPTION_LENGTH"].includes(code) ? this.advisories : this.problems;
+    const target = ["SKILL_LENGTH", "REF_LENGTH", "SKILL_DESCRIPTION_LENGTH", "SCAN_TEXT"].includes(
+      code
+    ) ? this.advisories : this.problems;
     target.push({ code, file, line, message, fix });
   }
   format() {
@@ -67,6 +69,33 @@ function sentences(text) {
 function sameJson(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
+
+// plugins/sidecut-agentskills/server/src/ci-snippets.ts
+var INDENT = "          ";
+var CI_SNIPPETS = {
+  ciOwnLane: "self-hosted",
+  ciOwnLaneTitle: "Self-hosted",
+  ciLightRunner: `'{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}'`,
+  ciReleaseLabels: "[self-hosted, Linux, X64, sidecut-ci]",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
+  ciAppKey: "${{ secrets.SIDECUT_CI_APP_KEY }}",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
+  ghTokenEnv: "GH_TOKEN: ${{ github.token }}",
+  secretScanInstall: [
+    'curl -fsSL -o "$RUNNER_TEMP/trufflehog.tar.gz" https://github.com/trufflesecurity/trufflehog/releases/download/v3.99.2/trufflehog_3.99.2_linux_amd64.tar.gz',
+    'echo "3c7b0d1dc4278294269bfdd7594bca8bb28c78da0a4a06ad202ded37b48deca4  $RUNNER_TEMP/trufflehog.tar.gz" | sha256sum --check',
+    'tar -xzf "$RUNNER_TEMP/trufflehog.tar.gz" -C "$RUNNER_TEMP" trufflehog',
+    'echo "$RUNNER_TEMP" >> "$GITHUB_PATH"'
+  ].join(`
+${INDENT}`),
+  ghInstall: [
+    'curl -fsSL -o "$RUNNER_TEMP/gh.tar.gz" https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz',
+    'echo "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386  $RUNNER_TEMP/gh.tar.gz" | sha256sum --check',
+    'tar -xzf "$RUNNER_TEMP/gh.tar.gz" -C "$RUNNER_TEMP" --strip-components=2 gh_2.102.0_linux_amd64/bin/gh',
+    'echo "$RUNNER_TEMP" >> "$GITHUB_PATH"'
+  ].join(`
+${INDENT}`)
+};
 
 // plugins/sidecut-agentskills/server/src/settings.ts
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -148,6 +177,16 @@ function mergeSettings(...layers) {
 }
 function readRepoSettings(root) {
   return readInput(join(root, REPO_FILE));
+}
+function readScanTextAllow(root) {
+  const path = join(root, REPO_FILE);
+  if (!existsSync(path)) return [];
+  try {
+    const value = JSON.parse(readFileSync(path, "utf8")).scanTextAllow;
+    return Array.isArray(value) ? value.filter((g) => typeof g === "string") : [];
+  } catch {
+    return [];
+  }
 }
 function inferRepoSettings(root) {
   const plugins = join(root, "plugins");
@@ -292,7 +331,7 @@ function defaultPromptOf(does) {
 }
 function render(text, vars) {
   return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    const value = vars[key];
+    const value = vars[key] ?? CI_SNIPPETS[key];
     if (value === void 0) throw new Error(`Template uses unknown variable ${match}`);
     return value;
   });
@@ -485,15 +524,88 @@ function paragraphAfter(doc, line) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/plugin.ts
-import { existsSync as existsSync6, readdirSync as readdirSync4, readFileSync as readFileSync5, statSync as statSync3 } from "node:fs";
-import { join as join6, relative as relative5 } from "node:path";
+import { existsSync as existsSync6, readdirSync as readdirSync4, readFileSync as readFileSync6, statSync as statSync3 } from "node:fs";
+import { join as join6, relative as relative6 } from "node:path";
+
+// plugins/sidecut-agentskills/server/src/check/scan-text.ts
+import { readFileSync as readFileSync3 } from "node:fs";
+import { relative as relative3 } from "node:path";
+var SCAN_PATTERNS = [
+  {
+    what: "a download-and-run install",
+    re: /\b(?:curl|wget)\b[^\n]*\|\s*(?:ba)?sh\b|\bcurl\s+-fsSL\b|\binstall\.sh\b/gi
+  },
+  {
+    what: "an unpinned package launcher",
+    re: /\b(?:npx|bunx|uvx)\s+((?:-{1,2}[\w-]+\s+)*)([^\s`'"),]+)/gi,
+    // A pinned version, a local path, or a flag that only runs what's already installed.
+    pinned: (m) => /@\d/.test(m[2] ?? "") || /^[./]/.test(m[2] ?? "") || /(?:^|\s)--?(?:no-install|no|offline)\b/.test(m[1] ?? "")
+  },
+  { what: "a CI secret", re: /\bsecrets\.[A-Za-z_]/gi },
+  {
+    what: "a token name",
+    re: /\b(?:GITHUB_TOKEN|GH_TOKEN|NPM_TOKEN|[A-Z0-9_]*API_KEY)\b|\bgh auth\b/gi
+  },
+  { what: "an SSH key folder", re: /~\/\.ssh\b|\.ssh\//gi },
+  { what: "the keychain", re: /\bkeychain\b/gi },
+  { what: "self-hosted runners", re: /\bself-hosted\b/gi }
+];
+var BINARY = /\.(?:png|jpe?g|gif|webp|ico|woff2?|ttf|otf|zip|gz|wasm)$/i;
+function scannedFile(path) {
+  if (BINARY.test(path)) return false;
+  if (path === "server/index.mjs" || path.startsWith("server/src/")) return false;
+  return !path.endsWith("THIRD_PARTY_LICENSES.txt");
+}
+function globMatch(glob, path) {
+  const re = glob.split("**").map(
+    (part) => part.split("*").map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("[^/]*")
+  ).join(".*");
+  return new RegExp(`^${re}$`).test(path);
+}
+function scanText(text) {
+  const hits = [];
+  text.split("\n").forEach((line, i) => {
+    for (const p of SCAN_PATTERNS) {
+      p.re.lastIndex = 0;
+      for (const m of line.matchAll(p.re)) {
+        if (p.pinned?.(m)) continue;
+        hits.push({ line: i + 1, what: p.what });
+      }
+    }
+  });
+  return hits;
+}
+function checkScanText(pluginDir, root, report2) {
+  const allow = readScanTextAllow(root);
+  for (const path of listFiles(pluginDir)) {
+    const inPlugin = relative3(pluginDir, path).split("\\").join("/");
+    if (!scannedFile(inPlugin) || allow.some((g) => globMatch(g, inPlugin))) continue;
+    let text;
+    try {
+      text = readFileSync3(path, "utf8");
+    } catch {
+      continue;
+    }
+    const hits = scanText(text);
+    const first = hits[0];
+    if (!first) continue;
+    const kinds = [...new Set(hits.map((h) => h.what))].join(", ");
+    report2.add(
+      "SCAN_TEXT",
+      relative3(root, path),
+      first.line,
+      `${hits.length} ${hits.length === 1 ? "line names" : "places name"} ${kinds}. Claude's plugin scan may mark a plugin Caution when its shipped text names credentials, CI secrets, self-hosted runners or download-and-run installs.`,
+      `Keep that text out of shipped files, or list the file under \`scanTextAllow\` in .agentskills.json and say plainly in the README what the plugin does with it.`
+    );
+  }
+}
 
 // plugins/sidecut-agentskills/server/src/check/server.ts
 import { spawnSync } from "node:child_process";
-import { existsSync as existsSync4, mkdtempSync, readFileSync as readFileSync3, rmSync } from "node:fs";
+import { existsSync as existsSync4, mkdtempSync, readFileSync as readFileSync4, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join as join4, relative as relative3 } from "node:path";
+import { join as join4, relative as relative4 } from "node:path";
 var HINTS = ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"];
 var PASSED_ENV = ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "LANG", "SystemRoot", "USERPROFILE"];
 function serverEnv(env = process.env) {
@@ -541,7 +653,7 @@ function listTools(bundle) {
 function checkServer(pluginDir, root, report2) {
   const source = join4(pluginDir, "server", "src", "index.ts");
   const bundle = join4(pluginDir, "server", "index.mjs");
-  const where = relative3(root, join4(pluginDir, "server"));
+  const where = relative4(root, join4(pluginDir, "server"));
   if (!existsSync4(source) || !existsSync4(bundle)) {
     report2.add(
       "SERVER_FILES",
@@ -553,10 +665,10 @@ function checkServer(pluginDir, root, report2) {
     return null;
   }
   for (const file of listFiles(join4(pluginDir, "server", "src"))) {
-    if (/process\.cwd\(\)/.test(readFileSync3(file, "utf8"))) {
+    if (/process\.cwd\(\)/.test(readFileSync4(file, "utf8"))) {
       report2.add(
         "SERVER_CWD",
-        relative3(root, file),
+        relative4(root, file),
         void 0,
         "Server code uses the working directory.",
         "Resolve paths from `import.meta.url`; in Claude Code the working directory is the user project."
@@ -572,7 +684,7 @@ function checkServer(pluginDir, root, report2) {
       const build = createRequire(join4(root, "package.json"))("esbuild").buildSync;
       const result = build({
         absWorkingDir: root,
-        entryPoints: [relative3(root, source)],
+        entryPoints: [relative4(root, source)],
         bundle: true,
         platform: "node",
         format: "esm",
@@ -597,10 +709,10 @@ function checkServer(pluginDir, root, report2) {
         `The server doesn't build: ${failure.split("\n")[0]}`,
         "Run `npm install`, then fix the build error."
       );
-    } else if (!readFileSync3(built).equals(readFileSync3(bundle))) {
+    } else if (!readFileSync4(built).equals(readFileSync4(bundle))) {
       report2.add(
         "SERVER_BUNDLE_STALE",
-        relative3(root, bundle),
+        relative4(root, bundle),
         void 0,
         "The committed bundle doesn't match the source.",
         "Run `npm run build` and commit server/index.mjs."
@@ -616,12 +728,12 @@ function checkServer(pluginDir, root, report2) {
         )
       ];
       const notices = join4(pluginDir, "server", "THIRD_PARTY_LICENSES.txt");
-      const text = existsSync4(notices) ? readFileSync3(notices, "utf8") : "";
+      const text = existsSync4(notices) ? readFileSync4(notices, "utf8") : "";
       const missing = packages.filter((pkg) => !text.split("\n").includes(pkg));
       if (missing.length > 0) {
         report2.add(
           "SERVER_LICENSES",
-          relative3(root, notices),
+          relative4(root, notices),
           void 0,
           `The bundle inlines ${missing.join(", ")} without its licence notice.`,
           "Run `npm run build`, which writes server/THIRD_PARTY_LICENSES.txt."
@@ -635,7 +747,7 @@ function checkServer(pluginDir, root, report2) {
   if (!listing) {
     report2.add(
       "SERVER_START",
-      relative3(root, bundle),
+      relative4(root, bundle),
       void 0,
       "The server didn't answer initialize and tools/list.",
       "Run `node server/index.mjs` and fix the startup error."
@@ -690,8 +802,8 @@ function checkServer(pluginDir, root, report2) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/skills.ts
-import { existsSync as existsSync5, readdirSync as readdirSync3, readFileSync as readFileSync4, statSync as statSync2 } from "node:fs";
-import { join as join5, relative as relative4 } from "node:path";
+import { existsSync as existsSync5, readdirSync as readdirSync3, readFileSync as readFileSync5, statSync as statSync2 } from "node:fs";
+import { join as join5, relative as relative5 } from "node:path";
 var FRONTMATTER_ORDER = [
   "name",
   "description",
@@ -882,8 +994,8 @@ function supportFiles(dir) {
 }
 function checkLayout(dir, root, report2) {
   for (const path of listFiles(dir)) {
-    const rel = relative4(dir, path);
-    const file = relative4(root, path);
+    const rel = relative5(dir, path);
+    const file = relative5(root, path);
     if (rel === "SKILL.md" || rel === "agents/openai.yaml") continue;
     const [folder, name, ...rest] = rel.split("/");
     const pattern = SUPPORT_FOLDERS[folder ?? ""];
@@ -900,7 +1012,7 @@ function checkLayout(dir, root, report2) {
   if (!existsSync5(join5(dir, "agents", "openai.yaml"))) {
     report2.add(
       "SKILL_OPENAI_YAML",
-      relative4(root, dir),
+      relative5(root, dir),
       void 0,
       "Skill has no agents/openai.yaml.",
       "Add it with display_name, short_description and default_prompt."
@@ -925,10 +1037,10 @@ function checkOpenAiYaml(dir, info, title, brandColor, root, report2) {
   const path = join5(dir, "agents", "openai.yaml");
   if (!existsSync5(path)) return;
   const expected = openAiYamlOf(info, title, brandColor);
-  if (readFileSync4(path, "utf8") !== expected) {
+  if (readFileSync5(path, "utf8") !== expected) {
     report2.add(
       "SKILL_OPENAI_YAML",
-      relative4(root, path),
+      relative5(root, path),
       1,
       "openai.yaml doesn't match the skill.",
       `Make it exactly:
@@ -938,8 +1050,8 @@ ${expected}`
 }
 function checkSections(dir, name, root, report2, tools, skills, plugin) {
   const path = join5(dir, "SKILL.md");
-  const file = relative4(root, path);
-  const text = readFileSync4(path, "utf8");
+  const file = relative5(root, path);
+  const text = readFileSync5(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2, { skipH1Case: true });
   if (doc.lines.length > 200) {
@@ -1010,8 +1122,8 @@ function checkSections(dir, name, root, report2, tools, skills, plugin) {
   }
 }
 function checkSupportDoc(path, root, report2) {
-  const file = relative4(root, path);
-  const text = readFileSync4(path, "utf8");
+  const file = relative5(root, path);
+  const text = readFileSync5(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2);
   if (doc.frontmatter)
@@ -1033,8 +1145,8 @@ function checkSupportDoc(path, root, report2) {
   }
 }
 function checkScript(path, root, report2) {
-  const file = relative4(root, path);
-  const text = readFileSync4(path, "utf8");
+  const file = relative5(root, path);
+  const text = readFileSync5(path, "utf8");
   for (const match of text.matchAll(/(?:from|import\()\s*['"]([^'"]+)['"]/g)) {
     if (!(match[1] ?? "").startsWith("node:")) {
       report2.add(
@@ -1069,7 +1181,7 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
   if (!existsSync5(skillsDir)) {
     report2.add(
       "PLUGIN_NO_SKILLS",
-      relative4(root, pluginDir),
+      relative5(root, pluginDir),
       void 0,
       "Plugin has no skills folder.",
       "Add at least one skill."
@@ -1087,11 +1199,11 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
   const infos = [];
   for (const name of names) {
     const dir = join5(skillsDir, name);
-    const file = relative4(root, join5(dir, "SKILL.md"));
+    const file = relative5(root, join5(dir, "SKILL.md"));
     if (!isSkillName(name, prefix)) {
       report2.add(
         "NAME_SKILL",
-        relative4(root, dir),
+        relative5(root, dir),
         void 0,
         `Skill "${name}" is not ${prefix}- then a 2 or 3 word verb-object name.`,
         `Rename it, for example \`${prefix}-write-skill\`, or \`${prefix}\` for the router.`
@@ -1108,7 +1220,7 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
       continue;
     }
     checkLayout(dir, root, report2);
-    const doc = parseMarkdown(join5(dir, "SKILL.md"), readFileSync4(join5(dir, "SKILL.md"), "utf8"));
+    const doc = parseMarkdown(join5(dir, "SKILL.md"), readFileSync5(join5(dir, "SKILL.md"), "utf8"));
     const info = checkFrontmatter(name, doc.frontmatter, file, report2, tools, plugin);
     checkSections(dir, name, root, report2, tools, targets, plugin);
     if (info) {
@@ -1121,7 +1233,7 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
   if (hasRouter !== needsRouter) {
     report2.add(
       "SKILL_ROUTER",
-      relative4(root, skillsDir),
+      relative5(root, skillsDir),
       void 0,
       needsRouter ? `Plugin has 4 or more skills but no \`${prefix}\` router.` : `Plugin has a \`${prefix}\` router but fewer than 4 other skills.`,
       needsRouter ? `Add \`skills/${prefix}\`.` : `Remove \`skills/${prefix}\`.`
@@ -1183,11 +1295,11 @@ var README_SECTIONS = [
 var CHANGELOG_SECTIONS = ["Added", "Changed", "Fixed", "Removed"];
 function readJson(path, root, report2) {
   try {
-    return JSON.parse(readFileSync5(path, "utf8"));
+    return JSON.parse(readFileSync6(path, "utf8"));
   } catch {
     report2.add(
       "JSON_INVALID",
-      relative5(root, path),
+      relative6(root, path),
       void 0,
       "File is not valid JSON.",
       "Fix the JSON."
@@ -1217,7 +1329,7 @@ function emptyDirs(dir) {
   return found;
 }
 function pngSize(path) {
-  const bytes = readFileSync5(path);
+  const bytes = readFileSync6(path);
   if (bytes.length < 24 || bytes.toString("ascii", 12, 16) !== "IHDR") return null;
   return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
 }
@@ -1228,7 +1340,7 @@ function checkLayout2(pluginDir, root, report2) {
       const hint = name === "plugin.json" ? "Codex reads .codex-plugin/plugin.json; a root plugin.json stops it loading hooks." : name === "commands" ? "Turn commands into skills." : name === "evals" ? "Move evaluation cases to the repository root, outside the installed plugin." : "Move or remove it.";
       report2.add(
         "PLUGIN_ENTRY_UNEXPECTED",
-        relative5(root, join6(pluginDir, name)),
+        relative6(root, join6(pluginDir, name)),
         void 0,
         `"${name}" isn't part of the plugin layout.`,
         hint
@@ -1238,7 +1350,7 @@ function checkLayout2(pluginDir, root, report2) {
   for (const dir of emptyDirs(pluginDir)) {
     report2.add(
       "PLUGIN_EMPTY_FOLDER",
-      relative5(root, dir),
+      relative6(root, dir),
       void 0,
       "Empty folder.",
       "Remove it."
@@ -1251,7 +1363,7 @@ function checkLayout2(pluginDir, root, report2) {
       if (name !== "icon.png")
         report2.add(
           "PLUGIN_ASSET",
-          relative5(root, join6(assets, name)),
+          relative6(root, join6(assets, name)),
           void 0,
           "Only assets/icon.png is allowed.",
           "Remove it."
@@ -1262,7 +1374,7 @@ function checkLayout2(pluginDir, root, report2) {
   if (size?.[0] !== 512 || size[1] !== 512) {
     report2.add(
       "PLUGIN_ICON",
-      relative5(root, icon),
+      relative6(root, icon),
       void 0,
       "assets/icon.png is missing or not a 512 by 512 PNG.",
       "Add a 512 by 512 PNG."
@@ -1273,13 +1385,13 @@ function checkLayout2(pluginDir, root, report2) {
       if (!/^[a-z]+\.md$/.test(name)) {
         report2.add(
           "NAME_AGENT",
-          relative5(root, join6(pluginDir, "agents", name)),
+          relative6(root, join6(pluginDir, "agents", name)),
           void 0,
           "Subagent file is not a one-word role noun.",
           "Rename it, for example `reviewer.md`."
         );
       }
-      const prefix = skillPrefixOf(relative5(join6(pluginDir, ".."), pluginDir));
+      const prefix = skillPrefixOf(relative6(join6(pluginDir, ".."), pluginDir));
       const profile = join6(
         pluginDir,
         "codex",
@@ -1289,7 +1401,7 @@ function checkLayout2(pluginDir, root, report2) {
       if (!existsSync6(profile)) {
         report2.add(
           "AGENT_CODEX_PROFILE",
-          relative5(root, profile),
+          relative6(root, profile),
           void 0,
           "The subagent has no Codex profile.",
           "Run `npm run build`, which writes codex/agents/ from agents/."
@@ -1305,7 +1417,7 @@ function checkManifests(pluginDir, id, repoName, root, report2) {
     if (!existsSync6(path))
       report2.add(
         "MANIFEST_MISSING",
-        relative5(root, path),
+        relative6(root, path),
         void 0,
         "Manifest is missing.",
         "Add it from the template."
@@ -1315,8 +1427,8 @@ function checkManifests(pluginDir, id, repoName, root, report2) {
   const claude = readJson(claudePath, root, report2);
   const portable = readJson(portablePath, root, report2);
   if (!claude || !portable) return null;
-  const claudeFile = relative5(root, claudePath);
-  const portableFile = relative5(root, portablePath);
+  const claudeFile = relative6(root, claudePath);
+  const portableFile = relative6(root, portablePath);
   checkKeys(claude, SHARED_FIELDS, claudeFile, report2, "MANIFEST_FIELDS");
   const paths = { skills: "./skills/" };
   if (existsSync6(join6(pluginDir, "mcp.json"))) paths.mcpServers = "./mcp.json";
@@ -1478,7 +1590,7 @@ function isRecord(value) {
 function checkApps(pluginDir, id, root, report2) {
   const path = join6(pluginDir, ".app.json");
   if (!existsSync6(path)) return;
-  const file = relative5(root, path);
+  const file = relative6(root, path);
   const config = readJson(path, root, report2);
   const apps = config?.apps;
   if (!isRecord(config) || Object.keys(config).join() !== "apps" || !isRecord(apps) || Object.keys(apps).length === 0) {
@@ -1519,7 +1631,7 @@ function checkApps(pluginDir, id, root, report2) {
   if (!isRecord(fallback) || fallback.type !== "http" || typeof fallback.url !== "string") {
     report2.add(
       "APP_MCP_ROUTE",
-      relative5(root, mcpPath),
+      relative6(root, mcpPath),
       void 0,
       `The app's direct fallback must be a remote HTTP server named "${key}".`,
       "Use the same declaration name for the managed app and its hosted MCP fallback; do not shadow a local server."
@@ -1535,7 +1647,7 @@ function checkMcp(pluginDir, id, root, report2) {
   if (hasClaude !== hasPortable) {
     report2.add(
       "MCP_PAIR",
-      relative5(root, pluginDir),
+      relative6(root, pluginDir),
       void 0,
       "Only one of .mcp.json and mcp.json exists.",
       "Add the other; Claude Code reads .mcp.json and Codex reads mcp.json."
@@ -1545,8 +1657,8 @@ function checkMcp(pluginDir, id, root, report2) {
   const claude = readJson(claudePath, root, report2);
   const portable = readJson(portablePath, root, report2);
   if (!claude || !portable) return null;
-  const claudeFile = relative5(root, claudePath);
-  const portableFile = relative5(root, portablePath);
+  const claudeFile = relative6(root, claudePath);
+  const portableFile = relative6(root, portablePath);
   checkKeys(claude, ["mcpServers"], claudeFile, report2, "MCP_FIELDS");
   checkKeys(portable, ["mcpServers"], portableFile, report2, "MCP_FIELDS");
   const a = claude.mcpServers ?? {};
@@ -1653,7 +1765,7 @@ function checkHooks(pluginDir, root, report2) {
   if (!existsSync6(configPath) || !readJson(configPath, root, report2)) {
     report2.add(
       "HOOKS_CONFIG",
-      relative5(root, configPath),
+      relative6(root, configPath),
       void 0,
       "hooks/ has no valid hooks.json.",
       "Add hooks.json or remove the folder."
@@ -1666,7 +1778,7 @@ function checkHooks(pluginDir, root, report2) {
     const path = join6(dir, name);
     const config = existsSync6(path) ? readJson(path, root, report2) : null;
     const scripts2 = /* @__PURE__ */ new Set();
-    if (config) checkHookConfig(config, relative5(root, path), scripts2, report2);
+    if (config) checkHookConfig(config, relative6(root, path), scripts2, report2);
     for (const script of scripts2) registered.add(script);
     byHost.set(name, scripts2);
   }
@@ -1675,7 +1787,7 @@ function checkHooks(pluginDir, root, report2) {
   if (claudeHooks !== codexHooks) {
     report2.add(
       "HOOK_PARITY",
-      relative5(root, join6(dir, "codex-hooks.json")),
+      relative6(root, join6(dir, "codex-hooks.json")),
       void 0,
       "hooks.json and codex-hooks.json don't register the same scripts.",
       "Register every hook script in both, with the event and matcher each host uses."
@@ -1687,16 +1799,16 @@ function checkHooks(pluginDir, root, report2) {
     if (!registered.has(name))
       report2.add(
         "HOOK_UNREGISTERED",
-        relative5(root, path),
+        relative6(root, path),
         void 0,
         "Hook script is not registered.",
         "Register it in hooks.json or codex-hooks.json, or delete it."
       );
-    const text = readFileSync5(path, "utf8");
+    const text = readFileSync6(path, "utf8");
     if (/\bfetch\(|node:https?|node:net|node:dgram/.test(text)) {
       report2.add(
         "HOOK_NETWORK",
-        relative5(root, path),
+        relative6(root, path),
         void 0,
         "Hook uses the network.",
         "Hooks make no network calls."
@@ -1705,12 +1817,12 @@ function checkHooks(pluginDir, root, report2) {
     if (name === "post-tool-use-skill-log.mjs") {
       const canonical = renderFile(
         `plugin/hooks/${name}.tmpl`,
-        settingsVars(relative5(join6(pluginDir, ".."), pluginDir))
+        settingsVars(relative6(join6(pluginDir, ".."), pluginDir))
       );
       if (text !== canonical) {
         report2.add(
           "HOOK_SKILL_LOG",
-          relative5(root, path),
+          relative6(root, path),
           void 0,
           "The usage log hook differs from the template copy.",
           "Copy it again from the sidecut-agentskills template."
@@ -1722,7 +1834,7 @@ function checkHooks(pluginDir, root, report2) {
     if (!scripts.includes(name))
       report2.add(
         "HOOK_MISSING",
-        relative5(root, dir),
+        relative6(root, dir),
         void 0,
         `Registered hook ${name} doesn't exist.`,
         "Add the script or remove the entry."
@@ -1733,7 +1845,7 @@ function checkEvals(skills, root, report2) {
   const dir = join6(root, "evals");
   const cases = existsSync6(dir) ? readdirSync4(dir).filter((n) => statSync3(join6(dir, n)).isDirectory()) : [];
   for (const name of cases) {
-    const where = relative5(root, join6(dir, name));
+    const where = relative6(root, join6(dir, name));
     const owner = skills.find((s) => name.startsWith(`${s}-`));
     if (!owner && !/^negative-[a-z0-9-]+$/.test(name)) {
       report2.add(
@@ -1745,7 +1857,7 @@ function checkEvals(skills, root, report2) {
       );
     }
     const prompt = join6(dir, name, "prompt.md");
-    if (!existsSync6(prompt) || !readFileSync5(prompt, "utf8").startsWith("---\n")) {
+    if (!existsSync6(prompt) || !readFileSync6(prompt, "utf8").startsWith("---\n")) {
       report2.add(
         "EVAL_PROMPT",
         where,
@@ -1768,7 +1880,7 @@ function checkEvals(skills, root, report2) {
   if (cases.length > 0 && !cases.some((c) => c.startsWith("negative-"))) {
     report2.add(
       "EVAL_MISSING",
-      relative5(root, dir),
+      relative6(root, dir),
       void 0,
       "There is no negative- eval case.",
       "Add evals/negative-<what>/ for a request no skill should answer."
@@ -1778,7 +1890,7 @@ function checkEvals(skills, root, report2) {
     if (!cases.some((c) => c.startsWith(`${skill}-`))) {
       report2.add(
         "EVAL_MISSING",
-        relative5(root, dir),
+        relative6(root, dir),
         void 0,
         `Skill ${skill} has no eval case.`,
         `Add evals/${skill}-<what>/ with a trigger case.`
@@ -1791,19 +1903,19 @@ function checkReadme(pluginDir, description, skills, root, report2) {
   if (!existsSync6(path)) {
     report2.add(
       "README_MISSING",
-      relative5(root, path),
+      relative6(root, path),
       void 0,
       "Plugin has no README.md.",
       "Add it from the template."
     );
     return;
   }
-  const file = relative5(root, path);
-  const text = readFileSync5(path, "utf8");
+  const file = relative6(root, path);
+  const text = readFileSync6(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2, { skipH1Case: true });
   const h1 = doc.headings.find((h) => h.level === 1);
-  const id = relative5(join6(pluginDir, ".."), pluginDir);
+  const id = relative6(join6(pluginDir, ".."), pluginDir);
   if (h1 && h1.text !== displayNameOf(id))
     report2.add(
       "README_TITLE",
@@ -1871,15 +1983,15 @@ function checkChangelog(pluginDir, version, root, report2) {
   if (!existsSync6(path)) {
     report2.add(
       "CHANGELOG_MISSING",
-      relative5(root, path),
+      relative6(root, path),
       void 0,
       "Plugin has no CHANGELOG.md.",
       "Add it."
     );
     return;
   }
-  const file = relative5(root, path);
-  const text = readFileSync5(path, "utf8");
+  const file = relative6(root, path);
+  const text = readFileSync6(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2, { allowDates: true });
   if (doc.headings[0]?.text !== "Changelog" || doc.headings[0]?.level !== 1) {
@@ -1948,7 +2060,7 @@ function checkChangelog(pluginDir, version, root, report2) {
   }
 }
 function checkPlugin(pluginDir, root, report2, repoName) {
-  const id = relative5(join6(pluginDir, ".."), pluginDir);
+  const id = relative6(join6(pluginDir, ".."), pluginDir);
   checkLayout2(pluginDir, root, report2);
   const manifest = checkManifests(pluginDir, id, repoName, root, report2);
   checkApps(pluginDir, id, root, report2);
@@ -1964,9 +2076,10 @@ function checkPlugin(pluginDir, root, report2, repoName) {
   const version = typeof manifest?.version === "string" ? manifest.version : null;
   checkReadme(pluginDir, String(manifest?.description ?? ""), skills, root, report2);
   if (version) checkChangelog(pluginDir, version, root, report2);
+  checkScanText(pluginDir, root, report2);
   for (const path of listFiles(pluginDir)) {
     if (path.endsWith(".md") && !path.includes("/skills/") && !/\/(README|CHANGELOG)\.md$/.test(path)) {
-      const text = readFileSync5(path, "utf8");
+      const text = readFileSync6(path, "utf8");
       checkMarkdown(parseMarkdown(path, text), text, root, report2);
     }
   }
@@ -1974,7 +2087,7 @@ function checkPlugin(pluginDir, root, report2, repoName) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/sync.ts
-import { existsSync as existsSync7, mkdirSync as mkdirSync3, readFileSync as readFileSync6, writeFileSync as writeFileSync3 } from "node:fs";
+import { existsSync as existsSync7, mkdirSync as mkdirSync3, readFileSync as readFileSync7, writeFileSync as writeFileSync3 } from "node:fs";
 import { dirname as dirname4, join as join7 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
@@ -2080,7 +2193,7 @@ function newer(a, b) {
 function planPackage(root, vars) {
   const path = join7(root, "package.json");
   if (!existsSync7(path)) return null;
-  const text = readFileSync6(path, "utf8");
+  const text = readFileSync7(path, "utf8");
   const pkg = JSON.parse(text);
   const indent = /^\{\r?\n([ \t]+)"/.exec(text)?.[1] ?? "  ";
   const template = JSON.parse(
@@ -2131,7 +2244,7 @@ function planSync(root, vars, kept = () => false) {
     if (kept(file)) continue;
     const want = file === guide ? ownerInput() : render2(file);
     const path = join7(root, file);
-    const have = existsSync7(path) ? readFileSync6(path, "utf8") : null;
+    const have = existsSync7(path) ? readFileSync7(path, "utf8") : null;
     if (have !== want)
       changes.push({
         file,
@@ -2147,7 +2260,7 @@ function planSync(root, vars, kept = () => false) {
       changes.push({ file, what: `${file} is missing.`, next: template });
       continue;
     }
-    const have = readFileSync6(path, "utf8");
+    const have = readFileSync7(path, "utf8");
     const merged = mergeBlocks(have, template, file);
     if ("error" in merged)
       changes.push({ file, what: `${merged.error} Fix them by hand.`, next: null });
@@ -2256,7 +2369,7 @@ function onlyHostState(root, folder) {
 function checkCheckerVersion(root, report2) {
   const read = (path) => {
     try {
-      return JSON.parse(readFileSync7(join8(root, path), "utf8"));
+      return JSON.parse(readFileSync8(join8(root, path), "utf8"));
     } catch {
       return null;
     }
@@ -2275,7 +2388,7 @@ function checkCheckerVersion(root, report2) {
     );
 }
 function checkTopLevel(root, report2) {
-  const gitignore = existsSync8(join8(root, ".gitignore")) ? readFileSync7(join8(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
+  const gitignore = existsSync8(join8(root, ".gitignore")) ? readFileSync8(join8(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
   const entries = readdirSync5(root).filter(
     (n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n))
   );
@@ -2302,7 +2415,7 @@ function checkTopLevel(root, report2) {
   }
 }
 function checkLicense(root, report2) {
-  const license = existsSync8(join8(root, "LICENSE")) ? readFileSync7(join8(root, "LICENSE"), "utf8") : "";
+  const license = existsSync8(join8(root, "LICENSE")) ? readFileSync8(join8(root, "LICENSE"), "utf8") : "";
   const s = current();
   if (s.license !== "MIT") {
     if (license.trim() === "")
@@ -2329,7 +2442,7 @@ function checkLicense(root, report2) {
 function checkPackage(root, id, version, report2) {
   const path = join8(root, "package.json");
   if (!existsSync8(path)) return {};
-  const pkg = JSON.parse(readFileSync7(path, "utf8"));
+  const pkg = JSON.parse(readFileSync8(path, "utf8"));
   if (pkg.name !== id)
     report2.add(
       "REPO_PACKAGE_NAME",
@@ -2401,7 +2514,7 @@ function checkPackage(root, id, version, report2) {
 function checkAgents(root, id, scripts, report2) {
   const path = join8(root, "AGENTS.md");
   if (!existsSync8(path)) return;
-  const text = readFileSync7(path, "utf8");
+  const text = readFileSync8(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2, { skipH1Case: true });
   const h1 = doc.headings.find((h) => h.level === 1);
@@ -2475,7 +2588,7 @@ function checkCi(root, report2) {
   if (!existsSync8(dir)) return;
   for (const name of readdirSync5(dir)) {
     const file = `.github/workflows/${name}`;
-    const text = readFileSync7(join8(dir, name), "utf8");
+    const text = readFileSync8(join8(dir, name), "utf8");
     text.split("\n").forEach((line, i) => {
       const uses = /uses:\s*([^\s#]+)/.exec(line)?.[1];
       if (uses && !uses.startsWith("./") && !/@[0-9a-f]{40}$/.test(uses)) {
@@ -2508,7 +2621,7 @@ function checkCi(root, report2) {
   }
   for (const name of readdirSync5(dir)) {
     const file = `.github/workflows/${name}`;
-    for (const line of bunlessToolSteps(readFileSync7(join8(dir, name), "utf8"))) {
+    for (const line of bunlessToolSteps(readFileSync8(join8(dir, name), "utf8"))) {
       report2.add(
         "CI_TOOLS",
         file,
@@ -2518,9 +2631,9 @@ function checkCi(root, report2) {
       );
     }
   }
-  const check = existsSync8(join8(dir, "check.yml")) ? readFileSync7(join8(dir, "check.yml"), "utf8") : "";
+  const check = existsSync8(join8(dir, "check.yml")) ? readFileSync8(join8(dir, "check.yml"), "utf8") : "";
   const hostedOnly = isHostedOnly(check);
-  const release = existsSync8(join8(dir, "release.yml")) ? readFileSync7(join8(dir, "release.yml"), "utf8") : "";
+  const release = existsSync8(join8(dir, "release.yml")) ? readFileSync8(join8(dir, "release.yml"), "utf8") : "";
   if (hostedOnly && /self-hosted|SidecutStudio\/sidecut-ops\/\.github\/actions\//.test(release)) {
     report2.add(
       "CI_RELEASE",
@@ -2583,10 +2696,10 @@ function checkInstallSource(root, id, repo, report2) {
   const s = current();
   const org = s.org || "SidecutStudio";
   const market = marketplaceName(id, s);
-  const hostedOnly = existsSync8(check) && isHostedOnly(readFileSync7(check, "utf8"));
+  const hostedOnly = existsSync8(check) && isHostedOnly(readFileSync8(check, "utf8"));
   const hasOwn = MARKETPLACES.some((file) => existsSync8(join8(root, file)));
   const isPublic = !s.marketplace || hostedOnly;
-  const gitignore = existsSync8(join8(root, ".gitignore")) ? readFileSync7(join8(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
+  const gitignore = existsSync8(join8(root, ".gitignore")) ? readFileSync8(join8(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
   const found = [".claude-plugin", ".agents"].flatMap((dir) => filesUnder(root, dir, gitignore));
   const extra = found.filter((f) => !MARKETPLACES.includes(f));
   for (const file of extra)
@@ -2641,7 +2754,7 @@ function checkInstallSource(root, id, repo, report2) {
     const source = entry.source;
     return source?.source === "local" && source.path === path;
   });
-  const readme = existsSync8(join8(root, "README.md")) ? readFileSync7(join8(root, "README.md"), "utf8") : "";
+  const readme = existsSync8(join8(root, "README.md")) ? readFileSync8(join8(root, "README.md"), "utf8") : "";
   const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(readme)?.[1] ?? "";
   const add = `marketplace add ${org}/${repo}`;
   const named = new Set(
@@ -2716,7 +2829,7 @@ function jobsOf(workflow) {
 function checkSolo(root, report2) {
   const path = join8(root, "solo-workflow.toml");
   if (!existsSync8(path)) return;
-  if (!/required_checks\s*=\s*\[[^\]]*"check"/.test(readFileSync7(path, "utf8"))) {
+  if (!/required_checks\s*=\s*\[[^\]]*"check"/.test(readFileSync8(path, "utf8"))) {
     report2.add(
       "SOLO_REQUIRED",
       "solo-workflow.toml",
@@ -2728,7 +2841,7 @@ function checkSolo(root, report2) {
 }
 function readJson2(path) {
   try {
-    return JSON.parse(readFileSync7(path, "utf8"));
+    return JSON.parse(readFileSync8(path, "utf8"));
   } catch {
     return {};
   }
@@ -2794,7 +2907,7 @@ function checkRepo(root, report2) {
   for (const name of ["README.md", "LICENSE", "CHANGELOG.md"]) {
     const a = join8(root, name);
     const b = join8(pluginDir, name);
-    if (existsSync8(a) && existsSync8(b) && readFileSync7(a, "utf8") !== readFileSync7(b, "utf8")) {
+    if (existsSync8(a) && existsSync8(b) && readFileSync8(a, "utf8") !== readFileSync8(b, "utf8")) {
       report2.add(
         "REPO_COPY",
         name,
@@ -2814,7 +2927,7 @@ function checkRepo(root, report2) {
     );
   const security = join8(root, "SECURITY.md");
   if (existsSync8(security)) {
-    const text = readFileSync7(security, "utf8");
+    const text = readFileSync8(security, "utf8");
     checkMarkdown(parseMarkdown(security, text), text, root, report2);
   }
   report2.applyKeep(keep);
