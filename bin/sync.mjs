@@ -11,7 +11,7 @@ import { join as join4 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
 import { existsSync as existsSync2, mkdirSync as mkdirSync2, readdirSync as readdirSync2, readFileSync as readFileSync2, statSync, writeFileSync as writeFileSync2 } from "node:fs";
-import { basename, dirname as dirname2, join as join2, relative } from "node:path";
+import { basename, dirname as dirname2, join as join2 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // plugins/sidecut-agentskills/server/src/check/report.ts

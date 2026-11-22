@@ -8,7 +8,7 @@ import {
   skillTitleOf,
 } from '../scaffold.ts';
 import { checkMarkdown, parseMarkdown, prose } from './markdown.ts';
-import { type Report, sentences } from './report.ts';
+import { type Report, relativePosix, sentences } from './report.ts';
 
 export type SkillInfo = {
   name: string;
@@ -232,7 +232,7 @@ function supportFiles(dir: string): string[] {
 
 function checkLayout(dir: string, root: string, report: Report): void {
   for (const path of listFiles(dir)) {
-    const rel = relative(dir, path);
+    const rel = relativePosix(dir, path);
     const file = relative(root, path);
     if (rel === 'SKILL.md' || rel === 'agents/openai.yaml') continue;
     const [folder, name, ...rest] = rel.split('/');

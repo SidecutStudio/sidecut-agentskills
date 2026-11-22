@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { listFiles } from '../scaffold.ts';
 import { readScanTextAllow } from '../settings.ts';
-import type { Report } from './report.ts';
+import { type Report, relativePosix } from './report.ts';
 
 type Pattern = { what: string; re: RegExp; pinned?: (match: RegExpExecArray) => boolean };
 
@@ -77,7 +77,7 @@ export function scanText(text: string): { line: number; what: string }[] {
 export function checkScanText(pluginDir: string, root: string, report: Report): void {
   const allow = readScanTextAllow(root);
   for (const path of listFiles(pluginDir)) {
-    const inPlugin = relative(pluginDir, path).split('\\').join('/');
+    const inPlugin = relativePosix(pluginDir, path);
     if (!scannedFile(inPlugin) || allow.some((g) => globMatch(g, inPlugin))) continue;
     let text: string;
     try {

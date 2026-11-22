@@ -11,10 +11,17 @@ import { join as join8 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
 import { existsSync as existsSync2, mkdirSync as mkdirSync2, readdirSync as readdirSync2, readFileSync as readFileSync2, statSync, writeFileSync as writeFileSync2 } from "node:fs";
-import { basename, dirname as dirname2, join as join2, relative } from "node:path";
+import { basename, dirname as dirname2, join as join2 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // plugins/sidecut-agentskills/server/src/check/report.ts
+import { relative, sep } from "node:path";
+function toPosix(path) {
+  return sep === "/" ? path : path.split(sep).join("/");
+}
+function relativePosix(from, path) {
+  return toPosix(relative(from, path));
+}
 function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
 }
@@ -57,7 +64,7 @@ var Report = class {
     const target = ["SKILL_LENGTH", "REF_LENGTH", "SKILL_DESCRIPTION_LENGTH", "SCAN_TEXT"].includes(
       code
     ) ? this.advisories : this.problems;
-    target.push({ code, file, line, message, fix });
+    target.push({ code, file: toPosix(file), line, message, fix });
   }
   format() {
     return this.problems.map((p) => `${p.code} ${p.file}${p.line ? `:${p.line}` : ""} ${p.message} Fix: ${p.fix}`).join("\n");
@@ -578,7 +585,7 @@ function scanText(text) {
 function checkScanText(pluginDir, root, report2) {
   const allow = readScanTextAllow(root);
   for (const path of listFiles(pluginDir)) {
-    const inPlugin = relative3(pluginDir, path).split("\\").join("/");
+    const inPlugin = relativePosix(pluginDir, path);
     if (!scannedFile(inPlugin) || allow.some((g) => globMatch(g, inPlugin))) continue;
     let text;
     try {
@@ -994,7 +1001,7 @@ function supportFiles(dir) {
 }
 function checkLayout(dir, root, report2) {
   for (const path of listFiles(dir)) {
-    const rel = relative5(dir, path);
+    const rel = relativePosix(dir, path);
     const file = relative5(root, path);
     if (rel === "SKILL.md" || rel === "agents/openai.yaml") continue;
     const [folder, name, ...rest] = rel.split("/");

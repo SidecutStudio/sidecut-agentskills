@@ -4,34 +4,37 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { expect, test } from 'vitest';
 
-test('resumes a partially uploaded release after main advances, then repeats without writes', () => {
-  const root = mkdtempSync(join(tmpdir(), 'sidecut-publish-'));
-  const statePath = join(root, 'state.json');
-  const publisher = resolve('scripts/release.ts');
-  const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-  const write = (path: string, text: string, mode?: number) => {
-    const target = join(root, path);
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, text, { mode });
-  };
-  try {
-    git('init', '-q');
-    git('config', 'user.email', 'publisher@example.test');
-    git('config', 'user.name', 'Release fixture');
-    const manifest = '{"name":"sample","version":"1.2.0"}';
-    write('package.json', manifest);
-    write('plugins/sample/.claude-plugin/plugin.json', manifest);
-    write('plugins/sample/.codex-plugin/plugin.json', manifest);
-    write('plugins/sample/CHANGELOG.md', '# Changelog\n\n## [1.2.0]\n\n- Example\n');
-    write('solo-workflow.toml', 'required_checks = ["check", "secrets"]\n');
-    git('add', 'package.json', 'plugins', 'solo-workflow.toml');
-    git('commit', '-qm', 'Prepare release');
-    const first = git('rev-parse', 'HEAD');
-    write('state.json', '{"assets":[],"writes":[]}');
-    write(
-      'gh',
-      `#!${process.execPath}
+// The publisher runs only in Linux CI, and this fakes gh with a shebang script on PATH, which Windows can't run.
+test.skipIf(process.platform === 'win32')(
+  'resumes a partially uploaded release after main advances, then repeats without writes',
+  () => {
+    const root = mkdtempSync(join(tmpdir(), 'sidecut-publish-'));
+    const statePath = join(root, 'state.json');
+    const publisher = resolve('scripts/release.ts');
+    const git = (...args: string[]) =>
+      execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    const write = (path: string, text: string, mode?: number) => {
+      const target = join(root, path);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, text, { mode });
+    };
+    try {
+      git('init', '-q');
+      git('config', 'user.email', 'publisher@example.test');
+      git('config', 'user.name', 'Release fixture');
+      const manifest = '{"name":"sample","version":"1.2.0"}';
+      write('package.json', manifest);
+      write('plugins/sample/.claude-plugin/plugin.json', manifest);
+      write('plugins/sample/.codex-plugin/plugin.json', manifest);
+      write('plugins/sample/CHANGELOG.md', '# Changelog\n\n## [1.2.0]\n\n- Example\n');
+      write('solo-workflow.toml', 'required_checks = ["check", "secrets"]\n');
+      git('add', 'package.json', 'plugins', 'solo-workflow.toml');
+      git('commit', '-qm', 'Prepare release');
+      const first = git('rev-parse', 'HEAD');
+      write('state.json', '{"assets":[],"writes":[]}');
+      write(
+        'gh',
+        `#!${process.execPath}
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -83,53 +86,55 @@ if (args[0] === 'api') {
   mutate('publish');
 } else process.exit(74);
 `,
-      0o755,
-    );
-    const publish = (sha: string, flags: Record<string, string> = {}) =>
-      spawnSync(process.execPath, [publisher, '--publish-current'], {
-        cwd: root,
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          GITHUB_ACTIONS: 'true',
-          GITHUB_REPOSITORY: 'test/sample',
-          RELEASE_SHA: sha,
-          TEST_STATE: statePath,
-          PATH: `${root}:${process.env.PATH}`,
-          ...flags,
-        },
-      });
-    const state = () => JSON.parse(readFileSync(statePath, 'utf8'));
-    expect(publish(first, { STALE: '1' }).status).toBe(0);
-    expect(state().writes).toEqual([]);
-    expect(publish(first, { FAIL_UPLOAD: '1' }).status).not.toBe(0);
-    expect(state().writes).toEqual(['tag', 'draft', 'sample-1.2.0.zip', 'starter']);
-    git('commit', '--allow-empty', '-qm', 'Advance main at the same version');
-    const second = git('rev-parse', 'HEAD');
-    const resumed = publish(second);
-    expect(resumed.stderr).toBe('');
-    expect(resumed.status).toBe(0);
-    expect(state().tag).toBe(first);
-    expect(state().writes).toEqual([
-      'tag',
-      'draft',
-      'sample-1.2.0.zip',
-      'starter',
-      'remove starter',
-      'sample-1.2.0.zip.sha256',
-      'publish',
-    ]);
-    const before = readFileSync(statePath, 'utf8');
-    expect(publish(second).status).toBe(0);
-    expect(readFileSync(statePath, 'utf8')).toBe(before);
-    write('plugins/sample/README.md', 'Different plugin content');
-    git('add', 'plugins/sample/README.md');
-    git('commit', '-qm', 'Change plugin without bumping');
-    const drift = publish(git('rev-parse', 'HEAD'));
-    expect(drift.status).not.toBe(0);
-    expect(drift.stderr).toContain('Bump the package version');
-    expect(readFileSync(statePath, 'utf8')).toBe(before);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-}, 15_000);
+        0o755,
+      );
+      const publish = (sha: string, flags: Record<string, string> = {}) =>
+        spawnSync(process.execPath, [publisher, '--publish-current'], {
+          cwd: root,
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            GITHUB_ACTIONS: 'true',
+            GITHUB_REPOSITORY: 'test/sample',
+            RELEASE_SHA: sha,
+            TEST_STATE: statePath,
+            PATH: `${root}:${process.env.PATH}`,
+            ...flags,
+          },
+        });
+      const state = () => JSON.parse(readFileSync(statePath, 'utf8'));
+      expect(publish(first, { STALE: '1' }).status).toBe(0);
+      expect(state().writes).toEqual([]);
+      expect(publish(first, { FAIL_UPLOAD: '1' }).status).not.toBe(0);
+      expect(state().writes).toEqual(['tag', 'draft', 'sample-1.2.0.zip', 'starter']);
+      git('commit', '--allow-empty', '-qm', 'Advance main at the same version');
+      const second = git('rev-parse', 'HEAD');
+      const resumed = publish(second);
+      expect(resumed.stderr).toBe('');
+      expect(resumed.status).toBe(0);
+      expect(state().tag).toBe(first);
+      expect(state().writes).toEqual([
+        'tag',
+        'draft',
+        'sample-1.2.0.zip',
+        'starter',
+        'remove starter',
+        'sample-1.2.0.zip.sha256',
+        'publish',
+      ]);
+      const before = readFileSync(statePath, 'utf8');
+      expect(publish(second).status).toBe(0);
+      expect(readFileSync(statePath, 'utf8')).toBe(before);
+      write('plugins/sample/README.md', 'Different plugin content');
+      git('add', 'plugins/sample/README.md');
+      git('commit', '-qm', 'Change plugin without bumping');
+      const drift = publish(git('rev-parse', 'HEAD'));
+      expect(drift.status).not.toBe(0);
+      expect(drift.stderr).toContain('Bump the package version');
+      expect(readFileSync(statePath, 'utf8')).toBe(before);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+  15_000,
+);

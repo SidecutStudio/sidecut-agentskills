@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sentences } from './check/report.ts';
+import { relativePosix, sentences, toPosix } from './check/report.ts';
 import { CI_SNIPPETS } from './ci-snippets.ts';
 import {
   answered,
@@ -243,7 +243,7 @@ export function renderTree(templateDir: string, vars: Record<string, string>): M
   const files = new Map<string, string>();
   for (const path of listFiles(base)) {
     files.set(
-      render(relative(base, path), vars).replace(/\.tmpl$/, ''),
+      render(relativePosix(base, path), vars).replace(/\.tmpl$/, ''),
       render(readFileSync(path, 'utf8'), vars),
     );
   }
@@ -256,7 +256,7 @@ function writeAll(out: string, files: Map<string, string | Buffer>): string[] {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, content);
   }
-  return [...files.keys()].sort();
+  return [...files.keys()].map(toPosix).sort();
 }
 
 /**

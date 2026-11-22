@@ -26,6 +26,7 @@ import {
   ownVersion,
   scaffoldPlugin,
 } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
+import { formatRepo } from './format.ts';
 
 const ID = 'sidecut-demo';
 const P = `plugins/${ID}`;
@@ -62,7 +63,7 @@ beforeAll(() => {
   );
   writeFileSync(join(base, 'package-lock.json'), '');
   symlinkSync(join(repoRoot, 'node_modules'), join(base, 'node_modules'));
-  spawnSync('npm', ['exec', '--no', '--', 'biome', 'check', '--write', '.'], { cwd: base });
+  formatRepo(base);
   build(base);
 });
 
@@ -664,7 +665,9 @@ describe('host-created worktrees', () => {
   }
 
   test('registered untracked worktrees do not change a clean source layout', () => {
-    const { repo } = fixture('task with space\nand newline');
+    // Windows folder names can't hold a newline.
+    const name = process.platform === 'win32' ? 'task with space' : 'task with space\nand newline';
+    const { repo } = fixture(name);
     expect(codes(repo.root)).toEqual([]);
   });
 

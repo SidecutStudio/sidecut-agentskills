@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.2] - 2026-11-22
+
+### Fixed
+
+- On Windows, `sidecut-check` and `check_plugin` no longer report every skill support file as `SKILL_FILE_UNEXPECTED`, and every reported file uses `/` separators, as on Linux and macOS. `scaffold_plugin` and `add_skill` list the files they wrote with `/` too.
+
 ## [2.1.1] - 2026-11-22
 
 ### Changed

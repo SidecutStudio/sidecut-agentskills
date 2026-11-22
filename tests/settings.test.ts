@@ -27,6 +27,7 @@ import {
   resolveSettings,
   userSettingsPath,
 } from '../plugins/sidecut-agentskills/server/src/settings.ts';
+import { formatRepo } from './format.ts';
 
 const repoRoot = join(import.meta.dirname, '..');
 const scratch: string[] = [];
@@ -95,7 +96,7 @@ test('a scaffold under another owner, with no prefix and hosted CI, passes and n
   }
   writeFileSync(join(out, 'package-lock.json'), '');
   symlinkSync(join(repoRoot, 'node_modules'), join(out, 'node_modules'));
-  spawnSync('npm', ['exec', '--no', '--', 'biome', 'check', '--write', '.'], { cwd: out });
+  formatRepo(out);
   const built = spawnSync(process.execPath, ['scripts/build-server.ts'], {
     cwd: out,
     encoding: 'utf8',
@@ -185,7 +186,7 @@ test('with no settings anywhere, scaffolding writes nothing and returns the ques
 function checkScaffold(out: string): unknown[] {
   writeFileSync(join(out, 'package-lock.json'), '');
   symlinkSync(join(repoRoot, 'node_modules'), join(out, 'node_modules'));
-  spawnSync('npm', ['exec', '--no', '--', 'biome', 'check', '--write', '.'], { cwd: out });
+  formatRepo(out);
   const built = spawnSync(process.execPath, ['scripts/build-server.ts'], {
     cwd: out,
     encoding: 'utf8',

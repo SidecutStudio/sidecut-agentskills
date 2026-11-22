@@ -1,3 +1,15 @@
+import { relative, sep } from 'node:path';
+
+/** A path with the platform separator turned into `/`, the form every reported and compared repo path takes. */
+export function toPosix(path: string): string {
+  return sep === '/' ? path : path.split(sep).join('/');
+}
+
+/** `path` relative to `from`, with `/` separators on every platform. */
+export function relativePosix(from: string, path: string): string {
+  return toPosix(relative(from, path));
+}
+
 export type Problem = {
   code: string;
   file: string;
@@ -54,7 +66,7 @@ export class Report {
     )
       ? this.advisories
       : this.problems;
-    target.push({ code, file, line, message, fix });
+    target.push({ code, file: toPosix(file), line, message, fix });
   }
 
   format(): string {
