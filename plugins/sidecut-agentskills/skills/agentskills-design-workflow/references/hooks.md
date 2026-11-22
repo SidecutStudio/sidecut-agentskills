@@ -49,6 +49,25 @@ A hook that reacts to a skill matches `Skill` in Claude Code and `Bash` in Codex
 - Wrap the work in `try` and always exit 0; a failing hook must never break the session.
 - Print nothing unless the hook's job is to add context for the agent.
 - Make no network calls.
+- Treat the input as untrusted. A file path in it can contain `..` or point outside the project, so resolve it and check where it lands before reading or judging the file.
+
+## Blocking or adding context
+
+A `PreToolUse` hook blocks a call by printing one JSON object and still exiting 0:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "Writes outside the project are blocked."
+  }
+}
+```
+
+Both hosts read this form. The reason goes to the agent, so say what was blocked and what to do instead. A `SessionStart` or `UserPromptSubmit` hook adds context by printing it. Otherwise a hook prints nothing.
+
+All hooks that match an event run at the same time, the user's own hooks included, and a deny from any one of them wins. Don't rely on another hook running first or seeing what this one did.
 
 ## Choosing the event
 
@@ -68,5 +87,7 @@ Both hosts have every event in this table. Prefer `PostToolUse` with a narrow ma
 Codex skips a plugin's hooks until the user trusts them, and asks again whenever a hook definition changes. The plugin's README says so under "Settings", so a hook that doesn't run isn't mistaken for a bug.
 
 ## Testing it
+
+Both hosts read hooks when a session starts, so start a new session after changing `hooks.json`, `codex-hooks.json` or a script. In Claude Code, `claude --debug` logs each hook run and its output.
 
 Add a test that runs the script with `spawnSync`, passes sample input from each host on standard input with a clean environment and a temporary `HOME`, and checks what it wrote. The template's usage-log tests show the pattern.

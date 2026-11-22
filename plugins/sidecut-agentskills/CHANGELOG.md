@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.1.1] - 2026-11-22
+
+### Changed
+
+- The hooks guide in `agentskills-design-workflow` shows how a `PreToolUse` hook blocks a call on both hosts, says that matching hooks run at the same time and any deny wins, says to treat hook input as untrusted, and says to start a new session after changing a hook.
+
 ## [2.1.0] - 2026-11-21
 
 ### Added
