@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
-import { existsSync as existsSync4, lstatSync, readdirSync as readdirSync3, readFileSync as readFileSync4, realpathSync } from "node:fs";
+import { existsSync as existsSync4, lstatSync, readdirSync as readdirSync4, readFileSync as readFileSync4, realpathSync } from "node:fs";
 import { join as join4 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
@@ -216,9 +216,10 @@ function marketplaceName(id, s = active) {
 var here = dirname2(fileURLToPath(import.meta.url));
 var dataRoot = existsSync2(join2(here, "data")) ? join2(here, "data") : existsSync2(join2(here, "..", "data")) ? join2(here, "..", "data") : join2(here, "..", "plugins", "sidecut-agentskills", "server", "data");
 var templatesRoot = join2(dataRoot, "templates");
-var OWNER_INPUT_PATH = "server/data/owner-input.md";
-function ownerInput() {
-  return readFileSync2(join2(dataRoot, "owner-input.md"), "utf8");
+var USER_INPUT_PATH = "server/data/user-input.md";
+var OLD_USER_INPUT_PATH = "server/data/owner-input.md";
+function userInput() {
+  return readFileSync2(join2(dataRoot, "user-input.md"), "utf8");
 }
 var ownVersion = JSON.parse(readFileSync2(join2(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
 var BRAND_COLOR = PROFILES.sidecut?.brandColor ?? "#FF6B00";
@@ -315,7 +316,7 @@ ${SOLO_LOCAL_FILE}` : ""
 }
 
 // plugins/sidecut-agentskills/server/src/check/sync.ts
-import { existsSync as existsSync3, mkdirSync as mkdirSync3, readFileSync as readFileSync3, writeFileSync as writeFileSync3 } from "node:fs";
+import { existsSync as existsSync3, mkdirSync as mkdirSync3, readdirSync as readdirSync3, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync3 } from "node:fs";
 import { dirname as dirname3, join as join3 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
@@ -325,7 +326,7 @@ var OWNED_FILES = [
   "scripts/release.ts"
 ];
 function pluginOwnedFile(id) {
-  return `plugins/${id}/${OWNER_INPUT_PATH}`;
+  return `plugins/${id}/${USER_INPUT_PATH}`;
 }
 var BLOCK_FILES = [".gitignore", "AGENTS.md", "SECURITY.md"];
 var SHARED_TOOLS = [
@@ -470,7 +471,7 @@ function planSync(root2, vars, kept = () => false) {
   const guide = pluginOwnedFile(vars.id);
   for (const file of [...OWNED_FILES, guide]) {
     if (kept(file)) continue;
-    const want = file === guide ? ownerInput() : render2(file);
+    const want = file === guide ? userInput() : render2(file);
     const path = join3(root2, file);
     const have = existsSync3(path) ? readFileSync3(path, "utf8") : null;
     if (have !== want)
@@ -479,6 +480,20 @@ function planSync(root2, vars, kept = () => false) {
         what: have === null ? `${file} is missing.` : `${file} differs from the template copy.`,
         next: want
       });
+  }
+  const oldGuide = `plugins/${vars.id}/${OLD_USER_INPUT_PATH}`;
+  for (const file of guideMoveFiles(root2, vars.id)) {
+    if (kept(file)) continue;
+    if (file === oldGuide) {
+      changes2.push({ file, what: `${file} is now ${guide}.`, next: "", remove: true });
+      continue;
+    }
+    const have = readFileSync3(join3(root2, file), "utf8");
+    changes2.push({
+      file,
+      what: `${file} points at ${OLD_USER_INPUT_PATH}, now ${USER_INPUT_PATH}.`,
+      next: have.replaceAll(OLD_USER_INPUT_PATH, USER_INPUT_PATH)
+    });
   }
   for (const file of BLOCK_FILES) {
     if (kept(file)) continue;
@@ -505,6 +520,23 @@ function planSync(root2, vars, kept = () => false) {
   }
   return changes2;
 }
+function guideMoveFiles(root2, id) {
+  const plugin = `plugins/${id}`;
+  const oldGuide = `${plugin}/${OLD_USER_INPUT_PATH}`;
+  const pointers = markdownUnder(root2, plugin).filter(
+    (file) => file !== oldGuide && readFileSync3(join3(root2, file), "utf8").includes(OLD_USER_INPUT_PATH)
+  );
+  return [...existsSync3(join3(root2, oldGuide)) ? [oldGuide] : [], ...pointers];
+}
+function markdownUnder(root2, dir) {
+  const path = join3(root2, dir);
+  if (!existsSync3(path)) return [];
+  return readdirSync3(path, { withFileTypes: true }).flatMap((entry) => {
+    const file = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) return entry.name === "node_modules" ? [] : markdownUnder(root2, file);
+    return entry.name.endsWith(".md") ? [file] : [];
+  });
+}
 function applySync(root2, changes2) {
   const left2 = [];
   for (const change of changes2) {
@@ -513,6 +545,10 @@ function applySync(root2, changes2) {
       continue;
     }
     const path = join3(root2, change.file);
+    if (change.remove) {
+      rmSync(path, { force: true });
+      continue;
+    }
     mkdirSync3(dirname3(path), { recursive: true });
     writeFileSync3(path, change.next);
   }
@@ -529,7 +565,7 @@ function readJson(path) {
 }
 function identify(root2) {
   const pluginsDir = join4(root2, "plugins");
-  const plugins = existsSync4(pluginsDir) ? readdirSync3(pluginsDir).filter((n) => n !== ".DS_Store") : [];
+  const plugins = existsSync4(pluginsDir) ? readdirSync4(pluginsDir).filter((n) => n !== ".DS_Store") : [];
   const only = plugins.length === 1 ? plugins[0] ?? "" : "";
   const manifest = readJson(join4(pluginsDir, only, ".claude-plugin", "plugin.json"));
   const pkg = readJson(join4(root2, "package.json"));
@@ -582,6 +618,7 @@ if (!values.check && !values.force) {
     ...OWNED_FILES,
     ...BLOCK_FILES,
     pluginOwnedFile(who.id),
+    ...guideMoveFiles(root, who.id),
     "package.json",
     "package-lock.json"
   ];

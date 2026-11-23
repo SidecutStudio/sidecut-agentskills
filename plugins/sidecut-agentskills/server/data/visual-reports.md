@@ -90,7 +90,7 @@ Lead with what someone can decide or do. Be direct, human and quietly confident.
 
 Write descriptive headings and short sentences. Explain technical terms when the reader needs them. Buttons name what happens.
 
-Don't add slogans, hype, stock phrases, fragment pairs or a studio "we". Don't impersonate the owner or invent quotes.
+Don't add slogans, hype, stock phrases, fragment pairs or a studio "we". Don't impersonate the user or invent quotes.
 
 State a necessary limitation once beside the affected claim. Don't bury it in fine print or stack disclaimers at the bottom.
 

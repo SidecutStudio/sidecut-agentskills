@@ -33,10 +33,12 @@ export const dataRoot = existsSync(join(here, 'data'))
     ? join(here, '..', 'data')
     : join(here, '..', 'plugins', 'sidecut-agentskills', 'server', 'data');
 export const templatesRoot = join(dataRoot, 'templates');
-export const OWNER_INPUT_PATH = 'server/data/owner-input.md';
+export const USER_INPUT_PATH = 'server/data/user-input.md';
+/** The guide's name before 2.3.0, which sync moves to USER_INPUT_PATH. */
+export const OLD_USER_INPUT_PATH = 'server/data/owner-input.md';
 
-export function ownerInput(): string {
-  return readFileSync(join(dataRoot, 'owner-input.md'), 'utf8');
+export function userInput(): string {
+  return readFileSync(join(dataRoot, 'user-input.md'), 'utf8');
 }
 
 /** This plugin's own version, from its manifest beside the data folder. */
@@ -400,7 +402,7 @@ function writeRepo(input: PluginInput, out: string, settings: Settings): string[
   for (const name of ['README.md', 'LICENSE', 'CHANGELOG.md']) {
     files.set(name, files.get(`${pluginDir}/${name}`) as string);
   }
-  files.set(`${pluginDir}/${OWNER_INPUT_PATH}`, ownerInput());
+  files.set(`${pluginDir}/${USER_INPUT_PATH}`, userInput());
   // A plain mark until `sidecut-icon` draws the plugin's own.
   files.set(`${pluginDir}/assets/icon.png`, readFileSync(join(templatesRoot, '..', 'icon.png')));
   return writeAll(out, files);
@@ -444,8 +446,8 @@ function writeSkill(pluginDir: string, input: SkillInput): string[] {
   const files = new Map<string, string>();
   const template = input.name === prefix ? 'router' : 'skill';
   for (const [path, text] of renderTree(template, vars)) files.set(join(skillDir, path), text);
-  if (!existsSync(join(pluginDir, OWNER_INPUT_PATH))) {
-    files.set(OWNER_INPUT_PATH, ownerInput());
+  if (!existsSync(join(pluginDir, USER_INPUT_PATH))) {
+    files.set(USER_INPUT_PATH, userInput());
   }
   return writeAll(pluginDir, files);
 }

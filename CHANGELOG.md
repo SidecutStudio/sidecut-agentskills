@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.3.0] - 2026-11-23
+
+### Changed
+
+- The guide skills follow before asking a question is `server/data/user-input.md`, and the house style, templates and skills say "user" where they meant the person being asked. `sidecut-sync` removes a repo's old `owner-input.md` and points its skills at the new file.
+
 ## [2.2.0] - 2026-11-23
 
 ### Added

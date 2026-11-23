@@ -16,7 +16,7 @@ Produces a new version of the plugin that its marketplace serves to Claude Code 
 ## Before you start
 
 - `check_plugin` reports no problems on the plugin.
-- Reuse a settled version or apply the release rule: a fix is a patch, a new skill or tool is a minor version, and a renamed or removed skill or tool is a major version once the plugin is past 1.0. Ask only if the correct version is a material unresolved choice. Follow `server/data/owner-input.md` from the loaded plugin root.
+- Reuse a settled version or apply the release rule: a fix is a patch, a new skill or tool is a minor version, and a renamed or removed skill or tool is a major version once the plugin is past 1.0. Ask only if the correct version is a material unresolved choice. Follow `server/data/user-input.md` from the loaded plugin root.
 - Read the repo's `AGENTS.md` for how it merges: its own flow and its required checks.
 
 ## Steps
@@ -27,7 +27,7 @@ A repo with `.github/workflows/release.yml` makes a tag release (step 2). A plug
 
 ### 2. Tag release
 
-The change to publish is merged to `main` first. For either release type, reuse existing publication authorization. If it is missing, use the owner-input guidance after preparing the version and before the first action that publishes it.
+The change to publish is merged to `main` first. For either release type, reuse existing publication authorization. If it is missing, use the user-input guidance after preparing the version and before the first action that publishes it.
 
 1. On a branch, add the dated version entry to the top of the root CHANGELOG.
 2. Run `npm exec --no -- sidecut-version <version>` (in Agentskills itself, `node scripts/version.ts <version>`). It updates the package and lockfile versions, both host manifests and the plugin CHANGELOG. In older repositories, follow their own version instructions.

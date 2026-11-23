@@ -33,4 +33,4 @@ A repo with no answers file whose manifest points at a `SidecutStudio` repo is c
 
 ### Marketplace
 
-`sidecut-plugins` is private, so it bundles a copy of each plugin folder for the owner's installs: a release tag for a plugin in its own repo, or one merge commit of `main` for a plugin inside a product repo. Its own README and scripts say how to bundle, check and merge a new version; never edit a bundled copy by hand. A public repo still installs from its own marketplace files, and no public install step names `sidecut-plugins`. A rename is searched for in both of its marketplace files as well as the other repos.
+`sidecut-plugins` is private, so it bundles a copy of each plugin folder for Sidecut Studio's own installs: a release tag for a plugin in its own repo, or one merge commit of `main` for a plugin inside a product repo. Its own README and scripts say how to bundle, check and merge a new version; never edit a bundled copy by hand. A public repo still installs from its own marketplace files, and no public install step names `sidecut-plugins`. A rename is searched for in both of its marketplace files as well as the other repos.

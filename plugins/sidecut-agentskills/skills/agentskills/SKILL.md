@@ -22,7 +22,7 @@ Picks the one skill in this plugin that fits the request and hands over to it. E
 | A new version released to its marketplace | `agentskills-publish-plugin` |
 | Which plugin skills ran, in which host, and whether the log is on | `agentskills-show-usage` |
 
-When the purpose is missing and would change the route, ask before handing over. Follow `server/data/owner-input.md` from the loaded plugin root.
+When the purpose is missing and would change the route, ask before handing over. Follow `server/data/user-input.md` from the loaded plugin root.
 
 When a request spans several, start with the one whose result the others need: `agentskills-create-plugin` before `agentskills-write-skill`, and `agentskills-review-plugin` before `agentskills-rebuild-plugin`.
 

@@ -14,7 +14,7 @@ Produces tools that agents pick correctly, that return data a check can verify, 
 
 - Run `check_plugin` on the repo and note any problems already there, so new ones are easy to tell apart.
 - Read the "MCP servers" section of `get_house_style`.
-- Inspect the existing tools, connection files and host manifests. For a new or changed tool, establish what it returns and what effects it may have before writing it. Ask about material requirements or missing authorization using `server/data/owner-input.md` from the loaded plugin root.
+- Inspect the existing tools, connection files and host manifests. For a new or changed tool, establish what it returns and what effects it may have before writing it. Ask about material requirements or missing authorization using `server/data/user-input.md` from the loaded plugin root.
 
 ## Steps
 

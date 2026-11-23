@@ -249,7 +249,7 @@ Fields appear in this order and no others are used: `name`, `description`, `argu
 
 Write for the task, not a fixed outline. Lead with the outcome and use headings that name the actual work. Put prerequisites, constraints, and recovery beside the operation they affect. Include verification when the outcome needs proof.
 
-When owner input can change the work, point the skill to [owner-input.md](owner-input.md) in the loaded plugin's data directory. Put the pointer at the step that needs the input so a directly invoked skill works without its router. Keep the host rules there. Scaffolds include the guide and `sidecut-sync` refreshes its packaged copy. A built-in question tool comes from the active host, so it needs no MCP declaration, Codex interface metadata or Claude Code permission preapproval.
+When the user's input can change the work, point the skill to [user-input.md](user-input.md) in the loaded plugin's data directory. Put the pointer at the step that needs the input so a directly invoked skill works without its router. Keep the host rules there. Scaffolds include the guide and `sidecut-sync` refreshes its packaged copy. A built-in question tool comes from the active host, so it needs no MCP declaration, Codex interface metadata or Claude Code permission preapproval.
 
 Keep procedures in SKILL.md and move detail into references when it is useful. Reference supporting files where they are needed. A router maps requests to actual skills and makes ambiguous routing clear. Cross-skill and tool pointers must resolve.
 

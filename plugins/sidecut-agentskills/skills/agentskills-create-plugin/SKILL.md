@@ -12,7 +12,7 @@ Produces a new plugin repo that passes `npm run check` on its first commit and l
 
 ## Before you start
 
-- Propose all five from the brief and existing guidance. Ask together about unresolved choices that affect identity or scope. Follow `server/data/owner-input.md` from the loaded plugin root. Settle these details: the plugin id (the settings' prefix, then the name), a one-sentence description of at most 120 characters, a 2 or 3 sentence description for the Codex listing, 3 to 8 lowercase keywords, and the [Lucide](https://lucide.dev/icons) icon for its mark.
+- Propose all five from the brief and existing guidance. Ask together about unresolved choices that affect identity or scope. Follow `server/data/user-input.md` from the loaded plugin root. Settle these details: the plugin id (the settings' prefix, then the name), a one-sentence description of at most 120 characters, a 2 or 3 sentence description for the Codex listing, 3 to 8 lowercase keywords, and the [Lucide](https://lucide.dev/icons) icon for its mark.
 - Test the name by saying it cold: two plain words someone would search for. Check that no well-known project uses it.
 - The repo goes in a `<plugin-id>` folder next to the user's other repos unless they name another folder. The folder has to be empty or missing.
 

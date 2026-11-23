@@ -1,11 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   displayNameOf,
-  OWNER_INPUT_PATH,
-  ownerInput,
+  OLD_USER_INPUT_PATH,
   renderFile,
   settingsVars,
+  USER_INPUT_PATH,
+  userInput,
 } from '../scaffold.ts';
 import { repoSettings } from '../settings.ts';
 
@@ -18,7 +19,7 @@ export const OWNED_FILES = [
   'scripts/release.ts',
 ];
 export function pluginOwnedFile(id: string): string {
-  return `plugins/${id}/${OWNER_INPUT_PATH}`;
+  return `plugins/${id}/${USER_INPUT_PATH}`;
 }
 
 /** Files where sidecut-agentskills owns only the marked blocks; the rest belongs to the repo. */
@@ -39,7 +40,7 @@ const CHECKER = 'github:SidecutStudio/sidecut-agentskills#v';
  * One change sync would make. `next` is the file's new content, or null when sync can't make the
  * change safely and someone has to fix the file by hand first.
  */
-export type Change = { file: string; what: string; next: string | null };
+export type Change = { file: string; what: string; next: string | null; remove?: boolean };
 
 export type SyncVars = { id: string; repo: string; version: string };
 
@@ -212,7 +213,7 @@ export function planSync(
   const guide = pluginOwnedFile(vars.id);
   for (const file of [...OWNED_FILES, guide]) {
     if (kept(file)) continue;
-    const want = file === guide ? ownerInput() : render(file);
+    const want = file === guide ? userInput() : render(file);
     const path = join(root, file);
     const have = existsSync(path) ? readFileSync(path, 'utf8') : null;
     if (have !== want)
@@ -221,6 +222,22 @@ export function planSync(
         what: have === null ? `${file} is missing.` : `${file} differs from the template copy.`,
         next: want,
       });
+  }
+  // 2.3.0 renamed the guide from owner-input.md: drop the old copy and point the plugin's own text
+  // at the new one.
+  const oldGuide = `plugins/${vars.id}/${OLD_USER_INPUT_PATH}`;
+  for (const file of guideMoveFiles(root, vars.id)) {
+    if (kept(file)) continue;
+    if (file === oldGuide) {
+      changes.push({ file, what: `${file} is now ${guide}.`, next: '', remove: true });
+      continue;
+    }
+    const have = readFileSync(join(root, file), 'utf8');
+    changes.push({
+      file,
+      what: `${file} points at ${OLD_USER_INPUT_PATH}, now ${USER_INPUT_PATH}.`,
+      next: have.replaceAll(OLD_USER_INPUT_PATH, USER_INPUT_PATH),
+    });
   }
   for (const file of BLOCK_FILES) {
     if (kept(file)) continue;
@@ -248,6 +265,31 @@ export function planSync(
   return changes;
 }
 
+/**
+ * The files moving the guide from its old name touches: the old copy, and every Markdown file in the
+ * plugin that points at it. Sync's uncommitted-changes guard covers them too.
+ */
+export function guideMoveFiles(root: string, id: string): string[] {
+  const plugin = `plugins/${id}`;
+  const oldGuide = `${plugin}/${OLD_USER_INPUT_PATH}`;
+  const pointers = markdownUnder(root, plugin).filter(
+    (file) =>
+      file !== oldGuide && readFileSync(join(root, file), 'utf8').includes(OLD_USER_INPUT_PATH),
+  );
+  return [...(existsSync(join(root, oldGuide)) ? [oldGuide] : []), ...pointers];
+}
+
+/** The Markdown files under `dir`, relative to `root`, leaving out installed dependencies. */
+function markdownUnder(root: string, dir: string): string[] {
+  const path = join(root, dir);
+  if (!existsSync(path)) return [];
+  return readdirSync(path, { withFileTypes: true }).flatMap((entry) => {
+    const file = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) return entry.name === 'node_modules' ? [] : markdownUnder(root, file);
+    return entry.name.endsWith('.md') ? [file] : [];
+  });
+}
+
 /** Writes every change sync can make safely; returns the ones it left for a person. */
 export function applySync(root: string, changes: Change[]): Change[] {
   const left: Change[] = [];
@@ -257,6 +299,10 @@ export function applySync(root: string, changes: Change[]): Change[] {
       continue;
     }
     const path = join(root, change.file);
+    if (change.remove) {
+      rmSync(path, { force: true });
+      continue;
+    }
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, change.next);
   }

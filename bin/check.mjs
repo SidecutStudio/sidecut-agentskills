@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
-import { existsSync as existsSync8, lstatSync, readdirSync as readdirSync5, readFileSync as readFileSync8, realpathSync } from "node:fs";
+import { existsSync as existsSync8, lstatSync, readdirSync as readdirSync6, readFileSync as readFileSync8, realpathSync } from "node:fs";
 import { join as join8 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
@@ -292,9 +292,10 @@ function marketplaceName(id, s = active) {
 var here = dirname2(fileURLToPath(import.meta.url));
 var dataRoot = existsSync2(join2(here, "data")) ? join2(here, "data") : existsSync2(join2(here, "..", "data")) ? join2(here, "..", "data") : join2(here, "..", "plugins", "sidecut-agentskills", "server", "data");
 var templatesRoot = join2(dataRoot, "templates");
-var OWNER_INPUT_PATH = "server/data/owner-input.md";
-function ownerInput() {
-  return readFileSync2(join2(dataRoot, "owner-input.md"), "utf8");
+var USER_INPUT_PATH = "server/data/user-input.md";
+var OLD_USER_INPUT_PATH = "server/data/owner-input.md";
+function userInput() {
+  return readFileSync2(join2(dataRoot, "user-input.md"), "utf8");
 }
 var ownVersion = JSON.parse(readFileSync2(join2(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
 function pluginIdPattern(s = current()) {
@@ -2120,7 +2121,7 @@ function checkPlugin(pluginDir, root, report2, repoName) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/sync.ts
-import { existsSync as existsSync7, mkdirSync as mkdirSync3, readFileSync as readFileSync7, writeFileSync as writeFileSync3 } from "node:fs";
+import { existsSync as existsSync7, mkdirSync as mkdirSync3, readdirSync as readdirSync5, readFileSync as readFileSync7, rmSync as rmSync2, writeFileSync as writeFileSync3 } from "node:fs";
 import { dirname as dirname4, join as join7 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
@@ -2130,7 +2131,7 @@ var OWNED_FILES = [
   "scripts/release.ts"
 ];
 function pluginOwnedFile(id) {
-  return `plugins/${id}/${OWNER_INPUT_PATH}`;
+  return `plugins/${id}/${USER_INPUT_PATH}`;
 }
 var BLOCK_FILES = [".gitignore", "AGENTS.md", "SECURITY.md"];
 var SHARED_TOOLS = [
@@ -2275,7 +2276,7 @@ function planSync(root, vars, kept = () => false) {
   const guide = pluginOwnedFile(vars.id);
   for (const file of [...OWNED_FILES, guide]) {
     if (kept(file)) continue;
-    const want = file === guide ? ownerInput() : render2(file);
+    const want = file === guide ? userInput() : render2(file);
     const path = join7(root, file);
     const have = existsSync7(path) ? readFileSync7(path, "utf8") : null;
     if (have !== want)
@@ -2284,6 +2285,20 @@ function planSync(root, vars, kept = () => false) {
         what: have === null ? `${file} is missing.` : `${file} differs from the template copy.`,
         next: want
       });
+  }
+  const oldGuide = `plugins/${vars.id}/${OLD_USER_INPUT_PATH}`;
+  for (const file of guideMoveFiles(root, vars.id)) {
+    if (kept(file)) continue;
+    if (file === oldGuide) {
+      changes.push({ file, what: `${file} is now ${guide}.`, next: "", remove: true });
+      continue;
+    }
+    const have = readFileSync7(join7(root, file), "utf8");
+    changes.push({
+      file,
+      what: `${file} points at ${OLD_USER_INPUT_PATH}, now ${USER_INPUT_PATH}.`,
+      next: have.replaceAll(OLD_USER_INPUT_PATH, USER_INPUT_PATH)
+    });
   }
   for (const file of BLOCK_FILES) {
     if (kept(file)) continue;
@@ -2309,6 +2324,23 @@ function planSync(root, vars, kept = () => false) {
     if (pkg) changes.push(pkg);
   }
   return changes;
+}
+function guideMoveFiles(root, id) {
+  const plugin = `plugins/${id}`;
+  const oldGuide = `${plugin}/${OLD_USER_INPUT_PATH}`;
+  const pointers = markdownUnder(root, plugin).filter(
+    (file) => file !== oldGuide && readFileSync7(join7(root, file), "utf8").includes(OLD_USER_INPUT_PATH)
+  );
+  return [...existsSync7(join7(root, oldGuide)) ? [oldGuide] : [], ...pointers];
+}
+function markdownUnder(root, dir) {
+  const path = join7(root, dir);
+  if (!existsSync7(path)) return [];
+  return readdirSync5(path, { withFileTypes: true }).flatMap((entry) => {
+    const file = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) return entry.name === "node_modules" ? [] : markdownUnder(root, file);
+    return entry.name.endsWith(".md") ? [file] : [];
+  });
 }
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
@@ -2390,10 +2422,10 @@ function onlyHostState(root, folder) {
       return existsSync8(path) ? [realpathSync(path)] : [];
     })
   );
-  return readdirSync5(dir).every((name) => {
+  return readdirSync6(dir).every((name) => {
     const path = join8(dir, name);
     if (folder === ".claude" && name === "worktrees" && isRealDir(path))
-      return readdirSync5(path).every(
+      return readdirSync6(path).every(
         (tree) => isRealDir(join8(path, tree)) && registered.has(realpathSync(join8(path, tree)))
       );
     return git(root, "check-ignore", "-q", "--", `${folder}/${name}`) !== void 0;
@@ -2422,7 +2454,7 @@ function checkCheckerVersion(root, report2) {
 }
 function checkTopLevel(root, report2) {
   const gitignore = existsSync8(join8(root, ".gitignore")) ? readFileSync8(join8(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
-  const entries = readdirSync5(root).filter(
+  const entries = readdirSync6(root).filter(
     (n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n))
   );
   for (const name of entries) {
@@ -2621,7 +2653,7 @@ function checkCi(root, report2) {
     );
   }
   if (!existsSync8(dir)) return;
-  for (const name of readdirSync5(dir)) {
+  for (const name of readdirSync6(dir)) {
     const file = `.github/workflows/${name}`;
     const text = readFileSync8(join8(dir, name), "utf8");
     text.split("\n").forEach((line, i) => {
@@ -2654,7 +2686,7 @@ function checkCi(root, report2) {
         );
     });
   }
-  for (const name of readdirSync5(dir)) {
+  for (const name of readdirSync6(dir)) {
     const file = `.github/workflows/${name}`;
     for (const line of bunlessToolSteps(readFileSync8(join8(dir, name), "utf8"))) {
       report2.add(
@@ -2724,7 +2756,7 @@ function filesUnder(root, dir, ignored) {
   const path = join8(root, dir);
   if (!existsSync8(path)) return [];
   if (!lstatSync(path).isDirectory()) return [dir];
-  return readdirSync5(path).filter((name) => name !== ".DS_Store" && !ignoredBy(ignored, name)).flatMap((name) => filesUnder(root, `${dir}/${name}`, ignored));
+  return readdirSync6(path).filter((name) => name !== ".DS_Store" && !ignoredBy(ignored, name)).flatMap((name) => filesUnder(root, `${dir}/${name}`, ignored));
 }
 function checkInstallSource(root, id, repo, report2) {
   const check = join8(root, ".github", "workflows", "check.yml");
@@ -2893,7 +2925,7 @@ function readJson2(path) {
 }
 function identify(root) {
   const pluginsDir = join8(root, "plugins");
-  const plugins = existsSync8(pluginsDir) ? readdirSync5(pluginsDir).filter((n) => n !== ".DS_Store") : [];
+  const plugins = existsSync8(pluginsDir) ? readdirSync6(pluginsDir).filter((n) => n !== ".DS_Store") : [];
   const only = plugins.length === 1 ? plugins[0] ?? "" : "";
   const manifest = readJson2(join8(pluginsDir, only, ".claude-plugin", "plugin.json"));
   const pkg = readJson2(join8(root, "package.json"));

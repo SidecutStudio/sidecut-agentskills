@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, test } from 'vitest';
@@ -72,13 +80,30 @@ test('a changed owned file goes back to the Sidecut copy', () => {
   expect(planSync(root, vars)).toEqual([]);
 });
 
-test('sync restores the packaged owner-input guide from its source', () => {
+test('sync restores the packaged user-input guide from its source', () => {
   const root = copy();
-  const guide = `plugins/${ID}/server/data/owner-input.md`;
+  const guide = `plugins/${ID}/server/data/user-input.md`;
   rmSync(join(root, guide));
   expect(files(root)).toEqual([guide]);
   applySync(root, planSync(root, vars));
   expect(read(root, guide)).toBe(read(base, guide));
+});
+
+test('sync moves the guide from its old name and points the skills at the new one', () => {
+  const root = copy();
+  const guide = `plugins/${ID}/server/data/user-input.md`;
+  const old = `plugins/${ID}/server/data/owner-input.md`;
+  const skills = readdirSync(join(root, `plugins/${ID}/skills`));
+  const skill = `plugins/${ID}/skills/${skills[0]}/SKILL.md`;
+  write(root, old, read(root, guide));
+  rmSync(join(root, guide));
+  write(root, skill, `${read(root, skill)}\nFollow \`server/data/owner-input.md\`.\n`);
+  applySync(root, planSync(root, vars));
+  expect(existsSync(join(root, old))).toBe(false);
+  expect(read(root, guide)).toBe(read(base, guide));
+  expect(read(root, skill)).toContain('Follow `server/data/user-input.md`.');
+  expect(read(root, skill)).not.toContain('owner-input.md');
+  expect(planSync(root, vars)).toEqual([]);
 });
 
 test("a block is rewritten and the repo's own lines around it stay", () => {

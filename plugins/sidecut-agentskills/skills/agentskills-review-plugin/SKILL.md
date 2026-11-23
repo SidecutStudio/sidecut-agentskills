@@ -23,7 +23,7 @@ Produces a short report of everything in a plugin repo that breaks the house sty
    - **Breaks the house style:** every other `check_plugin` problem.
    - **For review:** the review-only rows that don't hold, each with the file and a suggested fix.
 6. When someone else will act on the review, or it's about to ship, take the change's review level from the repo's own workflow, or standard when it sets none. At light, stop here. At standard, also hand the repo, its commit and what changed to the `sidecut-agentskills:reviewer` subagent on a cheaper model, `sonnet` unless the project's `review_model` says otherwise; at deep, on your own model. Ask it for problems with evidence, not a general opinion. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Merge its findings into the groups, dropping duplicates.
-7. End with one line: ready to publish, or the number of problems left. If the requested follow-through depends on a choice between fixes or a missing permission, ask using `server/data/owner-input.md` from the loaded plugin root. A review-only request ends with the report.
+7. End with one line: ready to publish, or the number of problems left. If the requested follow-through depends on a choice between fixes or a missing permission, ask using `server/data/user-input.md` from the loaded plugin root. A review-only request ends with the report.
 
 Use `server/data/visual-reports.md` from the loaded plugin root when examples or visual structure make the review easier to act on. Preserve the three groups and verdict. A read-only review may save a report artifact in a task-owned folder; leave the reviewed repository unchanged.
 

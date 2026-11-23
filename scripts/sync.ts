@@ -7,6 +7,7 @@ import { keepCovers } from '../plugins/sidecut-agentskills/server/src/check/repo
 import {
   applySync,
   BLOCK_FILES,
+  guideMoveFiles,
   OWNED_FILES,
   planSync,
   pluginOwnedFile,
@@ -52,6 +53,7 @@ if (!values.check && !values.force) {
     ...OWNED_FILES,
     ...BLOCK_FILES,
     pluginOwnedFile(who.id),
+    ...guideMoveFiles(root, who.id),
     'package.json',
     'package-lock.json',
   ];
