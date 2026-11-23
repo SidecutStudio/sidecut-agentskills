@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.3] - 2026-11-23
+
+### Changed
+
+- Skill authoring guidance shows how to adapt upstream patterns, scope context, and make a skill's optional guidance and file changes discoverable.
+- Workflow design guidance covers setup inspection, scoped repair, context packs and evidence-backed docs scaffolding and refresh.
+
 ## [2.1.2] - 2026-11-22
 
 ### Fixed

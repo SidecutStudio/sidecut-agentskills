@@ -16,7 +16,7 @@ Produces the smallest mechanism that makes the behavior happen every time, in th
 
 ## Steps
 
-1. Pick the mechanism from the table below, choosing the first row that works.
+1. Pick the mechanism from the table below, choosing the first row that works. For setup, repair or project guidance workflows, follow [setup-workflows.md](references/setup-workflows.md).
 2. Build it:
    - **Skill step:** add the step with `agentskills-write-skill`.
    - **Hook:** follow [hooks.md](references/hooks.md).
@@ -55,5 +55,6 @@ The behavior happens in a real session or CI run, a test covers it, and `npm run
 
 | Read | When |
 | --- | --- |
+| [setup-workflows.md](references/setup-workflows.md) | Designing diagnostics, repair, context packs or docs maintenance |
 | [hooks.md](references/hooks.md) | Adding or changing a hook |
 | [subagents.md](references/subagents.md) | Adding or changing a subagent |
