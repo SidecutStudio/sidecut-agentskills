@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
+import { SOLO_END, SOLO_START } from '../sidecut-profile.ts';
 import type { Report } from './report.ts';
 
 export type Heading = { level: number; text: string; line: number };
@@ -14,7 +15,9 @@ export type MarkdownDoc = {
   inCode: boolean[];
 };
 
-const ALLOWED_HTML = /^<!-- (solo-workflow|sidecut):(start|end)( [\w-]+)? -->$/;
+const ALLOWED_HTML = /^<!-- sidecut:(start|end)( [\w-]+)? -->$/;
+const allowedHtml = (line: string) =>
+  ALLOWED_HTML.test(line) || line === SOLO_START || line === SOLO_END;
 
 export function parseMarkdown(path: string, text: string): MarkdownDoc {
   const lines = text.split('\n');
@@ -35,11 +38,11 @@ export function parseMarkdown(path: string, text: string): MarkdownDoc {
   let solo = false;
   for (let i = start; i < lines.length; i++) {
     const line = lines[i] ?? '';
-    // Sidecut Solo owns the text between its markers and rewrites it on setup.
-    if (line === '<!-- solo-workflow:start -->') solo = true;
+    // The sidecut profile's workflow owns the text between its markers and rewrites it on setup.
+    if (line === SOLO_START) solo = true;
     if (solo) {
       inCode[i] = true;
-      if (line === '<!-- solo-workflow:end -->') solo = false;
+      if (line === SOLO_END) solo = false;
       continue;
     }
     // A sidecut-sync marker; the block's own text is checked like any other.
@@ -68,7 +71,7 @@ export function prose(line: string): string {
 }
 
 function isStructural(line: string): boolean {
-  return /^\s*$|^#{1,6} |^\s*(- |\d+\. )|^\|/.test(line) || ALLOWED_HTML.test(line);
+  return /^\s*$|^#{1,6} |^\s*(- |\d+\. )|^\|/.test(line) || allowedHtml(line);
 }
 
 /** Paragraph blocks outside code: consecutive prose lines. */

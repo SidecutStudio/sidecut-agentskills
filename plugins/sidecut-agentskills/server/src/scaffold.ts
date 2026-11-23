@@ -23,6 +23,7 @@ import {
   validateSettings,
   writeUserSettings,
 } from './settings.ts';
+import { CI_LAYOUT, SOLO_END, SOLO_LOCAL_FILE, SOLO_START } from './sidecut-profile.ts';
 
 // The data folder sits next to the bundled server/index.mjs, or one level up from server/src/.
 const here = dirname(fileURLToPath(import.meta.url));
@@ -93,7 +94,7 @@ export function isSkillName(name: string, prefix: string): boolean {
     (name.startsWith(`${prefix}-`) && SKILL_NAME.test(name.slice(prefix.length + 1)))
   );
 }
-/** Sidecut Builder's orange, the brand color of the Sidecut profile. */
+/** The brand color of the sidecut profile. */
 export const BRAND_COLOR = PROFILES.sidecut?.brandColor ?? '#FF6B00';
 const DEFAULT_CHECKER = 'github:SidecutStudio/sidecut-agentskills';
 
@@ -327,9 +328,10 @@ export function settingsVars(id: string, s: Settings = current()): Record<string
     logTitle: s.brand ? `${s.brand} usage log` : 'Usage log',
     prefixPattern: escapeRegExp(s.prefix),
     securityAlt: host ? `, or through [${host}](${s.homepage})` : '',
-    ciLayout:
-      s.ci === 'sidecut' ? "CI, using sidecut-ops' runner picker" : 'CI on GitHub-hosted runners',
+    ciLayout: s.ci === 'sidecut' ? CI_LAYOUT : 'CI on GitHub-hosted runners',
     installBlock,
+    workflowMarkers: s.workflow === 'solo' ? `\n\n${SOLO_START}\n${SOLO_END}` : '',
+    workflowIgnore: s.workflow === 'solo' ? `\n${SOLO_LOCAL_FILE}` : '',
   };
 }
 
@@ -388,6 +390,8 @@ function writeRepo(input: PluginInput, out: string, settings: Settings): string[
   for (const [path, text] of renderTree('repo', vars)) files.set(path, text);
   for (const [path, text] of renderTree(`ci/${settings.ci}`, vars))
     files.set(`.github/workflows/${path}`, text);
+  if (settings.workflow === 'solo')
+    for (const [path, text] of renderTree('solo', vars)) files.set(path, text);
   if (!settings.marketplace)
     for (const [path, text] of renderTree('marketplace', vars)) files.set(path, text);
   files.set(REPO_FILE, answersFile(settings));

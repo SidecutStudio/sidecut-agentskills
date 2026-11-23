@@ -19,15 +19,38 @@ function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
 }
 
+// plugins/sidecut-agentskills/server/src/sidecut-profile.ts
+var SOLO_LOCAL_FILE = "solo-workflow.local.toml";
+var SOLO_START = "<!-- solo-workflow:start -->";
+var SOLO_END = "<!-- solo-workflow:end -->";
+var CI_LAYOUT = "CI, using sidecut-ops' runner picker";
+var SIDECUT_SETTINGS = {
+  org: "SidecutStudio",
+  authorName: "Sidecut Studio",
+  authorUrl: "https://sidecut.dev",
+  homepage: "https://sidecut.dev",
+  prefix: "sidecut-",
+  marketplace: "SidecutStudio/sidecut-plugins",
+  ci: "sidecut",
+  license: "MIT",
+  brandColor: "#FF6B00",
+  brand: "Sidecut",
+  workflow: "solo"
+};
+var SIDECUT_OWNER = SIDECUT_SETTINGS.org;
+var SIDECUT_CI_SNIPPETS = {
+  ciLightRunner: `'{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}'`,
+  ciReleaseLabels: "[self-hosted, Linux, X64, sidecut-ci]",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
+  ciAppKey: "${{ secrets.SIDECUT_CI_APP_KEY }}"
+};
+
 // plugins/sidecut-agentskills/server/src/ci-snippets.ts
 var INDENT = "          ";
 var CI_SNIPPETS = {
   ciOwnLane: "self-hosted",
   ciOwnLaneTitle: "Self-hosted",
-  ciLightRunner: `'{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}'`,
-  ciReleaseLabels: "[self-hosted, Linux, X64, sidecut-ci]",
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
-  ciAppKey: "${{ secrets.SIDECUT_CI_APP_KEY }}",
+  ...SIDECUT_CI_SNIPPETS,
   // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
   ghTokenEnv: "GH_TOKEN: ${{ github.token }}",
   secretScanInstall: [
@@ -60,21 +83,11 @@ var DEFAULTS = {
   ci: "hosted",
   license: "MIT",
   brandColor: "#3B82F6",
-  brand: ""
+  brand: "",
+  workflow: ""
 };
 var PROFILES = {
-  sidecut: {
-    org: "SidecutStudio",
-    authorName: "Sidecut Studio",
-    authorUrl: "https://sidecut.dev",
-    homepage: "https://sidecut.dev",
-    prefix: "sidecut-",
-    marketplace: "SidecutStudio/sidecut-plugins",
-    ci: "sidecut",
-    license: "MIT",
-    brandColor: "#FF6B00",
-    brand: "Sidecut"
-  }
+  sidecut: SIDECUT_SETTINGS
 };
 var REPO_FILE = ".agentskills.json";
 var KEYS = Object.keys(DEFAULTS);
@@ -114,6 +127,8 @@ function mergeSettings(...layers) {
   }
   if (out.ci !== "hosted" && out.ci !== "sidecut")
     throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (out.workflow !== "" && out.workflow !== "solo")
+    throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
   if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
     throw new Error(
       `Marketplace "${out.marketplace}" must be owner/repo, or empty for the plugin's own repo.`
@@ -139,7 +154,7 @@ function inferRepoSettings(root2) {
         String(manifest.repository ?? "")
       )?.[1];
       if (!owner) continue;
-      if (owner === "SidecutStudio") return { profile: "sidecut" };
+      if (owner === SIDECUT_OWNER) return { profile: "sidecut" };
       const check = join(root2, ".github", "workflows", "check.yml");
       const picker = existsSync(check) && readFileSync(check, "utf8").includes("/pick-runner@");
       return cleanSettings({
@@ -157,7 +172,7 @@ function inferRepoSettings(root2) {
 function repoSettings(root2) {
   return mergeSettings(readRepoSettings(root2) ?? inferRepoSettings(root2));
 }
-var active = mergeSettings({ profile: "sidecut" });
+var active = mergeSettings();
 function current() {
   return active;
 }
@@ -183,7 +198,7 @@ var QUESTIONS = [
   },
   {
     key: "ci",
-    ask: `Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04) or "sidecut" (Sidecut's self-hosted runner picker)?`,
+    ask: `Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04), or "sidecut" for the sidecut profile's own runners?`,
     default: DEFAULTS.ci
   }
 ];
@@ -288,8 +303,14 @@ function settingsVars(id, s = current()) {
     logTitle: s.brand ? `${s.brand} usage log` : "Usage log",
     prefixPattern: escapeRegExp(s.prefix),
     securityAlt: host ? `, or through [${host}](${s.homepage})` : "",
-    ciLayout: s.ci === "sidecut" ? "CI, using sidecut-ops' runner picker" : "CI on GitHub-hosted runners",
-    installBlock
+    ciLayout: s.ci === "sidecut" ? CI_LAYOUT : "CI on GitHub-hosted runners",
+    installBlock,
+    workflowMarkers: s.workflow === "solo" ? `
+
+${SOLO_START}
+${SOLO_END}` : "",
+    workflowIgnore: s.workflow === "solo" ? `
+${SOLO_LOCAL_FILE}` : ""
   };
 }
 

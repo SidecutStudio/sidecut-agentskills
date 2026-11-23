@@ -64,11 +64,9 @@ Don't style one blind entry as the winner. Keep crops, order, scale and availabl
 
 ## Use the shared design
 
-The shared design belongs to Sidecut Builder: `src/tailwind.css` owns values and `design.json` mirrors them. Sidecut Studio's `DESIGN.md` adopts that system.
+The packaged stylesheet, `visual-report.css`, holds the report's role tokens. It needs no source checkout or other installed plugin.
 
-The packaged stylesheet carries those role tokens for installed use. It needs no source checkout or other installed plugin.
-
-When updating the stylesheet, compare those upstream files. Keep original role names and light/dark pairs; don't invent a separate report palette.
+When updating the stylesheet, keep its role names and light/dark pairs; don't invent a separate report palette.
 
 Use warm paper, ink, restrained orange, fine rules and generous space. Geist is the main face; Geist Mono labels sources and metadata.
 
@@ -78,7 +76,7 @@ Use a strong heading, a readable lede and varied sections. Cards need meaningful
 
 Avoid gradients, glows, ornamental charts, stock dashboard chrome and giant empty hero areas. Let screenshots and diagrams occupy meaningful space.
 
-Keep the report frame in Sidecut's design. Preserve the reviewed product's own tokens, voice and original screenshots inside it.
+Keep the report frame in the packaged design. Preserve the reviewed product's own tokens, voice and original screenshots inside it.
 
 Support device theme preference and reduced motion. Give images useful alternative text, tables headers and controls visible keyboard focus.
 
@@ -86,7 +84,7 @@ For print, keep required content visible, including disclosure contents. Ensure 
 
 ## Use the shared voice
 
-Use the Plainspoken Editorial section of Builder's `VOICE.md`, as adopted by Sidecut Studio. Follow the house style's Wording rules for agent instructions.
+Use the packaged [VOICE.md](templates/repo/VOICE.md.tmpl). Follow the house style's Wording rules for agent instructions.
 
 Lead with what someone can decide or do. Be direct, human and quietly confident. Let specific work earn the conclusion.
 

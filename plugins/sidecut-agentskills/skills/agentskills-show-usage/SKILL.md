@@ -1,12 +1,12 @@
 ---
 name: agentskills-show-usage
-description: "Shows which Sidecut plugin skills ran in Claude Code and Codex, from the local skill log. Use when the user asks which Sidecut skills or plugins get used, on which host, or whether usage is being recorded. Not for changing a plugin's hooks (use `agentskills-design-workflow`)."
+description: "Shows which plugin skills ran in Claude Code and Codex, from the local skill log. Use when the user asks which plugin skills get used, on which host, or whether usage is being recorded. Not for changing a plugin's hooks (use `agentskills-design-workflow`)."
 argument-hint: "[days]"
 ---
 
 # Show usage
 
-Count the Sidecut plugin skills that ran over a period, by plugin, skill and host, and say plainly what the log can't show. It covers only plugins that ship the Sidecut skill-log hook, and only skill starts the hook sees.
+Count the plugin skills that ran over a period, by plugin, skill and host, and say plainly what the log can't show. It covers only plugins that ship the Agentskills skill-log hook, and only skill starts the hook sees.
 
 ## Steps
 

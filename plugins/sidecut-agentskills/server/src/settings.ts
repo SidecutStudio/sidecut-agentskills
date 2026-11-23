@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
+import { SIDECUT_OWNER, SIDECUT_SETTINGS } from './sidecut-profile.ts';
 
-/** Where CI runs: GitHub-hosted Linux, or Sidecut's self-hosted runners through the runner picker. */
+/** Where CI runs: GitHub-hosted Linux, or the Sidecut profile's own runners through its runner picker. */
 export type CiMode = 'hosted' | 'sidecut';
 
 /** Who publishes a plugin and how its repo is set up: everything the templates don't hard-code. */
@@ -14,7 +15,7 @@ export type Settings = {
   authorName: string;
   authorUrl: string;
   homepage: string;
-  /** Put in front of every plugin id, such as `sidecut-`. Skill names leave it out. */
+  /** Put in front of every plugin id, such as `acme-`. Skill names leave it out. */
   prefix: string;
   /** `owner/repo` of the marketplace that lists the plugin, or empty for the plugin's own repo. */
   marketplace: string;
@@ -23,6 +24,8 @@ export type Settings = {
   brandColor: string;
   /** The name the templates put in front of "house style", "voice" and "usage log". */
   brand: string;
+  /** An extra delivery workflow the repo follows: empty for none, or `solo` for the Sidecut profile's. */
+  workflow: string;
 };
 
 /** What a settings file or a tool call gives: any fields, and optionally a profile to start from. */
@@ -40,22 +43,12 @@ export const DEFAULTS: Settings = {
   license: 'MIT',
   brandColor: '#3B82F6',
   brand: '',
+  workflow: '',
 };
 
 /** Sidecut Studio's own values, kept as one profile. */
 export const PROFILES: Record<string, Omit<Settings, 'profile'>> = {
-  sidecut: {
-    org: 'SidecutStudio',
-    authorName: 'Sidecut Studio',
-    authorUrl: 'https://sidecut.dev',
-    homepage: 'https://sidecut.dev',
-    prefix: 'sidecut-',
-    marketplace: 'SidecutStudio/sidecut-plugins',
-    ci: 'sidecut',
-    license: 'MIT',
-    brandColor: '#FF6B00',
-    brand: 'Sidecut',
-  },
+  sidecut: SIDECUT_SETTINGS,
 };
 
 /** The answers file a repo keeps at its root, so sync and check reuse what scaffolding was told. */
@@ -116,6 +109,8 @@ export function mergeSettings(...layers: (SettingsInput | null | undefined)[]): 
   }
   if (out.ci !== 'hosted' && out.ci !== 'sidecut')
     throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (out.workflow !== '' && out.workflow !== 'solo')
+    throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
   if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
     throw new Error(
       `Marketplace "${out.marketplace}" must be owner/repo, or empty for the plugin's own repo.`,
@@ -219,7 +214,7 @@ export function writeUserSettings(
 
 /**
  * What a repo with no answers file says about itself: its owner from the plugin manifest's
- * repository URL. A SidecutStudio repo is the Sidecut profile, so repos made before settings
+ * repository URL. A repo of the Sidecut profile's owner gets that profile, so repos made before settings
  * existed keep passing unchanged.
  */
 export function inferRepoSettings(root: string): SettingsInput {
@@ -234,7 +229,7 @@ export function inferRepoSettings(root: string): SettingsInput {
         String(manifest.repository ?? ''),
       )?.[1];
       if (!owner) continue;
-      if (owner === 'SidecutStudio') return { profile: 'sidecut' };
+      if (owner === SIDECUT_OWNER) return { profile: 'sidecut' };
       const check = join(root, '.github', 'workflows', 'check.yml');
       const picker = existsSync(check) && readFileSync(check, 'utf8').includes('/pick-runner@');
       return cleanSettings({
@@ -278,7 +273,7 @@ export function repoSettings(root: string): Settings {
   return mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
 }
 
-let active: Settings = mergeSettings({ profile: 'sidecut' });
+let active: Settings = mergeSettings();
 
 /** The settings the checker and generator use until the next `useSettings`. */
 export function current(): Settings {
@@ -315,7 +310,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     key: 'ci',
-    ask: 'Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04) or "sidecut" (Sidecut\'s self-hosted runner picker)?',
+    ask: 'Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04), or "sidecut" for the sidecut profile\'s own runners?',
     default: DEFAULTS.ci,
   },
 ];

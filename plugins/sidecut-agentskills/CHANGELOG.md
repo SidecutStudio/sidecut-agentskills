@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.2.0] - 2026-11-23
+
+### Added
+
+- `get_house_style` takes a `profile` and adds that profile's extra rules, from the user's saved profile when none is given.
+- A portability test fails when a shipped file names a private repo, Sidecut Studio's own workflow or products, or a personal path outside the `sidecut` profile.
+
+### Changed
+
+- Agentskills works for anyone with no private setup: with no profile, `scaffold_plugin` writes no workflow settings file or markers, and the checker no longer asks for them.
+- Everything Sidecut Studio uses only for itself, its workflow, private CI repo and shared marketplace, lives in the optional `sidecut` profile.
+- `agentskills-publish-plugin` publishes to the plugin's own repo or any shared marketplace, following that marketplace's own instructions.
+- The release script reads its required checks from a workflow settings file only when the repo keeps one, and otherwise requires `check` and `secrets`.
+- `sidecut-icon` draws the full stop in the repo's brand color.
+- `get_house_style` returns a profile's rules as a section of their own, such as `Sidecut profile`.
+- The README, skills, examples and visual report frame describe plugins in general terms.
+
 ## [2.1.3] - 2026-11-23
 
 ### Changed
@@ -42,7 +59,7 @@
 
 - `scaffold_plugin` asks once: with no saved settings it writes nothing and returns the questions, then saves the answers when called again with `save: true`. `npm run new` takes the same answers as flags.
 - The templates and `check_plugin` read the owner, author, homepage, prefix, marketplace, CI mode and brand color from settings instead of assuming Sidecut Studio.
-- `agentskills-create-plugin` asks the settings questions once, and `agentskills-publish-plugin` publishes to the repo's marketplace instead of always to sidecut-plugins.
+- `agentskills-create-plugin` asks the settings questions once, and `agentskills-publish-plugin` publishes to the repo's marketplace instead of always to one shared marketplace.
 - Upgrading: existing Sidecut repos keep working unchanged, since a repo with no `.agentskills.json` whose manifest points at a SidecutStudio repo is checked and synced with the `sidecut` profile. To pin it, add `.agentskills.json` with `{ "profile": "sidecut" }`.
 
 ## [1.4.1] - 2026-11-20
@@ -55,7 +72,7 @@
 
 ### Removed
 
-- The rules hook that rebuilt `~/.codex/AGENTS.md` from `~/.claude/rules` at the start of each session. It moves to the separate `sidecut-rules` plugin, so Agentskills runs no hook at session start.
+- The rules hook that rebuilt `~/.codex/AGENTS.md` from `~/.claude/rules` at the start of each session. It moved out of Agentskills, so Agentskills runs no hook at session start.
 
 ## [1.4.0] - 2026-11-19
 
@@ -76,11 +93,11 @@
 
 ### Changed
 
-- The template's pull request jobs ask for the `sidecut-light` runner label, as the sidecut-ops runner picker now routes them, and the secrets job no longer installs Node.js.
+- The template's pull request jobs ask for the lighter runner label the runner picker now routes them to, and the secrets job no longer installs Node.js.
 
 ### Fixed
 
-- The template's Check and Release workflows install trufflehog and gh from their pinned downloads with a checksum check. sidecut-ops' `setup-ci-tools` action runs on Bun, which plugin repos no longer install, so repos made from 1.2.x failed their secrets job and would fail their first release.
+- The template's Check and Release workflows install trufflehog and gh from their pinned downloads with a checksum check. The `setup-ci-tools` action runs on Bun, which plugin repos no longer install, so repos made from 1.2.x failed their secrets job and would fail their first release.
 
 ## [1.2.2] - 2026-11-18
 
@@ -103,7 +120,7 @@
 ### Changed
 
 - Keep behavioural eval cases in the development repository, outside installed plugins. Stage a temporary plugin for native Claude Code evals.
-- Simplify the Solo project instruction.
+- Simplified the workflow section of `AGENTS.md`.
 
 ## [1.0.0] - 2026-11-18
 
@@ -123,7 +140,7 @@
 
 ### Added
 
-- Added this repo's own install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, so anyone can install Sidecut Agentskills from GitHub without the private sidecut-plugins marketplace.
+- Added this repo's own install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, so anyone can install Sidecut Agentskills from GitHub without a private marketplace.
 - Added the Install source section to the house style: a public repo carries both marketplace files and its README gives install steps that work without any private marketplace.
 - Added `README_INSTALL` to `check_plugin` and `sidecut-check`, which flags a public repo's README whose install steps name a marketplace the repo doesn't provide.
 - Added `public-install.md` to `agentskills-publish-plugin`, which proves a public repo's install steps from clean Claude Code and Codex profiles.
@@ -189,7 +206,7 @@
 
 ### Changed
 
-- `agentskills-publish-plugin` ships a plugin built in another repo by bundling the released tag or `main` commit into sidecut-plugins with `bun scripts/bundle.ts`, since claude.ai can't install straight from a private plugin repo. It no longer edits `git-subdir` pins in both marketplace files.
+- `agentskills-publish-plugin` ships a plugin built in another repo by bundling the released tag or `main` commit into its shared marketplace, since claude.ai can't install straight from a private plugin repo. It no longer edits `git-subdir` pins in both marketplace files.
 
 ## [0.8.3] - 2026-11-14
 
@@ -207,7 +224,7 @@
 
 ### Changed
 
-- Guidance and checker messages use Sidecut Solo's shorter `solo-*` skill names.
+- Guidance and checker messages use the workflow's shorter skill names.
 
 ## [0.8.0] - 2026-11-14
 
@@ -225,7 +242,7 @@
 
 ### Changed
 
-- `agentskills-publish-plugin` also publishes a plugin that lives inside another product's repo, such as Next Role. That kind is pinned in sidecut-plugins to one commit of `main` by its `sha`, not to a release tag. The skill says how to tell the two apart from the marketplace entry.
+- `agentskills-publish-plugin` also publishes a plugin that lives inside another product's repo, such as an app. That kind is pinned in its marketplace to one commit of `main` by its `sha`, not to a release tag. The skill says how to tell the two apart from the marketplace entry.
 
 ## [0.7.1] - 2026-11-14
 
@@ -258,7 +275,7 @@
 
 - `REPO_SYNC` replaces `REPO_CLAUDE_MD`, `REPO_GITIGNORE`, `REPO_RELEASE_SCRIPT` and the build-script copy check.
 - `check` and `build` may add the repo's own steps, as long as the standard ones run in order.
-- The template's `.gitignore` also ignores `solo-workflow.local.toml` and `.claude/settings.local.json`, which every Solo Workflow repo needs.
+- The template's `.gitignore` also ignores personal workflow overrides and `.claude/settings.local.json`.
 
 ## [0.5.1] - 2026-11-13
 
@@ -276,7 +293,7 @@
 ### Changed
 
 - `agentskills-publish-plugin`: merging the version bump is the release. It confirms the published release instead of tagging by hand.
-- `agentskills-review-plugin` and the subagent guidance size reviews to the change, using Solo Workflow's review levels. Light gets no reviewer, standard gets the reviewer on a cheaper model, and deep gets it on the parent model. A rebuild is always deep.
+- `agentskills-review-plugin` and the subagent guidance size reviews to the change, using review levels. Light gets no reviewer, standard gets the reviewer on a cheaper model, and deep gets it on the parent model. A rebuild is always deep.
 - This repo now publishes its own releases this way.
 
 ## [0.4.0] - 2026-11-13
@@ -287,17 +304,17 @@
 - `agentskills-rebuild-plugin` finds every place outside the repo that uses a name the rebuild changes, asks before renaming anything already in use, and updates the marketplaces and other repos after the release.
 - `agentskills-rebuild-plugin` pushes a draft PR early and after each step, and keeps parity records and rebuild notes out of the repo's files.
 - Skills name a subagent as `<plugin id>:<role>` in Claude Code, and the checker accepts that form instead of reporting a missing skill.
-- Skills and the checker point at Solo Workflow 0.20.0's skill names, `solo-workflow-configure-project` and `solo-workflow-finish-change`.
+- Skills and the checker point at the workflow's renamed skills.
 
 ## [0.3.0] - 2026-11-13
 
 ### Added
 
-- `sidecut-icon` (`bun run icon` here) draws a plugin's icon in Sidecut Builder's style: a near-black rounded tile, one white Lucide mark and Builder's orange full stop. A new plugin starts with a plain box mark, and `agentskills-create-plugin` asks which mark it should have.
+- `sidecut-icon` (`bun run icon` here) draws a plugin's icon: a near-black rounded tile, one white Lucide mark and an orange full stop. A new plugin starts with a plain box mark, and `agentskills-create-plugin` asks which mark it should have.
 
 ### Changed
 
-- Every plugin's `brandColor` is `#FF6B00`, Sidecut Builder's orange, and the checker enforces it. `scaffold_plugin` and `bun run new` no longer take a brand color.
+- Every plugin's `brandColor` is `#FF6B00`, and the checker enforces it. `scaffold_plugin` and `bun run new` no longer take a brand color.
 - Each skill's `agents/openai.yaml` sets `icon_small` and `icon_large` to `../../assets/icon.png`, so Codex shows the plugin's icon beside its skills.
 - Sidecut Agentskills has its own icon, a blocks mark.
 
@@ -341,7 +358,7 @@
 
 ### Fixed
 
-- Display names keep acronyms in capitals, so `sidecut-ci` is `Sidecut CI`. The house style lists them.
+- Display names keep acronyms in capitals, so `acme-ci` is `Acme CI`. The house style lists them.
 - The template server finds its manifest from its source as well as its bundle.
 - The checker's public-repo CI rule no longer skips a job that has no `runs-on`, reads jobs at any indentation, and its runner hint fits public repos.
 - `bun run new` rejects a long description that isn't 2 or 3 sentences, as the checker does.

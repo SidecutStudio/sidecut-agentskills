@@ -46,7 +46,7 @@ test('installed house style exposes visual reports without a source checkout', (
     const data = join(plugin, 'server/data');
     const html = readFileSync(join(data, 'visual-report.html'), 'utf8');
     const css = readFileSync(join(data, 'visual-report.css'), 'utf8');
-    expect(html).toContain('Sidecut Agentskills');
+    expect(html).toContain('Agentskills report layout example');
     for (const [, filename] of css.matchAll(/url\("([^"\n]+)"\)/g)) {
       expect(readFileSync(join(data, filename ?? '')).length).toBeGreaterThan(0);
     }

@@ -4,12 +4,12 @@
     "name": "Sidecut Studio",
     "url": "https://sidecut.dev"
   },
-  "description": "Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.",
+  "description": "Builds, checks and ships Claude Code and Codex plugins, skills and MCP servers that all follow one house style.",
   "plugins": [
     {
       "name": "sidecut-agentskills",
       "source": "./plugins/sidecut-agentskills",
-      "description": "Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.",
+      "description": "Builds, checks and ships Claude Code and Codex plugins, skills and MCP servers that all follow one house style.",
       "category": "development"
     }
   ]

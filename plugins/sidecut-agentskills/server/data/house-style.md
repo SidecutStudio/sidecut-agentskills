@@ -1,10 +1,10 @@
 # Plugin standards
 
-Read this when writing or changing anything in a Sidecut plugin, skill, MCP server or plugin repo. Every rule has one answer. Rules marked yes in the Checked column fail `npm run check`; the rest are for review. The reasons behind the rules are in [patterns.md](patterns.md).
+Read this when writing or changing anything in a plugin, skill, MCP server or plugin repo made with Agentskills. Every rule has one answer. Rules marked yes in the Checked column fail `npm run check`; the rest are for review. The reasons behind the rules are in [patterns.md](patterns.md).
 
 ## Settings
 
-Who publishes a plugin comes from settings, not from these rules: the GitHub owner (`org`), the author's name and URL, the homepage, a plugin-id `prefix`, the `marketplace` that lists the plugin, the CI mode (`hosted` or `sidecut`), the licence and the brand color. Where a rule below says `<org>`, `<author>`, `<homepage>` or `<prefix>`, it means the value from settings.
+Who publishes a plugin comes from settings, not from these rules: the GitHub owner (`org`), the author's name and URL, the homepage, a plugin-id `prefix`, the `marketplace` that lists the plugin, the CI mode (`hosted`, or `sidecut` for that profile's own runners), the licence and the brand color. Where a rule below says `<org>`, `<author>`, `<homepage>` or `<prefix>`, it means the value from settings.
 
 | Where | Holds | Read by |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Who publishes a plugin comes from settings, not from these rules: the GitHub own
 | `~/.config/agentskills/settings.json` (or under an absolute `$XDG_CONFIG_HOME`) | The user's answers, saved once | scaffolding, over the defaults |
 | `.agentskills.json` at the repo root | The answers a repo was scaffolded with | check and sync, over what the manifests say |
 
-Scaffolding reads the call's answers, then the user's file, then the defaults; a new repo has no answers file yet. Check and sync read only the repo: its answers file, or, without one, what its manifests say. The defaults are hosted CI, no prefix, MIT, and the plugin's own repo as its marketplace. Owner, author, URLs and brand color are refused if they'd need escaping in JSON or YAML. The `sidecut` profile holds Sidecut Studio's values: owner `SidecutStudio`, author Sidecut Studio at `https://sidecut.dev`, prefix `sidecut-`, marketplace `SidecutStudio/sidecut-plugins`, CI mode `sidecut` and brand color `#FF6B00`. A repo with no answers file whose manifest points at a `SidecutStudio` repo is checked with the `sidecut` profile; any other repo is checked with the owner and author its manifest names. Scaffolding with no settings at all writes nothing and returns the questions to ask.
+Scaffolding reads the call's answers, then the user's file, then the defaults; a new repo has no answers file yet. Check and sync read only the repo: its answers file, or, without one, what its manifests say. The defaults are hosted CI, no prefix, MIT, and the plugin's own repo as its marketplace. Owner, author, URLs and brand color are refused if they'd need escaping in JSON or YAML. One optional profile, `sidecut`, holds Sidecut Studio's own values and adds the rules in `profiles/sidecut.md`, which `get_house_style` appends when that profile is in use and returns as the section `Sidecut profile`. Nothing in it applies to a repo made with your own settings. A repo with no answers file is checked with the owner and author its manifest names. Scaffolding with no settings at all writes nothing and returns the questions to ask.
 
 ## Names
 
@@ -20,15 +20,15 @@ Scaffolding reads the call's answers, then the user's file, then the defaults; a
 | --- | --- | --- |
 | Repo | `<prefix><name>`, lowercase kebab-case | yes |
 | Plugin id | `<prefix><name>`, lowercase kebab-case, at most 64 characters; the same as the repo name when the repo exists to ship it | yes |
-| Plugin display name | The id with hyphens as spaces, each word capitalized and acronyms in capitals: `sidecut-agentskills` is `Sidecut Agentskills`, `sidecut-ci` is `Sidecut CI`. The acronyms are ai, api, aws, cdn, ci, cli, css, dns, gpu, html, http, json, llm, mcp, pdf, pr, sdk, sql, ssh, ui, url, ux and yaml | yes |
-| Skill | The plugin prefix, then a verb and a singular object of 2 or 3 words, kebab-case: `agentskills-write-skill`, `ci-diagnose-jobs`. The prefix is the plugin id without the configured prefix (Sidecut profile: `sidecut-`). Skills from every installed plugin share one list of names, and Codex prompts and Claude Desktop show the bare name, so the prefix keeps it unique | yes |
+| Plugin display name | The id with hyphens as spaces, each word capitalized and acronyms in capitals: `acme-notes` is `Acme Notes`, `acme-ci` is `Acme CI`. The acronyms are ai, api, aws, cdn, ci, cli, css, dns, gpu, html, http, json, llm, mcp, pdf, pr, sdk, sql, ssh, ui, url, ux and yaml | yes |
+| Skill | The plugin prefix, then a verb and a singular object of 2 or 3 words, kebab-case: `agentskills-write-skill`, `notes-find-note`. The prefix is the plugin id without the configured prefix (`acme-` in `acme-notes`). Skills from every installed plugin share one list of names, and Codex prompts and Claude Desktop show the bare name, so the prefix keeps it unique | yes |
 | Router skill | The prefix alone, `agentskills`, present only in plugins with 4 or more other skills | yes |
 | Subagent | A role noun, one word: `reviewer`, `verifier` | yes |
-| MCP server key | The plugin id without the `sidecut-` prefix | yes |
+| MCP server key | The plugin id without the configured prefix | yes |
 | MCP tool | Verb then object in snake_case: `get_pr_checks`, `scaffold_plugin` | yes |
 | Hook script | `<event>-<what>.mjs` in kebab-case: `post-tool-use-skill-log.mjs` | yes |
 | Script, reference or example file | kebab-case, describing what's inside: `house-style.md`, `list-tools.mjs` | yes |
-| Environment variable | `SIDECUT_<PLUGIN>_<SETTING>` in upper snake case for one plugin's setting; `SIDECUT_<SETTING>` for one shared by every Sidecut plugin, such as `SIDECUT_SKILL_LOG` | review |
+| Environment variable | The plugin id then the setting, in upper snake case, such as `ACME_NOTES_DIR` for `acme-notes`; the usage log's shared switch is `SIDECUT_SKILL_LOG` in every plugin | review |
 | Acronyms in prose and headings | Upper case: MCP, CLI, CI, PR, URL | review |
 
 ## Repo layout
@@ -37,7 +37,7 @@ A repo exists to ship one plugin when it holds one plugin whose manifest `reposi
 
 A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `sidecut.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
 
-A repo that ships a plugin next to other work, such as `sidecut-ops` or an app repo, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down, whatever its package is called. It can still list deliberate differences under `sidecut.keep`.
+A repo that ships a plugin next to other work, such as an app or a tools repo, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down, whatever its package is called. It can still list deliberate differences under `sidecut.keep`.
 
 ```text
 .github/workflows/check.yml
@@ -56,7 +56,6 @@ package.json
 plugins/<plugin-id>/
 scripts/build-server.ts
 scripts/release.ts
-solo-workflow.toml
 tests/
 tsconfig.json
 ```
@@ -65,7 +64,7 @@ tsconfig.json
 | --- | --- | --- |
 | `CLAUDE.md` | One line: `@AGENTS.md` | yes |
 | `LICENSE` | MIT, `Copyright (c) <year> <author>` | yes |
-| Install source | A repo with no `marketplace` setting carries its own marketplace for each host, listing only its plugin. A repo listed in the configured marketplace (Sidecut profile: `sidecut-plugins`) may carry its own in `hosted` CI mode; in `sidecut` mode a public repo, one whose CI jobs all run on `ubuntu-24.04`, carries its own and a private repo carries none | yes |
+| Install source | A repo with no `marketplace` setting carries its own marketplace for each host, listing only its plugin. A repo listed in a shared marketplace may carry its own in `hosted` CI mode; in `sidecut` mode a public repo, one whose CI jobs all run on `ubuntu-24.04`, carries its own and a private repo carries none | yes |
 | Plugins per repo | One | review |
 | `.gitignore` | Starts with the template's `house-style` block; the repo's own lines go after it | yes |
 | `package.json` | `name` is the plugin id, `version` matches the manifests, `packageManager` is a pinned `npm@x.y.z`, every dependency is an exact version or a tagged GitHub source | yes |
@@ -74,14 +73,14 @@ tsconfig.json
 
 ## Install source
 
-A public repo has to install for people with no access to anything private. The `sidecut-plugins` marketplace is private, so a public repo carries a marketplace of its own: one file per host, at the path each host reads, both named after the plugin id and listing only `./plugins/<plugin-id>`. sidecut-plugins still bundles the plugin folder for the owner's own installs; it copies only `plugins/<plugin-id>/`, so these files don't reach it.
+A public repo has to install for people with no access to anything private. A shared marketplace may be private, so a public repo carries a marketplace of its own: one file per host, at the path each host reads, both named after the plugin id and listing only `./plugins/<plugin-id>`. A shared marketplace that bundles the plugin copies only `plugins/<plugin-id>/`, so these files don't reach it.
 
 `.claude-plugin/marketplace.json`, for Claude Code:
 
 ```json
 {
   "name": "<plugin-id>",
-  "owner": { "name": "Sidecut Studio", "url": "https://sidecut.dev" },
+  "owner": { "name": "<author>", "url": "<author URL>" },
   "description": "<manifest description>",
   "plugins": [
     {
@@ -128,7 +127,7 @@ codex plugin add <plugin-id>@<plugin-id>
 | README install steps | In a public repo, both hosts add the marketplace from `<org>/<repo>` and install `<plugin-id>@<plugin-id>`; no step names a marketplace the repo doesn't provide | yes |
 | Proof | Before a public repo's install steps are published anywhere, they run from a clean Claude Code profile and a clean Codex home, or `claude plugin validate .` passes and the gap is named | review |
 | Private repo | No marketplace files | yes |
-| Private repo README | Installs from `sidecut-plugins` | review |
+| Private repo README | Installs from the shared marketplace that lists it | review |
 
 ## Plugin layout
 
@@ -161,7 +160,7 @@ plugins/<plugin-id>/
 | Hosts | Claude Code and Codex only | yes |
 | Copies of repo files | Byte-identical to the repo root | yes |
 | Empty folders | None | yes |
-| Icon | `npm exec --no -- sidecut-icon <lucide-name>` draws it in Sidecut Builder's style: a near-black rounded tile, one white [Lucide](https://lucide.dev/icons) mark and Builder's orange full stop. One mark per plugin, never another plugin's | no |
+| Icon | `npm exec --no -- sidecut-icon <lucide-name>` draws it: a near-black rounded tile, one white [Lucide](https://lucide.dev/icons) mark and a full stop in the brand color. One mark per plugin, never another plugin's | no |
 
 ## Manifests
 
@@ -179,7 +178,7 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/
 | `keywords` | 3 to 8, lowercase, no plugin name | yes |
 | Claude extra fields | None; skills, agents and hooks are found by folder | yes |
 | Codex extra fields | After the shared fields: `skills` (`./skills/`), `mcpServers` (`./mcp.json`) with an MCP server, `apps` (`./.app.json`) with a registered connector, `hooks` (`./hooks/codex-hooks.json`) with hooks, then `interface` last | yes |
-| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`<author>`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (the configured brand color; Sidecut profile: `#FF6B00`, Sidecut Builder's orange), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
+| `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`<author>`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (the configured brand color), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
 | Unknown fields | None | yes |
 
 ## MCP servers
@@ -263,7 +262,7 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Frontmatter | `name` (the file name), `description` in the skill shape, `tools` as the narrowest list that works, `model: inherit` | review |
-| Model | A skill that starts a reviewer picks its model from the review level `solo-review-change` reports: no reviewer at light, a cheaper model such as `sonnet` at standard, the parent's at deep | review |
+| Model | A skill that starts a reviewer picks its model from the change's review level, as the repo's own workflow sets it (standard when it sets none): no reviewer at light, a cheaper model such as `sonnet` at standard, the parent's at deep | review |
 | Body | `# <Role>`, one paragraph, `## Steps`, `## Return` | review |
 | Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `npm run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>` with the prefix's hyphens as underscores, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
 | Naming one in a skill | `<plugin id>:<role>` for Claude Code and `<prefix>_<role>` for Codex, both in backticks: `sidecut-agentskills:reviewer` (`agentskills_reviewer` in Codex). A `<plugin id>:<name>` pointer must name one of the plugin's skills or subagents | yes |
@@ -293,7 +292,7 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 
 ## Usage log
 
-The only telemetry a Sidecut plugin has.
+The only telemetry a plugin made with Agentskills has.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
@@ -303,7 +302,7 @@ The only telemetry a Sidecut plugin has.
 | Location | `~/.sidecut/skill-log.jsonl`, never sent anywhere | yes |
 | Ownership | Records only this plugin's skills | yes |
 | Mentions in skills | None; skills never ask the agent to log, report or send feedback. A skill that reads usage back to the user, as `agentskills-show-usage` does, is the one exception | review |
-| Reading it | `agentskills-show-usage` reads this log for every plugin that keeps it, so no plugin ships its own reader for it. A plugin with richer usage data of its own, like Sidecut Solo, may add a `<prefix>-show-usage` skill for that data. It checks recording still works before reporting | review |
+| Reading it | `agentskills-show-usage` reads this log for every plugin that keeps it, so no plugin ships its own reader for it. A plugin with richer usage data of its own may add a `<prefix>-show-usage` skill for that data. It checks recording still works before reporting | review |
 
 ## Wording
 
@@ -314,8 +313,8 @@ Use [VOICE.md](templates/repo/VOICE.md.tmpl) as editorial guidance. It is not a 
 | Item | Rule | Checked |
 | --- | --- | --- |
 | When to use HTML | Use visual reports when comparisons, diagrams, observed screens or measured trends make the answer clearer; keep short factual answers in chat | review |
-| Method and assets | Read [visual-reports.md](visual-reports.md); the sibling HTML, CSS and licensed Geist fonts provide the Sidecut layout | review |
-| Design and voice | Use the shared Sidecut Builder tokens and Plainspoken Editorial voice; preserve the subject product's own design inside the report | review |
+| Method and assets | Read [visual-reports.md](visual-reports.md); the sibling HTML, CSS and licensed Geist fonts provide the layout | review |
+| Design and voice | Use the packaged tokens and the plain, specific voice in [VOICE.md](templates/repo/VOICE.md.tmpl); preserve the subject product's own design inside the report | review |
 | Authored skills | Give skills that benefit from visual outputs their own procedure and necessary packaged assets; don't depend on a maintainer checkout or another installed plugin | review |
 | Output boundaries | Save read-only reports outside the reviewed repository; an artifact doesn't grant implementation, publication or production-write permission | review |
 | Verification | Inspect the saved report in a browser, including narrow layouts, themes, focus, refresh and print; keep source links and untested states visible | review |
@@ -335,7 +334,7 @@ Sections in this order:
 
 1. `# <Display name>`, then one paragraph that is the manifest description.
 2. `## What it does`: a table with columns `Skill` and `Does`, one row per skill, using each description's first sentence.
-3. `## Install`: the install commands in a code block, with a short `#` comment naming the host where it helps. In a public repo, the steps under Install source; in a private repo, install from the `sidecut-plugins` marketplace in Claude Code and Codex. No command output.
+3. `## Install`: the install commands in a code block, with a short `#` comment naming the host where it helps. In a public repo, the steps under Install source; in a private repo, install from the shared marketplace that lists it, in Claude Code and Codex. No command output.
 4. `## Use`: 2 or 3 example requests. A plugin built around a file people write, such as a definition or a config, ends the section with one complete example of that file, with a short comment on each line that needs one.
 5. `## Settings`: a table of environment variables with default and meaning, or the line "None." A plugin with hooks then says Codex runs them only once trusted.
 6. `## Privacy`: every field the usage log records and where it goes, or the line "This plugin records nothing."
@@ -376,7 +375,7 @@ sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecu
 
 ## AGENTS.md
 
-Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table with columns `Command` and `Does`), `## Layout` (a `text` tree of the top two levels), `## Rules` (the shared `house-style` block, then the repo's own rules), then the Sidecut Solo markers. The generator writes the markers empty and `solo-configure-project` fills them; the checker skips the text between them, since Solo owns it.
+Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table with columns `Command` and `Does`), `## Layout` (a `text` tree of the top two levels), `## Rules` (the shared `house-style` block, then the repo's own rules). A profile with its own workflow may add one more section after Rules, between markers that workflow fills.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
@@ -393,10 +392,10 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 | Checker output | What it checked, then what is kept on purpose, then one line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
-| CI | `check.yml` copied from sidecut-ops' runner-picker pattern; actions pinned by full SHA; Node.js pinned to an exact version and npm ci; no hosted macOS or Windows | yes |
-| CI tools | Tools such as trufflehog and gh come from their pinned download with a checksum check, using sidecut-ops' `tools.json` values; sidecut-ops' `setup-ci-tools` action runs on Bun, so a job uses it only after installing Bun | yes |
+| CI | `check.yml` from the template for the repo's CI mode; actions pinned by full SHA; Node.js pinned to an exact version and npm ci; no hosted macOS or Windows | yes |
+| CI tools | Tools such as trufflehog and gh come from their pinned download with a checksum check; a job uses a `setup-ci-tools` action that runs on Bun only after installing Bun | yes |
 | Release | `release.yml` runs `node scripts/release.ts`, the same file in every plugin repo, after Check passes on a push to `main`. It publishes the manifest version when that version has no published release: the `v<version>` tag on the checked commit, a GitHub Release with the CHANGELOG entry as notes, `<plugin-id>-<version>.zip` of the plugin folder and its `.sha256`. It never replaces a published release or moves Latest backwards, so merging a version bump is the release | yes |
-| Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses Sidecut's own runners or sidecut-ops' private actions | yes |
+| Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses runners of its own or actions from a private repo | yes |
 | Private repo CI | Keeps the runner picker, whose budget guard stops hosted jobs near the monthly credit; the checker can't tell a private repo from a public one, so a hosted-only private repo is caught in review | review |
-| Merge gate | `required_checks` in `solo-workflow.toml` includes `check` | yes |
+| Merge gate | The release script requires the `check` and `secrets` jobs to pass on the release commit; a profile's workflow file may set its own list, which has to include `check` | yes |
 | Scan text | No shipped text file outside the server's bundle and source names credentials, CI secrets, your own CI runners or a download-and-run install, since Claude's plugin scan may then mark the plugin Caution; CI lines like these come from the server's code, and a plugin whose job is that text lists its files under `scanTextAllow` in `.agentskills.json` and says what it does with them in the README | advisory |

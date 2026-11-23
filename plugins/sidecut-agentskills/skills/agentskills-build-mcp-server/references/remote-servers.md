@@ -12,7 +12,7 @@ Preserve the plugin's identity, skills and working Claude Code connection. A wor
 
 ## Direct MCP files
 
-Both files use the plugin id without `sidecut-` as the server key. For a plugin named `sidecut-example`, they contain:
+Both files use the plugin id without the configured prefix as the server key. For a plugin named `acme-example` with the prefix `acme-`, they contain:
 
 ```json
 {

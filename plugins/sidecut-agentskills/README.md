@@ -1,22 +1,24 @@
 # Sidecut Agentskills
 
-Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.
+Builds, checks and ships Claude Code and Codex plugins, skills and MCP servers that all follow one house style.
+
+Ask for a plugin and you get a whole repo: manifests for both hosts, a bundled MCP server, a first skill, tests, CI and an automatic release, all passing on the first commit. From then on, a checker that every plugin repo runs in CI points at each break with its file, line and fix, and `sidecut-sync` keeps the shared files current in every repo from one pinned release. Your agent does the work, and the house style makes every plugin you ship look like it came from one hand.
 
 ## What it does
 
 | Skill | Does |
 | --- | --- |
-| `agentskills` | Routes a request about Sidecut plugins, skills, MCP servers or plugin repos to the right Sidecut Agentskills skill. |
-| `agentskills-build-mcp-server` | Builds the MCP side of a Sidecut plugin: the tools in its bundled server, or a connection to a hosted server. |
+| `agentskills` | Routes a request about plugins, skills, MCP servers or plugin repos to the right Agentskills skill. |
+| `agentskills-build-mcp-server` | Builds the MCP side of a plugin: the tools in its bundled server, or a connection to a hosted server. |
 | `agentskills-create-plugin` | Creates a new plugin repo from the Agentskills template, with Claude Code and Codex manifests, a bundled MCP server and a first skill. |
-| `agentskills-design-workflow` | Designs what a Sidecut plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it. |
+| `agentskills-design-workflow` | Designs what a plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it. |
 | `agentskills-publish-plugin` | Publishes a new version of a plugin through its marketplace, with the version, CHANGELOG and both listings in step. |
-| `agentskills-rebuild-plugin` | Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost. |
-| `agentskills-review-plugin` | Reviews a Sidecut plugin repo against the house style, listing what breaks it most serious first without changing anything. |
-| `agentskills-show-usage` | Shows which Sidecut plugin skills ran in Claude Code and Codex, from the local skill log. |
-| `agentskills-write-skill` | Writes one skill for a Sidecut plugin, new or rewritten, that triggers on the right requests and follows the house style. |
+| `agentskills-rebuild-plugin` | Rebuilds an existing plugin repo so it follows the house style, keeping everything it does and proving nothing was lost. |
+| `agentskills-review-plugin` | Reviews a plugin repo against the house style, listing what breaks it most serious first without changing anything. |
+| `agentskills-show-usage` | Shows which plugin skills ran in Claude Code and Codex, from the local skill log. |
+| `agentskills-write-skill` | Writes one skill for a plugin, new or rewritten, that triggers on the right requests and follows the house style. |
 
-Its MCP server provides the tools behind them: `get_house_style` and `get_patterns` return the rules and the reasons for them, `check_plugin` checks a repo against them, and `scaffold_plugin` and `add_skill` write new plugins and skills from the template.
+The MCP server behind them has five tools: `get_house_style` and `get_patterns` return the rules and the reasons for them, `check_plugin` checks a repo against them, and `scaffold_plugin` and `add_skill` write new plugins and skills from the template.
 
 ## Install
 
@@ -36,11 +38,11 @@ codex plugin add sidecut-agentskills@sidecut-agentskills
 
 ## Use
 
-- "Make me a new Sidecut plugin that tracks my Lovable credits."
-- "Is my sidecut-demo plugin ready to publish?"
-- "Bring sidecut-ci up to the Sidecut template without losing anything."
+- "Make me a plugin that keeps my release checklist and runs it before every tag."
+- "Is my notes plugin ready to publish?"
+- "Bring my old deploy plugin up to the Agentskills template without losing anything."
 
-Plugin repos also run two commands from it. `npm exec --no -- sidecut-check` checks a repo against the house style, and `npm exec --no -- sidecut-sync` applies the standards from the pinned installed release: the files and marked blocks the house style shares, and the shared tool versions.
+The repos it makes run two commands from it: `npm exec --no -- sidecut-check` checks a repo against the house style, and `npm exec --no -- sidecut-sync` applies the shared files and tool versions from the pinned release.
 
 ## Settings
 
@@ -48,9 +50,17 @@ Plugin repos also run two commands from it. `npm exec --no -- sidecut-check` che
 | --- | --- | --- |
 | `SIDECUT_SKILL_LOG` | on | Set to `0` to turn off the local usage log described under Privacy |
 
-The rules sync that rebuilt `~/.codex/AGENTS.md` from `~/.claude/rules` moved to the separate `sidecut-rules` plugin.
+The first time you make a plugin, `scaffold_plugin` asks who publishes it and saves the answers to `~/.config/agentskills/settings.json`:
 
-Who publishes a new plugin comes from settings, not from the templates: the GitHub owner, the author, a plugin-id prefix, the marketplace that lists it and where CI runs. `scaffold_plugin` asks for them once and saves them to `~/.config/agentskills/settings.json`. Each new repo records its answers in `.agentskills.json`, which `sidecut-check` and `sidecut-sync` read. With no settings it uses GitHub-hosted CI, no prefix and the repo's own marketplace. The `sidecut` profile holds Sidecut Studio's values.
+| Setting | Default |
+| --- | --- |
+| GitHub owner and author | Asked once |
+| Plugin-id prefix, such as `acme-` | None |
+| Marketplace | The plugin's own repo, so anyone can install it from GitHub |
+| CI | GitHub-hosted `ubuntu-24.04` |
+| Licence and brand color | MIT, `#3B82F6` |
+
+Each new repo records its answers in `.agentskills.json`, which the checker and sync read. Sidecut Studio's own values live in one optional profile, `sidecut`, that nothing uses unless you ask for it.
 
 In Codex, the usage log is a plugin hook, and Codex runs plugin hooks only after you trust them. Codex asks again whenever a hook changes.
 

@@ -10,6 +10,14 @@ import {
   repoSettings,
   useSettings,
 } from '../settings.ts';
+import {
+  PRIVATE_ACTIONS,
+  SOLO_END,
+  SOLO_FILE,
+  SOLO_HEADINGS,
+  SOLO_SETUP,
+  SOLO_START,
+} from '../sidecut-profile.ts';
 import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { checkPlugin } from './plugin.ts';
 import type { Report } from './report.ts';
@@ -30,12 +38,12 @@ const REQUIRED_ENTRIES = [
   'package.json',
   'plugins',
   'scripts',
-  'solo-workflow.toml',
   'tests',
   'evals',
   'tsconfig.json',
 ];
 const OPTIONAL_ENTRIES = [
+  SOLO_FILE,
   '.git',
   'node_modules',
   'vitest.config.ts',
@@ -303,23 +311,25 @@ function checkAgents(
   if (h1?.text !== id)
     report.add('AGENTS_TITLE', 'AGENTS.md', h1?.line, `H1 is not "${id}".`, `Use \`# ${id}\`.`);
   const found = sections(doc).map((h) => h.text);
-  const before = found.filter((s) => s !== 'Sidecut Solo' && s !== 'Solo Workflow');
+  const solo = current().workflow === 'solo';
+  const before = found.filter((s) => !SOLO_HEADINGS.includes(s));
   if (before.join('|') !== AGENTS_SECTIONS.join('|')) {
     report.add(
       'AGENTS_SECTIONS',
       'AGENTS.md',
       undefined,
       'Sections are not Commands, Layout, Rules.',
-      'Use exactly those, then the Sidecut Solo section.',
+      solo ? `Use exactly those, then the ${SOLO_HEADINGS[0]} section.` : 'Use exactly those.',
     );
   }
-  if (!/<!-- solo-workflow:start -->[\s\S]*<!-- solo-workflow:end -->\n$/.test(text)) {
+  const ending = new RegExp(`${escapeRegExp(SOLO_START)}[\\s\\S]*${escapeRegExp(SOLO_END)}\\n$`);
+  if (solo && !ending.test(text)) {
     report.add(
       'AGENTS_SOLO',
       'AGENTS.md',
       undefined,
-      'AGENTS.md does not end with the Sidecut Solo markers.',
-      'Run solo-configure-project.',
+      `AGENTS.md does not end with the ${SOLO_HEADINGS[0]} markers.`,
+      SOLO_SETUP,
     );
   }
   const commands = sections(doc).find((h) => h.text === 'Commands');
@@ -391,7 +401,7 @@ function checkCi(root: string, report: Report): void {
           file,
           i + 1,
           'Job runs on hosted macOS or Windows.',
-          'Use `ubuntu-24.04` in a public repo, or the sidecut-ops runner picker in a private one.',
+          "Use `ubuntu-24.04`, or in a private repo the runner picker the repo's CI mode uses.",
         );
       }
       if (/node-version:\s*(?:latest|node|\*)\s*$/.test(line))
@@ -411,8 +421,8 @@ function checkCi(root: string, report: Report): void {
         'CI_TOOLS',
         file,
         line,
-        "sidecut-ops' setup-ci-tools runs on Bun, and this job doesn't install Bun.",
-        "Download the tool's pinned build and check its checksum from sidecut-ops' tools.json, as the template does.",
+        "The job's setup-ci-tools action runs on Bun, and this job doesn't install Bun.",
+        "Download the tool's pinned build and check its checksum, as the template does.",
       );
     }
   }
@@ -425,13 +435,13 @@ function checkCi(root: string, report: Report): void {
   const release = existsSync(join(dir, 'release.yml'))
     ? readFileSync(join(dir, 'release.yml'), 'utf8')
     : '';
-  if (hostedOnly && /self-hosted|SidecutStudio\/sidecut-ops\/\.github\/actions\//.test(release)) {
+  if (hostedOnly && (/self-hosted/.test(release) || PRIVATE_ACTIONS.test(release))) {
     report.add(
       'CI_RELEASE',
       '.github/workflows/release.yml',
       undefined,
-      'A public repo releases on a self-hosted runner or with a private sidecut-ops action.',
-      'Run the release job on `ubuntu-24.04` with no sidecut-ops action; gh is already there.',
+      'A public repo releases on a self-hosted runner or with an action from a private repo.',
+      'Run the release job on `ubuntu-24.04` with public actions only; gh is already there.',
     );
   }
   if (check && current().ci === 'hosted' && !hostedOnly) {
@@ -454,7 +464,7 @@ function checkCi(root: string, report: Report): void {
 }
 
 /**
- * The 1-based lines where a job uses sidecut-ops' setup-ci-tools without an earlier setup-bun step
+ * The 1-based lines where a job uses a setup-ci-tools action without an earlier setup-bun step
  * in the same job. That action starts its installer with `bun`, so without Bun the job fails.
  */
 export function bunlessToolSteps(workflow: string): number[] {
@@ -502,7 +512,7 @@ function filesUnder(root: string, dir: string, ignored: string[]): string[] {
 function checkInstallSource(root: string, id: string, repo: string, report: Report): void {
   const check = join(root, '.github', 'workflows', 'check.yml');
   const s = current();
-  const org = s.org || 'SidecutStudio';
+  const org = s.org || '<owner>';
   const market = marketplaceName(id, s);
   // With no marketplace set, the plugin lists itself and must carry its own install source. One
   // listed elsewhere follows its CI mode: in hosted mode its own marketplace files are optional and
@@ -657,13 +667,24 @@ export function jobsOf(workflow: string): { name: string; runsOn: string | undef
   return jobs;
 }
 
+/** The sidecut profile's merge gate: Solo's `required_checks` has to include the check job. */
 function checkSolo(root: string, report: Report): void {
-  const path = join(root, 'solo-workflow.toml');
-  if (!existsSync(path)) return;
+  if (current().workflow !== 'solo') return;
+  const path = join(root, SOLO_FILE);
+  if (!existsSync(path)) {
+    report.add(
+      'SOLO_REQUIRED',
+      SOLO_FILE,
+      undefined,
+      `There is no ${SOLO_FILE}, which the repo's workflow reads.`,
+      SOLO_SETUP,
+    );
+    return;
+  }
   if (!/required_checks\s*=\s*\[[^\]]*"check"/.test(readFileSync(path, 'utf8'))) {
     report.add(
       'SOLO_REQUIRED',
-      'solo-workflow.toml',
+      SOLO_FILE,
       undefined,
       '`required_checks` does not include "check".',
       'Add "check" to required_checks.',
@@ -693,8 +714,8 @@ function readJson(path: string): Record<string, unknown> {
 }
 
 /**
- * A repo exists to ship its plugin when it holds one plugin whose manifest points at a SidecutStudio
- * repo named after the plugin. A repo that kept its older name, the plugin id without `sidecut-`,
+ * A repo exists to ship its plugin when it holds one plugin whose manifest points at a repo of the
+ * settings' owner named after the plugin. A repo that kept its older name, the plugin id without the prefix,
  * counts too when its package is named after the plugin. Any other repo, such as an app that ships a
  * plugin next to its own code, gets the plugin checks only, whatever its package is called.
  */

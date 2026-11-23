@@ -1,4 +1,4 @@
-# Owner input in Sidecut Agentskills
+# Owner input in Agentskills
 
 Run each case in a fresh interactive session pointed at a scratch plugin repo. Load the branch for one session in Claude Code with `--plugin-dir` or use an isolated Codex profile. Record actual tool calls, replies and state changes. Keep all GitHub writes and publishing simulated.
 

@@ -1,7 +1,7 @@
 {
   "name": "sidecut-agentskills",
-  "version": "2.1.3",
-  "description": "Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.",
+  "version": "2.2.0",
+  "description": "Builds, checks and ships Claude Code and Codex plugins, skills and MCP servers that all follow one house style.",
   "author": {
     "name": "Sidecut Studio",
     "url": "https://sidecut.dev"
@@ -15,16 +15,16 @@
   "hooks": "./hooks/codex-hooks.json",
   "interface": {
     "displayName": "Sidecut Agentskills",
-    "shortDescription": "Creates, checks and publishes Sidecut plugins, skills and MCP servers that all follow one house style.",
-    "longDescription": "Writes new plugin repos from one template, adds skills and MCP tools, and checks every file against the Sidecut house style. It also brings older plugins into that style and publishes them to the Sidecut marketplace.",
+    "shortDescription": "Builds, checks and ships Claude Code and Codex plugins, skills and MCP servers that all follow one house style.",
+    "longDescription": "Writes a plugin repo that loads in both Claude Code and Codex and passes its own CI on the first commit. A checker every plugin repo runs names each break with its file, line and fix, and one sync command keeps the shared files current across all of them.",
     "developerName": "Sidecut Studio",
     "category": "Developer Tools",
     "capabilities": ["Interactive", "Read", "Write", "MCP"],
     "websiteURL": "https://sidecut.dev",
     "defaultPrompt": [
-      "Make a new Sidecut plugin for my release checklist",
-      "Check this plugin against the Sidecut house style",
-      "Bring my old plugin into the Sidecut house style"
+      "Make a new plugin for my release checklist",
+      "Check this plugin against the house style",
+      "Bring my old plugin into the house style"
     ],
     "brandColor": "#FF6B00",
     "composerIcon": "./assets/icon.png",

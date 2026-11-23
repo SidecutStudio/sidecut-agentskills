@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: "Reviews a Sidecut plugin repo it didn't write against the house style and returns what breaks it, without changing anything. Use when a plugin was created, rebuilt or changed and needs a second reading before it ships. Not for fixing what it finds."
+description: "Reviews a plugin repo it didn't write against the house style and returns what breaks it, without changing anything. Use when a plugin was created, rebuilt or changed and needs a second reading before it ships. Not for fixing what it finds."
 tools: [Read, Grep, Glob, Bash]
 model: inherit
 ---

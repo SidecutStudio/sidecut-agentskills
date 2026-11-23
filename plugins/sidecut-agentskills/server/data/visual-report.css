@@ -13,7 +13,7 @@
   font-display: swap;
   src: url("visual-report-geist-mono.woff2") format("woff2");
 }
-/* Sidecut Builder role tokens from src/tailwind.css and design.json.
+/* Role tokens for the report frame.
    Report layout below uses the same type, spacing, radius and color roles. */
 :root {
   color-scheme: light dark;

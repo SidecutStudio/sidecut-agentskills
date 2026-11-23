@@ -30,7 +30,4 @@ tests/                 tests for the plugin and its MCP server
 - Any change under `plugins/` bumps the version in both manifests and `package.json` and adds a CHANGELOG entry.
 - Blocks marked `sidecut:start` and the files sidecut-agentskills owns come from its templates. Change them there, then run `npm exec --no -- sidecut-sync` here; list a deliberate difference under `sidecut.keep` in `package.json` with the reason.
 - A bundled registered connector uses `.app.json` and the Codex manifest's `apps` field; any direct MCP fallback uses the same declaration name and stays remote. Verify the connector id and endpoint from its registration.
-<!-- sidecut:end house-style -->
-
-<!-- solo-workflow:start -->
-<!-- solo-workflow:end -->
+<!-- sidecut:end house-style -->{{workflowMarkers}}

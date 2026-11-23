@@ -1,6 +1,6 @@
 ---
 name: agentskills-rebuild-plugin
-description: "Rebuilds an existing plugin repo so it follows the Sidecut house style, keeping everything it does and proving nothing was lost. Use when the user wants an older plugin brought up to the template, cleaned of drift, or moved onto the Sidecut layout. Not for one change to a plugin that already passes `check_plugin` (use `agentskills-write-skill` or `agentskills-build-mcp-server`)."
+description: "Rebuilds an existing plugin repo so it follows the house style, keeping everything it does and proving nothing was lost. Use when the user wants an older plugin brought up to the template, cleaned of drift, or moved onto the Sidecut layout. Not for one change to a plugin that already passes `check_plugin` (use `agentskills-write-skill` or `agentskills-build-mcp-server`)."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
   - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
@@ -12,15 +12,15 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 
 ## Before you start
 
-- Work on a new branch. Merge only through `solo-finish-change`, and only when the comparison holds.
-- Read the "Repo layout" and "Plugin layout" sections of `get_house_style`. A repo that ships a plugin next to other work, such as `sidecut-ops`, keeps its own top level; only `plugins/<plugin-id>/` changes.
+- Work on a new branch. Merge only through the repo's own flow, and only when the comparison holds.
+- Read the "Repo layout" and "Plugin layout" sections of `get_house_style`. A repo that ships a plugin next to other work, such as an app repo, keeps its own top level; only `plugins/<plugin-id>/` changes.
 
 ## Steps
 
 1. Record the plugin as it is now, following [parity.md](references/parity.md): its skills, their trigger requests and their hard rules; its tools and their output on fixed inputs; its hooks and their decisions on fixed inputs; its required checks.
 2. Call `check_plugin` and keep the list; it shows most of what has to change.
-3. Work out every name the rebuild changes, and identify compatibility decisions before building: plugin id, skill prefix and skill names, tool names, paths, the repo name, config and state file names, and how existing installs move over (the marketplace's `renames` entry, and old config files still read). Search the user's other repos (the folders next to this one, normally `~/Developer/`) and both marketplaces (`sidecut-plugins`'s `.claude-plugin/` and `.agents/plugins/`) for each old name, as described in [parity.md](references/parity.md). Explain what a rename would break. Bundle any unsettled names and compatibility choices, and obtain missing authorization before renaming anything people or other repos already use. Follow `server/data/owner-input.md` from the loaded plugin root.
-4. Call `scaffold_plugin` into a temporary folder with the plugin's id, description and keywords. Copy in whichever generated files the plugin lacks: manifests, MCP files, hook, CI workflow. Draw its icon with `npm exec --no -- sidecut-icon <lucide-name>`. A public repo also gets the two marketplace files and the README install steps from the Install source section of `get_house_style`; drop any install line that needs `sidecut-plugins`.
+3. Work out every name the rebuild changes, and identify compatibility decisions before building: plugin id, skill prefix and skill names, tool names, paths, the repo name, config and state file names, and how existing installs move over (the marketplace's `renames` entry, and old config files still read). Search the user's other repos (the folders next to this one) and the marketplace files that list the plugin (`.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, here and in any shared marketplace) for each old name, as described in [parity.md](references/parity.md). Explain what a rename would break. Bundle any unsettled names and compatibility choices, and obtain missing authorization before renaming anything people or other repos already use. Follow `server/data/owner-input.md` from the loaded plugin root.
+4. Call `scaffold_plugin` into a temporary folder with the plugin's id, description and keywords. Copy in whichever generated files the plugin lacks: manifests, MCP files, hook, CI workflow. Draw its icon with `npm exec --no -- sidecut-icon <lucide-name>`. A public repo also gets the two marketplace files and the README install steps from the Install source section of `get_house_style`; drop any install line that needs a marketplace the public can't read.
 5. Commit, push the branch and open one draft PR now. Commit and push again after each step that follows, so the work is never only on this disk.
 6. Rewrite each skill with `agentskills-write-skill`. Read the old skill to list what it covers and every hard rule it states (never, always, only when, don't, must), then write the new one from that list.
 7. Move the server's logic into `server/src/` and bundle it with `npm run build`. Keep tool names and outputs, except where the house style says otherwise; list every change.

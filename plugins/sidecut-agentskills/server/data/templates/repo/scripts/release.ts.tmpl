@@ -5,7 +5,7 @@
 // plugin repo has this file unchanged.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'smol-toml';
 
@@ -160,9 +160,12 @@ async function main() {
     console.log(`Main moved on to ${tip}; its own Release run publishes ${plan.tag}.`);
     return;
   }
-  const policy = parse(readFileSync(join(root, 'solo-workflow.toml'), 'utf8')) as {
-    required_checks: string[];
-  };
+  // The merge gate: required_checks from the repo's solo-workflow.toml when it keeps one, otherwise
+  // the template's check.yml jobs.
+  const gate = join(root, 'solo-workflow.toml');
+  const policy = existsSync(gate)
+    ? (parse(readFileSync(gate, 'utf8')) as { required_checks: string[] })
+    : { required_checks: ['check', 'secrets'] };
   const pages = json([
     'api',
     '--paginate',

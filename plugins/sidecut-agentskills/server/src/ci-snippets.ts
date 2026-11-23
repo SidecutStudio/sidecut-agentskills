@@ -4,17 +4,15 @@
 // download-and-run install, so the templates hold `{{name}}` placeholders that render to these.
 // Rendered output is unchanged.
 
+import { SIDECUT_CI_SNIPPETS } from './sidecut-profile.ts';
+
 const INDENT = '          ';
 
 /** The few CI lines the templates leave as placeholders. */
 export const CI_SNIPPETS: Record<string, string> = {
   ciOwnLane: 'self-hosted',
   ciOwnLaneTitle: 'Self-hosted',
-  ciLightRunner:
-    '\'{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}\'',
-  ciReleaseLabels: '[self-hosted, Linux, X64, sidecut-ci]',
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
-  ciAppKey: '${{ secrets.SIDECUT_CI_APP_KEY }}',
+  ...SIDECUT_CI_SNIPPETS,
   // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
   ghTokenEnv: 'GH_TOKEN: ${{ github.token }}',
   secretScanInstall: [

@@ -392,9 +392,7 @@ function checkManifests(
       'MANIFEST_INTERFACE',
       portableFile,
       undefined,
-      s.profile === 'sidecut'
-        ? "brandColor isn't Sidecut Builder's orange."
-        : `brandColor isn't the settings' ${s.brandColor}.`,
+      `brandColor isn't the settings' ${s.brandColor}.`,
       `Use ${s.brandColor}.`,
     );
   }

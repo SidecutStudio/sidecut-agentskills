@@ -1,6 +1,6 @@
 # Subagents
 
-Read this when adding or changing a subagent in a Sidecut plugin. A subagent is a separate agent the main one hands a self-contained job to; it starts with an empty context and returns one report. Every subagent works in both Claude Code and Codex.
+Read this when adding or changing a subagent in a plugin. A subagent is a separate agent the main one hands a self-contained job to; it starts with an empty context and returns one report. Every subagent works in both Claude Code and Codex.
 
 ## When one helps
 

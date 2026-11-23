@@ -11,13 +11,13 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 | Claude manifest finds skills by folder convention, no `skills` list | Apify, Expo, Vercel | Adopt | A hand-kept list drifts; Firecrawl keeps the same 12 paths in two files |
 | Explicit `commands` and `agents` path lists | Vercel | Skip | Convention finds them; lists are one more thing to keep in sync |
 | Codex manifest in `.codex-plugin/` with an `interface` block | Expo | Adopt | Tested: Codex loads plugin hooks only from this layout (openai/codex#47925). It fills in no root variable for MCP servers, but resolves `cwd: "."` from the plugin's folder, so a bundled server runs |
-| Agent Plugins 1.0 root `plugin.json` and `mcp.json` with `${PLUGIN_ROOT}`, Codex listing in `extensions.com.openai.interface` | sidecut-ci, Lovable Workbench | Skip | Tested: with this root manifest Codex starts the bundled server but loads none of the plugin's hooks |
+| Agent Plugins 1.0 root `plugin.json` and `mcp.json` with `${PLUGIN_ROOT}`, Codex listing in `extensions.com.openai.interface` | Two earlier plugins of ours | Skip | Tested: with this root manifest Codex starts the bundled server but loads none of the plugin's hooks |
 | One manifest per extra host (Cursor, Grok, Kimi, open-plugin) | Expo, Vercel | Skip | Every extra file disagreed with the others: names, descriptions, keyword counts (8, 10, 14, 28) |
 | Same description in every manifest | Apify | Adopt | Apify is the only example where all copies match |
 | Version in every manifest, nothing checks they match | All four | Adapt | Keep one version in every file and let the checker fail on any mismatch |
 | Two byte-identical MCP files (`.mcp.json` and `mcp.json`) | Expo | Adapt | Two files are needed for a local server because the hosts use different root variables; the checker keeps them identical apart from that |
 | Non-standard fields such as a `note` on an MCP server | Vercel | Skip | Ignored by hosts and went stale ("read-only in initial release") |
-| Marketplace entry with `category` and `tags` | Apify | Adopt | Helps the listing; lives in the marketplace file, so in sidecut-plugins or a public repo's own install source |
+| Marketplace entry with `category` and `tags` | Apify | Adopt | Helps the listing; lives in the marketplace file, so in a shared marketplace or a public repo's own install source |
 
 ## Skill names and frontmatter
 
@@ -92,15 +92,15 @@ Sources: Apify 1.0.2 (5 skills, remote MCP, one agent), Expo 1.13.9 (24 skills, 
 | Opt-in marker file, `DO_NOT_TRACK` and CI turn it off | Expo | Adapt | Keep the off switches and add `SIDECUT_SKILL_LOG=0`, but start the log on: it is local-only, so nothing leaves the machine without a yes |
 | Default-on network telemetry, install IDs, user-agent tags, `generatedBy` written into user files | Apify, Vercel | Skip | Data leaves the machine without a yes |
 | Feedback sending folded into a skill's done criterion | Firecrawl | Skip | Mixes the vendor's goals into the user's task |
-| Eval-candidate report the user approves before it's sent | Expo | Adapt | Feeds Sidecut Solo's dogfood log instead |
+| Eval-candidate report the user approves before it's sent | Expo | Adapt | Feeds the maintainer's own review log instead |
 
 ## MCP servers
 
 | Pattern | Seen in | Verdict | Why |
 | --- | --- | --- | --- |
 | Remote server as `type: http` and `url`, OAuth handled by the host | Apify, Expo, Vercel | Adopt | Nothing secret in the repo |
-| Local server bundled to one `index.mjs` | sidecut-ci | Adopt | Installs with no `npm install` |
-| Runtime found through a hard-coded `PATH`, `bun` as the command | sidecut-ci | Skip | Breaks on any other machine layout; Codex already passes the user's `PATH` and `node` was found in testing |
+| Local server bundled to one `index.mjs` | An earlier plugin of ours | Adopt | Installs with no `npm install` |
+| Runtime found through a hard-coded `PATH`, `bun` as the command | An earlier plugin of ours | Skip | Breaks on any other machine layout; Codex already passes the user's `PATH` and `node` was found in testing |
 | Skills that document tools the plugin's server doesn't have | Firecrawl | Skip | The checker must match tool names in skills against the server |
 
 ## Tests, checks and CI
