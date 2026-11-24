@@ -253,6 +253,15 @@ When the user's input can change the work, point the skill to [user-input.md](us
 
 Keep procedures in SKILL.md and move detail into references when it is useful. Reference supporting files where they are needed. A router maps requests to actual skills and makes ambiguous routing clear. Cross-skill and tool pointers must resolve.
 
+SKILL.md is the skill's source: write it by hand, never generate it from code, a template string or another file. When something else needs the same instructions, such as an MCP prompt or a command's help, it reads the SKILL.md at run time. A repo rule or test that regenerates skills is drift to remove, not a rule to follow.
+
+| Item | Rule | Checked |
+| --- | --- | --- |
+| Source | SKILL.md and `agents/openai.yaml` are edited by hand; nothing in the repo writes them | review |
+| Steps | A sentence or two each; one past 120 words is several steps or belongs in a reference | advisory |
+| Shared text | Said once, in a file under `server/data/` that each skill points to, or in the skill that owns it; a line of 12 or more words two skills both carry is flagged | advisory |
+| The set | A plugin's skills, and the user's plugins in one marketplace, share one shape: headings that name the work, the same failure handling, the usage log | review |
+
 ## Reference and example files
 
 Use ordinary Markdown. Keep examples realistic and references easy to find. Supporting files must be packaged and referenced; no frontmatter in reference files. Prefer short files, but length alone does not block a release.

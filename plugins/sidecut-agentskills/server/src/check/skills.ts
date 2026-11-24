@@ -340,6 +340,16 @@ function checkSections(
   }
   doc.lines.forEach((line, i) => {
     if (doc.inCode[i]) return;
+    const words = stepWords(line);
+    if (words > LONG_STEP_WORDS) {
+      report.add(
+        'SKILL_LONG_STEP',
+        file,
+        i + 1,
+        `A step or paragraph runs to ${words} words.`,
+        'Split it into short steps under a heading that names the work, or move the detail into references/.',
+      );
+    }
     if (/\]\(\.\.\//.test(prose(line))) {
       report.add(
         'SKILL_LINK_OUTSIDE',
@@ -512,5 +522,55 @@ export function checkSkills(
       needsRouter ? `Add \`skills/${prefix}\`.` : `Remove \`skills/${prefix}\`.`,
     );
   }
+  checkRepeatedText(skillsDir, names, root, report);
   return infos;
+}
+
+/** A step or paragraph longer than this many words is several steps, or detail for a reference. */
+const LONG_STEP_WORDS = 120;
+/** A line at least this many words long that two skills both carry is one block said twice. */
+const REPEATED_LINE_WORDS = 12;
+
+/** The words in a prose line or list item, leaving out headings, tables and blank lines. */
+function stepWords(line: string): number {
+  if (/^\s*$|^#{1,6} |^\|/.test(line)) return 0;
+  return prose(line)
+    .replace(/^\s*(- |\d+\. )/, '')
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+/**
+ * Flags a long line that two or more of a plugin's skills share word for word, such as the same
+ * failure list pasted into every skill: a block said once in a file they all point to, or in the one
+ * skill that owns it, can't drift apart.
+ */
+function checkRepeatedText(skillsDir: string, names: string[], root: string, report: Report): void {
+  const firstSeen = new Map<string, string>();
+  for (const name of names) {
+    const path = join(skillsDir, name, 'SKILL.md');
+    if (!existsSync(path)) continue;
+    const doc = parseMarkdown(path, readFileSync(path, 'utf8'));
+    const seenHere = new Set<string>();
+    doc.lines.forEach((line, i) => {
+      if (doc.inCode[i] || stepWords(line) < REPEATED_LINE_WORDS) return;
+      // A pointer to the plugin root or a shared file is meant to be in every skill that needs it.
+      if (/plugin root|CLAUDE_PLUGIN_ROOT|server\/data\//.test(line)) return;
+      const key = line.replace(/^\s*(- |\d+\. )/, '').trim();
+      if (seenHere.has(key)) return;
+      seenHere.add(key);
+      const other = firstSeen.get(key);
+      if (other === undefined) {
+        firstSeen.set(key, name);
+        return;
+      }
+      report.add(
+        'SKILL_REPEATED_TEXT',
+        relative(root, path),
+        i + 1,
+        `This line is also in \`${other}\`.`,
+        'Say it once: in a file under server/data/ that both skills point to, or in the skill that owns it.',
+      );
+    });
+  }
 }

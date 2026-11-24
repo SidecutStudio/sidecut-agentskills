@@ -290,6 +290,26 @@ const cases: [string, (repo: Repo) => void][] = [
   ],
   ['SKILL_TITLE', (r) => r.edit(skillMd, (t) => t.replace('# Check status', '# Status check'))],
   [
+    'SKILL_LONG_STEP',
+    (r) =>
+      r.edit(skillMd, (t) =>
+        t.replace(
+          '## Done when',
+          `- ${'Read the setting and say what it means. '.repeat(20)}\n\n## Done when`,
+        ),
+      ),
+  ],
+  [
+    'SKILL_REPEATED_TEXT',
+    (r) => {
+      const line =
+        '- When the service refuses the token, say so, point to the token file and stop without retrying.\n';
+      r.edit(skillMd, (t) => t.replace('## Done when', `${line}\n## Done when`));
+      const other = `${P}/skills/demo-other/SKILL.md`;
+      r.write(other, r.read(skillMd).replaceAll('demo-check-status', 'demo-other'));
+    },
+  ],
+  [
     'SKILL_REFERENCES',
     (r) => {
       reference(r, 'extra-notes.md', '# Extra notes\n\nRead this when you need more.\n');
@@ -942,7 +962,15 @@ describe('each rule catches its problem', () => {
       mutate(repo);
       const report = new Report();
       checkRepo(repo.root, report);
-      if (['SKILL_LENGTH', 'REF_LENGTH', 'SKILL_DESCRIPTION_LENGTH'].includes(code)) {
+      if (
+        [
+          'SKILL_LENGTH',
+          'REF_LENGTH',
+          'SKILL_DESCRIPTION_LENGTH',
+          'SKILL_LONG_STEP',
+          'SKILL_REPEATED_TEXT',
+        ].includes(code)
+      ) {
         expect(report.advisories.map((p) => p.code)).toContain(code);
         expect(report.problems.map((p) => p.code)).not.toContain(code);
       } else {
@@ -1220,4 +1248,18 @@ test('setup-ci-tools passes once its job installs Bun first', () => {
   const late =
     'jobs:\n  a:\n    steps:\n      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab\n      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6\n';
   expect(bunlessToolSteps(late)).toEqual([4]);
+});
+
+test('a pointer to the plugin root or a shared file may repeat across skills', () => {
+  const repo = copy();
+  const line =
+    '- Follow `server/data/user-input.md` from the loaded plugin root when the request needs a decision only the user can make.\n';
+  repo.edit(skillMd, (t) => t.replace('## Done when', `${line}\n## Done when`));
+  repo.write(
+    `${P}/skills/demo-other/SKILL.md`,
+    `---\nname: demo-other\ndescription: "Does the other thing."\n---\n\n# Other\n\n${line}\n## Done when\n\nDone.\n`,
+  );
+  const report = new Report();
+  checkRepo(repo.root, report);
+  expect(report.advisories.filter((p) => p.code === 'SKILL_REPEATED_TEXT')).toEqual([]);
 });

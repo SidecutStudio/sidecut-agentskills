@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.4.0] - 2026-11-24
+
+### Added
+
+- `check_plugin` warns about a step or paragraph over 120 words (`SKILL_LONG_STEP`) and a line of 12 or more words that two of a plugin's skills both carry (`SKILL_REPEATED_TEXT`), such as one failure list pasted into every skill. A pointer to the plugin root or a shared file may repeat.
+
+### Changed
+
+- The house style says SKILL.md is the skill's source, written by hand: an MCP prompt or command that needs the same instructions reads the file, and a repo rule that regenerates skills is drift to remove.
+- `agentskills-rebuild-plugin` replaces a skill generator with hand-written skills, and matches the user's other plugins in the same marketplace. `agentskills-review-plugin` checks for a generator and reads the plugin next to two of its siblings. `agentskills-write-skill` says shared text once.
+
 ## [2.3.0] - 2026-11-23
 
 ### Changed

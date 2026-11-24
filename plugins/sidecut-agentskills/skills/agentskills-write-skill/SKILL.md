@@ -33,6 +33,8 @@ Keep the skill instructions in Markdown.
 ## Rules
 
 - A step tells the agent what to do; background and explanation go in references.
+- Write SKILL.md by hand as the skill's source. When an MCP prompt or a command needs the same instructions, have it read the file; never generate the skill from code.
+- Say shared text once: failure handling or rules two skills both need go in one file under `server/data/` that each points to.
 - Name other skills in backticks and tools by their exact names. `check_plugin` fails on a skill or tool that doesn't exist.
 - Never put a version number or a date into a skill. Say how to check the current version instead.
 
@@ -41,6 +43,7 @@ Keep the skill instructions in Markdown.
 - **The skill fires on a near miss:** make the "Not for" clause name that request and the skill that owns it, then rerun its eval.
 - **The skill never fires:** put the words the user would say into "Use when", then rerun the trigger evals.
 - **SKILL.md passes 200 lines:** move the longest explanation into a reference file.
+- **`SKILL_LONG_STEP` or `SKILL_REPEATED_TEXT`:** split the step under a heading that names the work, or move the repeated block into one shared file and point to it.
 
 ## Done when
 

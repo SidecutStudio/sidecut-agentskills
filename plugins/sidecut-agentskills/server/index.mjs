@@ -21645,9 +21645,14 @@ var Report = class {
     }
   }
   add(code, file, line, message, fix) {
-    const target = ["SKILL_LENGTH", "REF_LENGTH", "SKILL_DESCRIPTION_LENGTH", "SCAN_TEXT"].includes(
-      code
-    ) ? this.advisories : this.problems;
+    const target = [
+      "SKILL_LENGTH",
+      "REF_LENGTH",
+      "SKILL_DESCRIPTION_LENGTH",
+      "SCAN_TEXT",
+      "SKILL_LONG_STEP",
+      "SKILL_REPEATED_TEXT"
+    ].includes(code) ? this.advisories : this.problems;
     target.push({ code, file: toPosix(file), line, message, fix });
   }
   format() {
@@ -22947,6 +22952,16 @@ function checkSections(dir, name, root, report, tools, skills, plugin) {
   }
   doc.lines.forEach((line, i) => {
     if (doc.inCode[i]) return;
+    const words = stepWords(line);
+    if (words > LONG_STEP_WORDS) {
+      report.add(
+        "SKILL_LONG_STEP",
+        file,
+        i + 1,
+        `A step or paragraph runs to ${words} words.`,
+        "Split it into short steps under a heading that names the work, or move the detail into references/."
+      );
+    }
     if (/\]\(\.\.\//.test(prose(line))) {
       report.add(
         "SKILL_LINK_OUTSIDE",
@@ -23103,7 +23118,42 @@ function checkSkills(pluginDir, root, report, tools, plugin, brandColor) {
       needsRouter ? `Add \`skills/${prefix}\`.` : `Remove \`skills/${prefix}\`.`
     );
   }
+  checkRepeatedText(skillsDir, names, root, report);
   return infos;
+}
+var LONG_STEP_WORDS = 120;
+var REPEATED_LINE_WORDS = 12;
+function stepWords(line) {
+  if (/^\s*$|^#{1,6} |^\|/.test(line)) return 0;
+  return prose(line).replace(/^\s*(- |\d+\. )/, "").split(/\s+/).filter(Boolean).length;
+}
+function checkRepeatedText(skillsDir, names, root, report) {
+  const firstSeen = /* @__PURE__ */ new Map();
+  for (const name of names) {
+    const path = join5(skillsDir, name, "SKILL.md");
+    if (!existsSync5(path)) continue;
+    const doc = parseMarkdown(path, readFileSync5(path, "utf8"));
+    const seenHere = /* @__PURE__ */ new Set();
+    doc.lines.forEach((line, i) => {
+      if (doc.inCode[i] || stepWords(line) < REPEATED_LINE_WORDS) return;
+      if (/plugin root|CLAUDE_PLUGIN_ROOT|server\/data\//.test(line)) return;
+      const key = line.replace(/^\s*(- |\d+\. )/, "").trim();
+      if (seenHere.has(key)) return;
+      seenHere.add(key);
+      const other = firstSeen.get(key);
+      if (other === void 0) {
+        firstSeen.set(key, name);
+        return;
+      }
+      report.add(
+        "SKILL_REPEATED_TEXT",
+        relative5(root, path),
+        i + 1,
+        `This line is also in \`${other}\`.`,
+        "Say it once: in a file under server/data/ that both skills point to, or in the skill that owns it."
+      );
+    });
+  }
 }
 
 // plugins/sidecut-agentskills/server/src/check/plugin.ts
