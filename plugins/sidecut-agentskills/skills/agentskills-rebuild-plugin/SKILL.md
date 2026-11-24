@@ -29,9 +29,8 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 10. Run `npm run check` until it passes.
 11. Repeat the recording from step 1 on the new version and compare the two. Write down every difference and why it is there.
 12. Hand the rebuilt repo, its commit and the list of differences to the `sidecut-agentskills:reviewer` subagent, which reads it without your context. A rebuild is always a deep review, so it runs on your own model, and so does the full re-review after its fixes. In Codex it is `agentskills_reviewer`; if the project's `.codex/agents/agentskills-reviewer.toml` is missing, copy it from this plugin's `codex/agents/` first. Fix what it finds and run `npm run check` again.
-13. Merge and release through `agentskills-publish-plugin`, which also bundles the new tag into the marketplace. If the plugin id changed, bundle it under the new id and remove the old copy and entries in the same marketplace change. Then fix each other repo step 3 found in its own PR.
-
-Use `server/data/visual-reports.md` from the loaded plugin root for substantial before-and-after comparisons. Show observed parity results and unresolved differences without replacing the checks.
+13. After those fixes, present the before-and-after table in the format the test in `server/data/visual-reports.md` from the loaded plugin root picks. It doesn't replace the checks.
+14. Merge and release through `agentskills-publish-plugin`, which also bundles the new tag into the marketplace. If the plugin id changed, bundle it under the new id and remove the old copy and entries in the same marketplace change. Then fix each other repo step 3 found in its own PR.
 
 ## Rules
 

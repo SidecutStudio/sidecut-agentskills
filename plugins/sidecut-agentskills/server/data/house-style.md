@@ -322,7 +322,9 @@ Use [VOICE.md](templates/repo/VOICE.md.tmpl) as editorial guidance. It is not a 
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| When to use HTML | Use visual reports when comparisons, diagrams, observed screens or measured trends make the answer clearer; keep short factual answers in chat | review |
+| When to use HTML | The test in [visual-reports.md](visual-reports.md): an HTML report for 5 or more findings, 3 or more options compared, a parity table, a diagram, measured data over 10 rows or a design comparison; otherwise chat | review |
+| Where the choice is made | A skill that ends in a review, audit, rebuild, research answer or comparison chooses its format in a numbered step that points to visual-reports.md, not in a note after the steps | review |
+| Follow-ups | A skill whose result leaves next actions to choose offers them as one question, following Offer follow-ups in [user-input.md](user-input.md), never as a prose "want me to" line | review |
 | Method and assets | Read [visual-reports.md](visual-reports.md); the sibling HTML, CSS and licensed Geist fonts provide the layout | review |
 | Design and voice | Use the packaged tokens and the plain, specific voice in [VOICE.md](templates/repo/VOICE.md.tmpl); preserve the subject product's own design inside the report | review |
 | Authored skills | Give skills that benefit from visual outputs their own procedure and necessary packaged assets; don't depend on a maintainer checkout or another installed plugin | review |

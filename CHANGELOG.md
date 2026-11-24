@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.0] - 2026-11-24
+
+### Changed
+
+- `agentskills-review-plugin` and `agentskills-rebuild-plugin` choose the report format in a numbered step: 5 or more problems, or a parity table, go out as an HTML report with the verdict in chat.
+- `server/data/visual-reports.md` replaces "when it makes the answer clearer" with a concrete test, and drops the lines that steered reviews back into chat.
+- `server/data/user-input.md` adds Offer follow-ups: a finished review offers its next actions as one question through the host's question tool, instead of a prose "want me to" line; `agentskills-review-plugin` uses it.
+- The house style's Visual reports section adds review rows for where the format is chosen and how follow-ups are offered.
+
 ## [2.4.3] - 2026-11-24
 
 ### Changed

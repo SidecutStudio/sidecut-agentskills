@@ -1,14 +1,21 @@
 # Visual reports
 
-Read this when plugin comparisons, workflow designs, reviews or research become clearer when people can see the work.
+Read this before writing the result of a review, audit, rebuild, research question or comparison. It decides whether the result goes in chat or in an HTML report.
 
 ## Choose the format
 
-Default to an HTML report for substantial design comparisons, blind bakeoffs and visual design reports. Use HTML for plugin work when a diagram, comparison or illustrated finding helps someone decide.
+Decide the format before writing the result. Publish an HTML report when the result has any of these:
 
-Use it for other work when a visual makes a decision or relationship easier to understand. Keep a short factual answer in chat.
+- 5 or more findings, problems or recommendations
+- a comparison of 3 or more options, versions or entries
+- a before-and-after or parity table
+- a flow, architecture or relationship that a diagram explains
+- measured data with more than 10 rows
+- a design comparison or blind bakeoff
 
-Honor a requested format or a text-only preference. Don't create an empty dashboard, decorative chart or a page that repeats a short answer.
+One of these is enough, even with fewer than 5 findings. With none of them, answer in chat: a short verdict, a clean pass, a status line or one fact. A requested format or a text-only preference wins over this test.
+
+With an HTML report, the chat reply still carries the verdict and the top three items, so nobody has to open the page to learn the answer. Don't create an empty dashboard, decorative chart or a page that repeats a short answer.
 
 Read this file from the loaded plugin's `server/data/` folder. The sibling `visual-report.html` and `visual-report.css` provide an adaptable layout and tokens. Bundled Latin Geist fonts keep typography available offline.
 
@@ -40,8 +47,6 @@ Read this file from the loaded plugin's `server/data/` folder. The sibling `visu
 | Research | Source-linked comparisons, relevant diagrams and practical implications |
 
 Keep the owning skill's review groups, severity, parity checks and verification requirements. Distinguish proposed behavior from observed results.
-
-A clean validator result or a short status answer doesn't need an HTML page. Don't turn ordinary tool development into a visual-report task.
 
 A saved HTML report isn't an MCP App. Building a live chat view needs the view procedure in `agentskills-build-mcp-server` and separate host verification.
 
