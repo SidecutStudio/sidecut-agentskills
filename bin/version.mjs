@@ -2,7 +2,7 @@
 
 // scripts/version.ts
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 var stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 function compareVersions(a, b) {
@@ -54,8 +54,11 @@ function syncVersion(version, root = process.cwd(), check = false) {
     return contents.replace(versionLine, (_, start, end) => `${start}${version}${end}`);
   };
   lock.version = lock.packages[""].version = version;
+  const hosts = [".claude-plugin", ".codex-plugin", ".antigravity-plugin"].filter(
+    (host) => host !== ".antigravity-plugin" || existsSync(join(root, plugin, host, "plugin.json"))
+  );
   const derived = [
-    ...[".claude-plugin", ".codex-plugin"].map((host) => {
+    ...hosts.map((host) => {
       const path = `${plugin}/${host}/plugin.json`;
       const manifest = JSON.parse(read(path));
       if (manifest.name !== pkg.name) throw new Error(`Plugin identity differs in ${path}.`);

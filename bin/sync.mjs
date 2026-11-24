@@ -6,13 +6,134 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
-import { existsSync as existsSync4, lstatSync, readdirSync as readdirSync4, readFileSync as readFileSync4, realpathSync } from "node:fs";
-import { join as join4 } from "node:path";
+import { existsSync as existsSync5, lstatSync, readdirSync as readdirSync4, readFileSync as readFileSync5, realpathSync } from "node:fs";
+import { join as join5 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
-import { existsSync as existsSync2, mkdirSync as mkdirSync2, readdirSync as readdirSync2, readFileSync as readFileSync2, statSync, writeFileSync as writeFileSync2 } from "node:fs";
-import { basename, dirname as dirname2, join as join2 } from "node:path";
+import { existsSync as existsSync3, mkdirSync as mkdirSync2, readdirSync as readdirSync2, readFileSync as readFileSync3, statSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { basename, dirname as dirname2, join as join3 } from "node:path";
 import { fileURLToPath } from "node:url";
+
+// plugins/sidecut-agentskills/server/src/antigravity.ts
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+var ANTIGRAVITY_SCHEMA = "https://antigravity.google/schemas/v1/plugin.json";
+var ANTIGRAVITY_MANIFEST = ".antigravity-plugin/plugin.json";
+var ANTIGRAVITY_MCP = "mcp_config.json";
+var ANTIGRAVITY_HOOKS = "hooks.json";
+var SKILL_LOG_HOOK = "post-tool-use-skill-log.mjs";
+var COPIED = ["author", "homepage", "repository", "license", "keywords"];
+var isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+function antigravityManifest(claude, codex) {
+  const ui = isRecord(codex.interface) ? codex.interface : {};
+  const prompts = Array.isArray(ui.defaultPrompt) ? ui.defaultPrompt.slice(0, 3) : [];
+  const manifest = {
+    $schema: ANTIGRAVITY_SCHEMA,
+    name: claude.name,
+    displayName: ui.displayName ?? claude.name,
+    version: claude.version,
+    description: claude.description,
+    logo: "assets/icon.png"
+  };
+  if (prompts.length) manifest.suggestedPrompts = prompts;
+  for (const field of COPIED) if (claude[field] !== void 0) manifest[field] = claude[field];
+  return manifest;
+}
+function antigravityMcp(claudeMcp) {
+  const servers = isRecord(claudeMcp.mcpServers) ? claudeMcp.mcpServers : {};
+  const out = {};
+  for (const [name, server] of Object.entries(servers)) {
+    if (!isRecord(server)) continue;
+    if (typeof server.url === "string") {
+      out[name] = { url: server.url };
+      continue;
+    }
+    const entry = { command: server.command };
+    if (Array.isArray(server.args))
+      entry.args = server.args.map(
+        (arg) => typeof arg === "string" ? arg.replaceAll("${CLAUDE_PLUGIN_ROOT}", "${PLUGIN_ROOT}") : arg
+      );
+    out[name] = entry;
+  }
+  return { mcpServers: out };
+}
+function antigravityHooks() {
+  return {
+    "skill-log": {
+      PostToolUse: [
+        {
+          matcher: "view_file|run_command",
+          hooks: [
+            {
+              type: "command",
+              command: `node ./hooks/${SKILL_LOG_HOOK}`,
+              timeout: 5
+            }
+          ]
+        }
+      ]
+    }
+  };
+}
+function formatJson(value, width = 100) {
+  const out = (v, indent, lead, comma) => {
+    if (Array.isArray(v)) {
+      if (v.length === 0) return "[]";
+      const flat = v.every((x) => x === null || typeof x !== "object");
+      const inline = `[${v.map((x) => JSON.stringify(x)).join(", ")}]`;
+      if (flat && lead + inline.length + (comma ? 1 : 0) <= width) return inline;
+      const inner = `${indent}  `;
+      const items = v.map((x, i) => `${inner}${out(x, inner, inner.length, i < v.length - 1)}`);
+      return `[
+${items.join(",\n")}
+${indent}]`;
+    }
+    if (isRecord(v)) {
+      const entries = Object.entries(v);
+      if (entries.length === 0) return "{}";
+      const inner = `${indent}  `;
+      const items = entries.map(([k, x], i) => {
+        const key = `${inner}${JSON.stringify(k)}: `;
+        return `${key}${out(x, inner, key.length, i < entries.length - 1)}`;
+      });
+      return `{
+${items.join(",\n")}
+${indent}}`;
+    }
+    return JSON.stringify(v);
+  };
+  return `${out(value, "", 0, false)}
+`;
+}
+function antigravityFilesFrom(read) {
+  const parse = (path) => {
+    const text = read(path);
+    if (text === null) return null;
+    try {
+      const value = JSON.parse(text);
+      return isRecord(value) ? value : null;
+    } catch {
+      return null;
+    }
+  };
+  const claude = parse(".claude-plugin/plugin.json");
+  const codex = parse(".codex-plugin/plugin.json");
+  if (!claude || !codex) return null;
+  const mcp = parse(".mcp.json");
+  if (!mcp && read(".mcp.json") !== null) return null;
+  const hasSkillLog = read(`hooks/${SKILL_LOG_HOOK}`) !== null;
+  return [
+    { path: ANTIGRAVITY_MANIFEST, text: formatJson(antigravityManifest(claude, codex)) },
+    { path: ANTIGRAVITY_MCP, text: mcp ? formatJson(antigravityMcp(mcp)) : null },
+    { path: ANTIGRAVITY_HOOKS, text: hasSkillLog ? formatJson(antigravityHooks()) : null }
+  ];
+}
+function antigravityFiles(pluginDir) {
+  return antigravityFilesFrom((path) => {
+    const full = join(pluginDir, path);
+    return existsSync(full) ? readFileSync(full, "utf8") : null;
+  });
+}
 
 // plugins/sidecut-agentskills/server/src/check/report.ts
 function keepCovers(key, code, file) {
@@ -70,8 +191,8 @@ ${INDENT}`)
 };
 
 // plugins/sidecut-agentskills/server/src/settings.ts
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join } from "node:path";
+import { existsSync as existsSync2, mkdirSync, readdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join as join2 } from "node:path";
 var DEFAULTS = {
   profile: "",
   org: "",
@@ -101,9 +222,9 @@ function cleanSettings(value) {
   return out;
 }
 function readInput(path) {
-  if (!existsSync(path)) return null;
+  if (!existsSync2(path)) return null;
   try {
-    return cleanSettings(JSON.parse(readFileSync(path, "utf8")));
+    return cleanSettings(JSON.parse(readFileSync2(path, "utf8")));
   } catch {
     throw new Error(`${path} isn't valid JSON.`);
   }
@@ -140,23 +261,23 @@ function mergeSettings(...layers) {
   return out;
 }
 function readRepoSettings(root2) {
-  return readInput(join(root2, REPO_FILE));
+  return readInput(join2(root2, REPO_FILE));
 }
 function inferRepoSettings(root2) {
-  const plugins = join(root2, "plugins");
-  const ids = existsSync(plugins) ? readdirSync(plugins).filter((n) => n !== ".DS_Store") : [];
+  const plugins = join2(root2, "plugins");
+  const ids = existsSync2(plugins) ? readdirSync(plugins).filter((n) => n !== ".DS_Store") : [];
   for (const id of ids) {
     try {
       const manifest = JSON.parse(
-        readFileSync(join(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
+        readFileSync2(join2(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
       );
       const owner = /^https:\/\/github\.com\/([\w.-]+)\//.exec(
         String(manifest.repository ?? "")
       )?.[1];
       if (!owner) continue;
       if (owner === SIDECUT_OWNER) return { profile: "sidecut" };
-      const check = join(root2, ".github", "workflows", "check.yml");
-      const picker = existsSync(check) && readFileSync(check, "utf8").includes("/pick-runner@");
+      const check = join2(root2, ".github", "workflows", "check.yml");
+      const picker = existsSync2(check) && readFileSync2(check, "utf8").includes("/pick-runner@");
       return cleanSettings({
         org: owner,
         authorName: manifest.author?.name,
@@ -214,14 +335,14 @@ function marketplaceName(id, s = active) {
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
 var here = dirname2(fileURLToPath(import.meta.url));
-var dataRoot = existsSync2(join2(here, "data")) ? join2(here, "data") : existsSync2(join2(here, "..", "data")) ? join2(here, "..", "data") : join2(here, "..", "plugins", "sidecut-agentskills", "server", "data");
-var templatesRoot = join2(dataRoot, "templates");
+var dataRoot = existsSync3(join3(here, "data")) ? join3(here, "data") : existsSync3(join3(here, "..", "data")) ? join3(here, "..", "data") : join3(here, "..", "plugins", "sidecut-agentskills", "server", "data");
+var templatesRoot = join3(dataRoot, "templates");
 var USER_INPUT_PATH = "server/data/user-input.md";
 var OLD_USER_INPUT_PATH = "server/data/owner-input.md";
 function userInput() {
-  return readFileSync2(join2(dataRoot, "user-input.md"), "utf8");
+  return readFileSync3(join3(dataRoot, "user-input.md"), "utf8");
 }
-var ownVersion = JSON.parse(readFileSync2(join2(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
+var ownVersion = JSON.parse(readFileSync3(join3(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
 var BRAND_COLOR = PROFILES.sidecut?.brandColor ?? "#FF6B00";
 var ACRONYMS = /* @__PURE__ */ new Set([
   "ai",
@@ -261,7 +382,7 @@ function render(text, vars) {
   });
 }
 function renderFile(path, vars) {
-  return render(readFileSync2(join2(templatesRoot, path), "utf8"), vars);
+  return render(readFileSync3(join3(templatesRoot, path), "utf8"), vars);
 }
 function settingsVars(id, s = current()) {
   const brand = brandSpace(s);
@@ -276,6 +397,7 @@ function settingsVars(id, s = current()) {
     "```text",
     `/plugin install ${id}@${market}      # Claude Code`,
     `codex plugin add ${id}@${market}     # Codex`,
+    `agy plugin install ./${id}/plugins/${id}   # Antigravity, in a clone of ${s.org}/${id}`,
     "```"
   ].join("\n") : [
     "In Claude Code, add this repo's marketplace, then install the plugin:",
@@ -290,6 +412,13 @@ function settingsVars(id, s = current()) {
     "```bash",
     `codex plugin marketplace add ${s.org}/${id}`,
     `codex plugin add ${id}@${id}`,
+    "```",
+    "",
+    "In Antigravity, install the plugin folder from a clone:",
+    "",
+    "```bash",
+    `git clone https://github.com/${s.org}/${id}`,
+    `agy plugin install ./${id}/plugins/${id}`,
     "```"
   ].join("\n");
   return {
@@ -316,8 +445,8 @@ ${SOLO_LOCAL_FILE}` : ""
 }
 
 // plugins/sidecut-agentskills/server/src/check/sync.ts
-import { existsSync as existsSync3, mkdirSync as mkdirSync3, readdirSync as readdirSync3, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname as dirname3, join as join3 } from "node:path";
+import { existsSync as existsSync4, mkdirSync as mkdirSync3, readdirSync as readdirSync3, readFileSync as readFileSync4, rmSync, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname3, join as join4 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
   "VOICE.md",
@@ -327,6 +456,11 @@ var OWNED_FILES = [
 ];
 function pluginOwnedFile(id) {
   return `plugins/${id}/${USER_INPUT_PATH}`;
+}
+function pluginSyncFiles(id) {
+  return [`hooks/${SKILL_LOG_HOOK}`, ANTIGRAVITY_MANIFEST, ANTIGRAVITY_MCP, ANTIGRAVITY_HOOKS].map(
+    (path) => `plugins/${id}/${path}`
+  );
 }
 var BLOCK_FILES = [".gitignore", "AGENTS.md", "SECURITY.md"];
 var SHARED_TOOLS = [
@@ -403,6 +537,13 @@ function mergeBlocks(current2, template, file) {
   const text = have.join("\n");
   return { text: crlf ? text.replaceAll("\n", "\r\n") : text };
 }
+function sameParsed(a, b) {
+  try {
+    return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b));
+  } catch {
+    return false;
+  }
+}
 function parseVersion(spec) {
   const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(spec);
   return m ? m.slice(1).map(Number) : null;
@@ -420,9 +561,9 @@ function newer(a, b) {
   return false;
 }
 function planPackage(root2, vars) {
-  const path = join3(root2, "package.json");
-  if (!existsSync3(path)) return null;
-  const text = readFileSync3(path, "utf8");
+  const path = join4(root2, "package.json");
+  if (!existsSync4(path)) return null;
+  const text = readFileSync4(path, "utf8");
   const pkg = JSON.parse(text);
   const indent = /^\{\r?\n([ \t]+)"/.exec(text)?.[1] ?? "  ";
   const template = JSON.parse(
@@ -472,13 +613,52 @@ function planSync(root2, vars, kept = () => false) {
   for (const file of [...OWNED_FILES, guide]) {
     if (kept(file)) continue;
     const want = file === guide ? userInput() : render2(file);
-    const path = join3(root2, file);
-    const have = existsSync3(path) ? readFileSync3(path, "utf8") : null;
+    const path = join4(root2, file);
+    const have = existsSync4(path) ? readFileSync4(path, "utf8") : null;
     if (have !== want)
       changes2.push({
         file,
         what: have === null ? `${file} is missing.` : `${file} differs from the template copy.`,
         next: want
+      });
+  }
+  const hook = `plugins/${vars.id}/hooks/${SKILL_LOG_HOOK}`;
+  if (!kept(hook, "HOOK_SKILL_LOG") && existsSync4(join4(root2, hook))) {
+    const want = renderFile(`plugin/hooks/${SKILL_LOG_HOOK}.tmpl`, settings);
+    if (readFileSync4(join4(root2, hook), "utf8") !== want)
+      changes2.push({
+        file: hook,
+        what: `${hook} differs from the template copy.`,
+        next: want,
+        code: "HOOK_SKILL_LOG"
+      });
+  }
+  for (const { path, text } of antigravityFiles(join4(root2, "plugins", vars.id)) ?? []) {
+    const file = `plugins/${vars.id}/${path}`;
+    const have = existsSync4(join4(root2, file)) ? readFileSync4(join4(root2, file), "utf8") : null;
+    if (text === null) {
+      if (have !== null && !kept(file, "ANTIGRAVITY_UNEXPECTED"))
+        changes2.push({
+          file,
+          what: `${file} has nothing to describe.`,
+          next: "",
+          remove: true,
+          code: "ANTIGRAVITY_UNEXPECTED"
+        });
+    } else if (have === null) {
+      if (!kept(file, "ANTIGRAVITY_MISSING"))
+        changes2.push({
+          file,
+          what: `${file} is missing.`,
+          next: text,
+          code: "ANTIGRAVITY_MISSING"
+        });
+    } else if (!sameParsed(have, text) && !kept(file, "ANTIGRAVITY_SYNC"))
+      changes2.push({
+        file,
+        what: `${file} doesn't match the Claude Code and Codex files.`,
+        next: text,
+        code: "ANTIGRAVITY_SYNC"
       });
   }
   const oldGuide = `plugins/${vars.id}/${OLD_USER_INPUT_PATH}`;
@@ -488,7 +668,7 @@ function planSync(root2, vars, kept = () => false) {
       changes2.push({ file, what: `${file} is now ${guide}.`, next: "", remove: true });
       continue;
     }
-    const have = readFileSync3(join3(root2, file), "utf8");
+    const have = readFileSync4(join4(root2, file), "utf8");
     changes2.push({
       file,
       what: `${file} points at ${OLD_USER_INPUT_PATH}, now ${USER_INPUT_PATH}.`,
@@ -497,13 +677,13 @@ function planSync(root2, vars, kept = () => false) {
   }
   for (const file of BLOCK_FILES) {
     if (kept(file)) continue;
-    const path = join3(root2, file);
+    const path = join4(root2, file);
     const template = render2(file);
-    if (!existsSync3(path)) {
+    if (!existsSync4(path)) {
       changes2.push({ file, what: `${file} is missing.`, next: template });
       continue;
     }
-    const have = readFileSync3(path, "utf8");
+    const have = readFileSync4(path, "utf8");
     const merged = mergeBlocks(have, template, file);
     if ("error" in merged)
       changes2.push({ file, what: `${merged.error} Fix them by hand.`, next: null });
@@ -524,13 +704,13 @@ function guideMoveFiles(root2, id) {
   const plugin = `plugins/${id}`;
   const oldGuide = `${plugin}/${OLD_USER_INPUT_PATH}`;
   const pointers = markdownUnder(root2, plugin).filter(
-    (file) => file !== oldGuide && readFileSync3(join3(root2, file), "utf8").includes(OLD_USER_INPUT_PATH)
+    (file) => file !== oldGuide && readFileSync4(join4(root2, file), "utf8").includes(OLD_USER_INPUT_PATH)
   );
-  return [...existsSync3(join3(root2, oldGuide)) ? [oldGuide] : [], ...pointers];
+  return [...existsSync4(join4(root2, oldGuide)) ? [oldGuide] : [], ...pointers];
 }
 function markdownUnder(root2, dir) {
-  const path = join3(root2, dir);
-  if (!existsSync3(path)) return [];
+  const path = join4(root2, dir);
+  if (!existsSync4(path)) return [];
   return readdirSync3(path, { withFileTypes: true }).flatMap((entry) => {
     const file = `${dir}/${entry.name}`;
     if (entry.isDirectory()) return entry.name === "node_modules" ? [] : markdownUnder(root2, file);
@@ -544,7 +724,7 @@ function applySync(root2, changes2) {
       left2.push(change);
       continue;
     }
-    const path = join3(root2, change.file);
+    const path = join4(root2, change.file);
     if (change.remove) {
       rmSync(path, { force: true });
       continue;
@@ -558,17 +738,17 @@ function applySync(root2, changes2) {
 // plugins/sidecut-agentskills/server/src/check/repo.ts
 function readJson(path) {
   try {
-    return JSON.parse(readFileSync4(path, "utf8"));
+    return JSON.parse(readFileSync5(path, "utf8"));
   } catch {
     return {};
   }
 }
 function identify(root2) {
-  const pluginsDir = join4(root2, "plugins");
-  const plugins = existsSync4(pluginsDir) ? readdirSync4(pluginsDir).filter((n) => n !== ".DS_Store") : [];
+  const pluginsDir = join5(root2, "plugins");
+  const plugins = existsSync5(pluginsDir) ? readdirSync4(pluginsDir).filter((n) => n !== ".DS_Store") : [];
   const only = plugins.length === 1 ? plugins[0] ?? "" : "";
-  const manifest = readJson(join4(pluginsDir, only, ".claude-plugin", "plugin.json"));
-  const pkg = readJson(join4(root2, "package.json"));
+  const manifest = readJson(join5(pluginsDir, only, ".claude-plugin", "plugin.json"));
+  const pkg = readJson(join5(root2, "package.json"));
   const settings = repoSettings(root2);
   const owner = settings.org ? escapeRegExp(settings.org) : "[\\w.-]+";
   const repo = new RegExp(`^https:\\/\\/github\\.com\\/${owner}\\/([\\w.-]+)$`).exec(
@@ -618,6 +798,7 @@ if (!values.check && !values.force) {
     ...OWNED_FILES,
     ...BLOCK_FILES,
     pluginOwnedFile(who.id),
+    ...pluginSyncFiles(who.id),
     ...guideMoveFiles(root, who.id),
     "package.json",
     "package-lock.json"
@@ -645,7 +826,9 @@ var keys = Object.keys(who.keep);
 var changes = planSync(
   root,
   { id: who.id, repo: who.repo, version: ownVersion },
-  (file) => keys.some((key) => keepCovers(key, "REPO_SYNC", file))
+  (file, code) => keys.some(
+    (key) => keepCovers(key, "REPO_SYNC", file) || code !== void 0 && keepCovers(key, code, file)
+  )
 );
 if (changes.length === 0) {
   console.log(`Up to date with sidecut-agentskills v${ownVersion}.`);

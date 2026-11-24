@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { antigravityFilesFrom } from './antigravity.ts';
 import { relativePosix, sentences, toPosix } from './check/report.ts';
 import { CI_SNIPPETS } from './ci-snippets.ts';
 import {
@@ -301,6 +302,7 @@ export function settingsVars(id: string, s: Settings = current()): Record<string
         '```text',
         `/plugin install ${id}@${market}      # Claude Code`,
         `codex plugin add ${id}@${market}     # Codex`,
+        `agy plugin install ./${id}/plugins/${id}   # Antigravity, in a clone of ${s.org}/${id}`,
         '```',
       ].join('\n')
     : [
@@ -316,6 +318,13 @@ export function settingsVars(id: string, s: Settings = current()): Record<string
         '```bash',
         `codex plugin marketplace add ${s.org}/${id}`,
         `codex plugin add ${id}@${id}`,
+        '```',
+        '',
+        'In Antigravity, install the plugin folder from a clone:',
+        '',
+        '```bash',
+        `git clone https://github.com/${s.org}/${id}`,
+        `agy plugin install ./${id}/plugins/${id}`,
         '```',
       ].join('\n');
   return {
@@ -403,6 +412,13 @@ function writeRepo(input: PluginInput, out: string, settings: Settings): string[
     files.set(name, files.get(`${pluginDir}/${name}`) as string);
   }
   files.set(`${pluginDir}/${USER_INPUT_PATH}`, userInput());
+  // Antigravity's files follow from the Claude Code and Codex ones just rendered.
+  const inPlugin = (path: string) => {
+    const text = files.get(`${pluginDir}/${path}`);
+    return typeof text === 'string' ? text : null;
+  };
+  for (const { path, text } of antigravityFilesFrom(inPlugin) ?? [])
+    if (text !== null) files.set(`${pluginDir}/${path}`, text);
   // A plain mark until `sidecut-icon` draws the plugin's own.
   files.set(`${pluginDir}/assets/icon.png`, readFileSync(join(templatesRoot, '..', 'icon.png')));
   return writeAll(out, files);

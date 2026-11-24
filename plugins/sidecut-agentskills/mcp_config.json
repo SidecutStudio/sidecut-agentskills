@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agentskills": {
+      "command": "node",
+      "args": ["${PLUGIN_ROOT}/server/index.mjs"]
+    }
+  }
+}

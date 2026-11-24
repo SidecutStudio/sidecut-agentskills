@@ -293,3 +293,132 @@ test('package.json keeps its own indentation', () => {
   const [change] = planSync(root, vars);
   expect(change?.next?.startsWith('{\n\t"name"')).toBe(true);
 });
+
+const P = `plugins/${ID}`;
+const ANTIGRAVITY = [
+  `${P}/.antigravity-plugin/plugin.json`,
+  `${P}/mcp_config.json`,
+  `${P}/hooks.json`,
+];
+const HOOK = `${P}/hooks/post-tool-use-skill-log.mjs`;
+
+test('a plugin made before Antigravity support gets its files and the new usage log hook', () => {
+  const root = copy();
+  for (const file of ANTIGRAVITY) rmSync(join(root, file));
+  write(root, HOOK, read(root, HOOK).replace('antigravity', 'old'));
+  expect(files(root).sort()).toEqual([...ANTIGRAVITY, HOOK].sort());
+  expect(applySync(root, planSync(root, vars))).toEqual([]);
+  expect(planSync(root, vars)).toEqual([]);
+  expect(JSON.parse(read(root, `${P}/mcp_config.json`))).toEqual({
+    mcpServers: { demo: { command: 'node', args: ['${PLUGIN_ROOT}/server/index.mjs'] } },
+  });
+  const manifest = JSON.parse(read(root, `${P}/.antigravity-plugin/plugin.json`));
+  const claude = JSON.parse(read(root, `${P}/.claude-plugin/plugin.json`));
+  expect(manifest.version).toBe(claude.version);
+  expect(manifest.name).toBe(ID);
+  // Written the way Biome would format it, so a synced repo passes `npm run check` as it is.
+  const biome = join(
+    import.meta.dirname,
+    '..',
+    'node_modules',
+    '@biomejs',
+    'biome',
+    'bin',
+    'biome',
+  );
+  const format = spawnSync(process.execPath, [biome, 'format', ...ANTIGRAVITY], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  expect(format.status, format.stdout + format.stderr).toBe(0);
+});
+
+test("Antigravity's MCP config follows .mcp.json, and goes when it goes", () => {
+  const root = copy();
+  for (const file of [`${P}/.mcp.json`, `${P}/mcp.json`])
+    write(
+      root,
+      file,
+      JSON.stringify({ mcpServers: { demo: { type: 'http', url: 'https://example.com/mcp' } } }),
+    );
+  applySync(root, planSync(root, vars));
+  expect(JSON.parse(read(root, `${P}/mcp_config.json`))).toEqual({
+    mcpServers: { demo: { url: 'https://example.com/mcp' } },
+  });
+  rmSync(join(root, `${P}/.mcp.json`));
+  expect(files(root)).toContain(`${P}/mcp_config.json`);
+  applySync(root, planSync(root, vars));
+  expect(existsSync(join(root, `${P}/mcp_config.json`))).toBe(false);
+});
+
+test('the usage log hook records skill reads from Claude Code, Codex and Antigravity', () => {
+  const root = copy();
+  const home = mkdtempSync(join(tmpdir(), 'sidecut-hook-home-'));
+  scratch.push(home);
+  const skill = `${root}/${P}/skills/demo-check-status/SKILL.md`;
+  const run = (input: object) =>
+    spawnSync(process.execPath, [join(root, HOOK)], {
+      input: JSON.stringify(input),
+      env: { PATH: process.env.PATH, HOME: home, USERPROFILE: home },
+      encoding: 'utf8',
+    });
+  for (const input of [
+    { tool_name: 'Skill', tool_input: { skill: `${ID}:demo-check-status` } },
+    { tool_name: 'Bash', tool_input: { command: `cat ${skill}` }, turn_id: 't1' },
+    { toolCall: { name: 'view_file', args: { AbsolutePath: skill } }, conversationId: 'c1' },
+    { toolCall: { name: 'run_command', args: { CommandLine: `head -5 ${skill}` } } },
+    // A failed read, a later chunk, another copy of the plugin and another tool don't count.
+    { toolCall: { name: 'view_file', args: { AbsolutePath: skill } }, error: 'not found' },
+    { toolCall: { name: 'view_file', args: { AbsolutePath: skill, StartLine: 40 } } },
+    {
+      toolCall: {
+        name: 'view_file',
+        args: { AbsolutePath: `/elsewhere/${P}/skills/demo-check-status/SKILL.md` },
+      },
+    },
+    { toolCall: { name: 'grep_search', args: { SearchPath: skill } } },
+  ])
+    expect(run(input).status).toBe(0);
+  const lines = readFileSync(join(home, '.sidecut', 'skill-log.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  expect(lines.map((l) => `${l.plugin} ${l.skill} ${l.host}`)).toEqual([
+    `${ID} demo-check-status claude-code`,
+    `${ID} demo-check-status codex`,
+    `${ID} demo-check-status antigravity`,
+    `${ID} demo-check-status antigravity`,
+  ]);
+});
+
+test('a hook kept under its rule is left alone, and each difference is reported once', () => {
+  const root = copy();
+  write(root, HOOK, `${read(root, HOOK)}// ours\n`);
+  rmSync(join(root, `${P}/hooks.json`));
+  const codesOf = () => {
+    const report = new Report();
+    checkRepo(root, report);
+    // This copy isn't built or installed, so only the rules this test is about are looked at.
+    const about = ['ANTIGRAVITY_MISSING', 'HOOK_SKILL_LOG', 'REPO_SYNC'];
+    return report.problems
+      .map((p) => p.code)
+      .filter((c) => about.includes(c))
+      .sort();
+  };
+  expect(codesOf()).toEqual(['ANTIGRAVITY_MISSING', 'HOOK_SKILL_LOG']);
+  pkg(root, (v) => {
+    v.sidecut = { keep: { HOOK_SKILL_LOG: 'Our own log format.' } };
+  });
+  const kept = (_file: string, code?: string) => code === 'HOOK_SKILL_LOG';
+  expect(planSync(root, vars, kept).map((c) => c.file)).toEqual([`${P}/hooks.json`]);
+  expect(codesOf()).toEqual(['ANTIGRAVITY_MISSING']);
+});
+
+test("an unreadable .mcp.json leaves Antigravity's MCP config alone", () => {
+  const root = copy();
+  write(root, `${P}/.mcp.json`, '{ not json');
+  expect(files(root)).not.toContain(`${P}/mcp_config.json`);
+  const report = new Report();
+  checkRepo(root, report);
+  expect(report.problems.map((p) => p.code)).not.toContain('ANTIGRAVITY_UNEXPECTED');
+});

@@ -1,6 +1,6 @@
 # Hooks
 
-Read this when adding or changing a hook in a plugin. A hook is a script the host runs at a fixed moment, such as after a tool call or when a session starts. Every hook runs in both Claude Code and Codex.
+Read this when adding or changing a hook in a plugin. A hook is a script the host runs at a fixed moment, such as after a tool call or when a session starts. Every hook runs in both Claude Code and Codex. Antigravity runs only the usage log hook, through the root `hooks.json` that `sidecut-sync` writes; its events and tool names differ, so other hooks don't run there yet.
 
 ## Registering a hook
 

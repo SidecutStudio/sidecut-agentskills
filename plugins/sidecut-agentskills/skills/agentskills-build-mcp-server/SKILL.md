@@ -8,7 +8,7 @@ allowed-tools:
 
 # Build MCP server
 
-Produces tools that agents pick correctly, that return data a check can verify, and that work the same in Claude Code and Codex.
+Produces tools that agents pick correctly, that return data a check can verify, and that work the same in Claude Code, Codex and Antigravity.
 
 ## Before you start
 

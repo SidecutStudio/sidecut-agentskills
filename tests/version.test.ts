@@ -26,6 +26,7 @@ test('synchronizes versions and changelog, preserves manifest formatting, and re
     );
     write(`${plugin}/.claude-plugin/plugin.json`, pkg);
     write(`${plugin}/.codex-plugin/plugin.json`, pkg);
+    write(`${plugin}/.antigravity-plugin/plugin.json`, pkg);
     write(`${plugin}/CHANGELOG.md`, '');
     write('CHANGELOG.md', notes);
     expect(() => syncVersion('1.8.0', root)).toThrow('backwards');
@@ -37,6 +38,7 @@ test('synchronizes versions and changelog, preserves manifest formatting, and re
     expect(JSON.parse(read('package-lock.json')).packages[''].version).toBe('1.10.0');
     expect(read(`${plugin}/.claude-plugin/plugin.json`)).toBe(pkg.replace('1.9.0', '1.10.0'));
     expect(read(`${plugin}/.codex-plugin/plugin.json`)).toBe(pkg.replace('1.9.0', '1.10.0'));
+    expect(read(`${plugin}/.antigravity-plugin/plugin.json`)).toBe(pkg.replace('1.9.0', '1.10.0'));
     expect(read(`${plugin}/CHANGELOG.md`)).toBe(notes);
   } finally {
     rmSync(root, { recursive: true, force: true });

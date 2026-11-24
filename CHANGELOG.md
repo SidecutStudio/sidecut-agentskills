@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.6.0] - 2026-11-24
+
+### Added
+
+- Every plugin installs in Antigravity. Scaffolding writes `.antigravity-plugin/plugin.json`, `mcp_config.json` (with an MCP server) and a root `hooks.json` (with the usage log hook), all from the Claude Code and Codex files, and `sidecut-sync` writes them into plugins made before. The checker reports them as `ANTIGRAVITY_MISSING`, `ANTIGRAVITY_SYNC` or `ANTIGRAVITY_UNEXPECTED`.
+- The usage log hook counts Antigravity's skill reads, with `host: "antigravity"`: the first `view_file` read of a `SKILL.md` inside the installed plugin, or a shell read through `run_command`. A failed read, a later chunk and a read of another copy of the plugin aren't counted.
+- New READMEs show how to install the plugin folder in Antigravity from a clone.
+
+### Changed
+
+- `sidecut-sync` restores the usage log hook from the template, so a plugin picks up hook changes without a manual copy. A hook kept under `HOOK_SKILL_LOG`, or by its path, is left alone; a keep under `REPO_SYNC` alone no longer covers it.
+- `sidecut-version` sets the version in the Antigravity manifest too, when the plugin has one.
+- The house style covers Antigravity's manifest, MCP config and hooks, and the skills that build MCP servers, hooks and subagents say what Antigravity gets from sync and what it doesn't.
+
 ## [2.5.0] - 2026-11-24
 
 ### Changed

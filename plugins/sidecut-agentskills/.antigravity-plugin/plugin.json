@@ -1,0 +1,21 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "sidecut-agentskills",
+  "displayName": "Sidecut Agentskills",
+  "version": "2.6.0",
+  "description": "Builds, checks and ships Claude Code and Codex plugins, skills and MCP servers that all follow one house style.",
+  "logo": "assets/icon.png",
+  "suggestedPrompts": [
+    "Make a new plugin for my release checklist",
+    "Check this plugin against the house style",
+    "Bring my old plugin into the house style"
+  ],
+  "author": {
+    "name": "Sidecut Studio",
+    "url": "https://sidecut.dev"
+  },
+  "homepage": "https://sidecut.dev",
+  "repository": "https://github.com/SidecutStudio/sidecut-agentskills",
+  "license": "MIT",
+  "keywords": ["plugins", "skills", "mcp", "templates", "house-style"]
+}

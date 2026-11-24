@@ -8,7 +8,7 @@ allowed-tools:
 
 # Create plugin
 
-Produces a new plugin repo that passes `npm run check` on its first commit and loads in Claude Code and Codex.
+Produces a new plugin repo that passes `npm run check` on its first commit and loads in Claude Code, Codex and Antigravity.
 
 ## Before you start
 

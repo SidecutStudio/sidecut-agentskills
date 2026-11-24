@@ -71,6 +71,7 @@ const RULES: Rule[] = [
       files: [
         `${plugin}/.claude-plugin/plugin.json`,
         `${plugin}/.codex-plugin/plugin.json`,
+        `${plugin}/.antigravity-plugin/plugin.json`,
         '.claude-plugin/marketplace.json',
         'SECURITY.md',
       ],

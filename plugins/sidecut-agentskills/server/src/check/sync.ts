@@ -1,6 +1,13 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
+  ANTIGRAVITY_HOOKS,
+  ANTIGRAVITY_MANIFEST,
+  ANTIGRAVITY_MCP,
+  antigravityFiles,
+  SKILL_LOG_HOOK,
+} from '../antigravity.ts';
+import {
   displayNameOf,
   OLD_USER_INPUT_PATH,
   renderFile,
@@ -21,6 +28,12 @@ export const OWNED_FILES = [
 export function pluginOwnedFile(id: string): string {
   return `plugins/${id}/${USER_INPUT_PATH}`;
 }
+/** The plugin files sync writes beside the guide: the usage log hook and Antigravity's files. */
+export function pluginSyncFiles(id: string): string[] {
+  return [`hooks/${SKILL_LOG_HOOK}`, ANTIGRAVITY_MANIFEST, ANTIGRAVITY_MCP, ANTIGRAVITY_HOOKS].map(
+    (path) => `plugins/${id}/${path}`,
+  );
+}
 
 /** Files where sidecut-agentskills owns only the marked blocks; the rest belongs to the repo. */
 export const BLOCK_FILES = ['.gitignore', 'AGENTS.md', 'SECURITY.md'];
@@ -40,7 +53,14 @@ const CHECKER = 'github:SidecutStudio/sidecut-agentskills#v';
  * One change sync would make. `next` is the file's new content, or null when sync can't make the
  * change safely and someone has to fix the file by hand first.
  */
-export type Change = { file: string; what: string; next: string | null; remove?: boolean };
+export type Change = {
+  file: string;
+  what: string;
+  next: string | null;
+  remove?: boolean;
+  /** The plugin rule that already reports this difference, so the repo check doesn't say it twice. */
+  code?: string;
+};
 
 export type SyncVars = { id: string; repo: string; version: string };
 
@@ -131,6 +151,15 @@ export function mergeBlocks(
   return { text: crlf ? text.replaceAll('\n', '\r\n') : text };
 }
 
+/** Whether two JSON texts hold the same value, so formatting alone never counts as a change. */
+function sameParsed(a: string, b: string): boolean {
+  try {
+    return JSON.stringify(JSON.parse(a)) === JSON.stringify(JSON.parse(b));
+  } catch {
+    return false;
+  }
+}
+
 function parseVersion(spec: string): number[] | null {
   const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(spec);
   return m ? m.slice(1).map(Number) : null;
@@ -194,12 +223,13 @@ function planPackage(root: string, vars: SyncVars): Change | null {
 
 /**
  * Everything that differs from what sidecut-agentskills owns in the repo at `root`. `kept` says
- * whether sidecut.keep covers a file, so a kept file is never planned.
+ * whether sidecut.keep covers a file, or `code` (the plugin rule that reports it), so a kept file is
+ * never planned.
  */
 export function planSync(
   root: string,
   vars: SyncVars,
-  kept: (file: string) => boolean = () => false,
+  kept: (file: string, code?: string) => boolean = () => false,
 ): Change[] {
   const changes: Change[] = [];
   const settings = settingsVars(vars.id, repoSettings(root));
@@ -221,6 +251,47 @@ export function planSync(
         file,
         what: have === null ? `${file} is missing.` : `${file} differs from the template copy.`,
         next: want,
+      });
+  }
+  // The usage log hook is the template's copy, and Antigravity's files follow from the Claude Code
+  // and Codex ones (2.6.0), so a plugin made before either gets them here.
+  const hook = `plugins/${vars.id}/hooks/${SKILL_LOG_HOOK}`;
+  if (!kept(hook, 'HOOK_SKILL_LOG') && existsSync(join(root, hook))) {
+    const want = renderFile(`plugin/hooks/${SKILL_LOG_HOOK}.tmpl`, settings);
+    if (readFileSync(join(root, hook), 'utf8') !== want)
+      changes.push({
+        file: hook,
+        what: `${hook} differs from the template copy.`,
+        next: want,
+        code: 'HOOK_SKILL_LOG',
+      });
+  }
+  for (const { path, text } of antigravityFiles(join(root, 'plugins', vars.id)) ?? []) {
+    const file = `plugins/${vars.id}/${path}`;
+    const have = existsSync(join(root, file)) ? readFileSync(join(root, file), 'utf8') : null;
+    if (text === null) {
+      if (have !== null && !kept(file, 'ANTIGRAVITY_UNEXPECTED'))
+        changes.push({
+          file,
+          what: `${file} has nothing to describe.`,
+          next: '',
+          remove: true,
+          code: 'ANTIGRAVITY_UNEXPECTED',
+        });
+    } else if (have === null) {
+      if (!kept(file, 'ANTIGRAVITY_MISSING'))
+        changes.push({
+          file,
+          what: `${file} is missing.`,
+          next: text,
+          code: 'ANTIGRAVITY_MISSING',
+        });
+    } else if (!sameParsed(have, text) && !kept(file, 'ANTIGRAVITY_SYNC'))
+      changes.push({
+        file,
+        what: `${file} doesn't match the Claude Code and Codex files.`,
+        next: text,
+        code: 'ANTIGRAVITY_SYNC',
       });
   }
   // 2.3.0 renamed the guide from owner-input.md: drop the old copy and point the plugin's own text

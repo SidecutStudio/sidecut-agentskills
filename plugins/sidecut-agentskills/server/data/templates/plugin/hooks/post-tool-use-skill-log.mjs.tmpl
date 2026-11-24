@@ -3,7 +3,8 @@
 // Sends nothing.
 // Claude Code runs a skill through its Skill tool. Codex has no skill tool: it reads the skill's
 // SKILL.md with a shell command, so a Bash call that reads one of this plugin's SKILL.md files counts.
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+// Antigravity reads it with view_file, or with a shell command through run_command.
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,21 +27,42 @@ function isOn(env) {
   return !OFF.has((env.SIDECUT_SKILL_LOG ?? '').toLowerCase());
 }
 
+// The plugin's folder, then an optional version folder, then skills/<skill>/SKILL.md.
+const skillPath = (plugin) =>
+  new RegExp(`/${plugin}/(?:[^/\\s'"]+/)?skills/([a-z0-9-]+)/SKILL\\.md`);
+
 // The skill a tool call ran, or nothing when the call wasn't one of this plugin's skills.
-function skillOf(input, plugin) {
+function skillOf(input, plugin, roots) {
   if (input.tool_name === 'Skill') {
     const [namespace, skill] = String(input.tool_input?.skill ?? '').split(':');
     return namespace === plugin ? skill : undefined;
   }
+  // Antigravity sends the call as toolCall, and an error when it failed. view_file is its ordinary
+  // file reader, so only the first read of a SKILL.md inside this installed plugin counts.
+  if (input.toolCall) {
+    if (input.error) return undefined;
+    const { name, args } = input.toolCall;
+    if (name === 'view_file') {
+      if (Number(args?.StartLine ?? 1) > 1) return undefined;
+      const file = String(args?.AbsolutePath ?? '').replaceAll('\\', '/');
+      const own = roots
+        .map((root) => `${root.replaceAll('\\', '/')}/skills/`)
+        .find((dir) => file.startsWith(dir));
+      return own ? /^([a-z0-9-]+)\/SKILL\.md$/.exec(file.slice(own.length))?.[1] : undefined;
+    }
+    return name === 'run_command' ? skillRead(String(args?.CommandLine ?? ''), plugin) : undefined;
+  }
+  return skillRead([input.tool_input?.command ?? ''].flat().join(' '), plugin);
+}
+
+// The skill a shell line reads with a file reader, if it is one of this plugin's.
+function skillRead(line, plugin) {
   // The command as a string, without a `zsh -lc` style wrapper or quotes around it.
-  const command = [input.tool_input?.command ?? '']
-    .flat()
-    .join(' ')
+  const command = line
     .replace(/^\S*\b(?:ba|z)?sh -l?c\s+/, '')
     .replace(/^['"]|['"]$/g, '')
     .trim();
-  // The plugin's folder, then an optional version folder, then skills/<skill>/SKILL.md.
-  const path = new RegExp(`/${plugin}/(?:[^/\\s'"]+/)?skills/([a-z0-9-]+)/SKILL\\.md`);
+  const path = skillPath(plugin);
   // A command in the chain that starts with a file reader and reads the skill's own file.
   for (const part of commandsOf(command)) {
     if (READERS.test(part)) {
@@ -82,11 +104,15 @@ function record() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const manifest = join(root, '.claude-plugin', 'plugin.json');
   const plugin = JSON.parse(readFileSync(manifest, 'utf8')).name;
-  const skill = skillOf(input, plugin);
+  const skill = skillOf(input, plugin, [root, realpathSync(root)]);
   if (!SKILL_NAME.test(skill ?? '')) return;
   if (!existsSync(join(root, 'skills', skill, 'SKILL.md'))) return;
-  // Codex sends a turn id with every hook; Claude Code doesn't.
-  const host = input.turn_id === undefined ? 'claude-code' : 'codex';
+  // Antigravity sends the call as toolCall; Codex sends a turn id with every hook; Claude Code doesn't.
+  const host = input.toolCall
+    ? 'antigravity'
+    : input.turn_id === undefined
+      ? 'claude-code'
+      : 'codex';
   const file = join(homedir(), '.sidecut', 'skill-log.jsonl');
   mkdirSync(dirname(file), { recursive: true });
   appendFileSync(

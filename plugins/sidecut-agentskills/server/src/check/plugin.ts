@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { antigravityFiles } from '../antigravity.ts';
 import {
   brandColorOf,
   displayNameOf,
@@ -17,6 +18,7 @@ import { checkServer } from './server.ts';
 import { checkSkills } from './skills.ts';
 
 const PLUGIN_ENTRIES = new Set([
+  '.antigravity-plugin',
   '.claude-plugin',
   '.codex-plugin',
   '.app.json',
@@ -29,6 +31,8 @@ const PLUGIN_ENTRIES = new Set([
   'agents',
   'codex',
   'hooks',
+  'hooks.json',
+  'mcp_config.json',
   'server',
   'skills',
 ]);
@@ -117,6 +121,49 @@ function pngSize(path: string): [number, number] | null {
   const bytes = readFileSync(path);
   if (bytes.length < 24 || bytes.toString('ascii', 12, 16) !== 'IHDR') return null;
   return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
+}
+
+/**
+ * Antigravity's manifest, MCP config and hooks follow from the Claude Code and Codex files, which
+ * the rest of the checker holds to the house style. Sync writes them; here they must match.
+ */
+function checkAntigravity(pluginDir: string, root: string, report: Report): void {
+  const want = antigravityFiles(pluginDir);
+  if (!want) return; // MANIFEST_MISSING or JSON_INVALID already names the cause
+  const sync =
+    'Run `npm exec --no -- sidecut-sync`, which writes it from the Claude Code and Codex files.';
+  for (const { path, text } of want) {
+    const full = join(pluginDir, path);
+    const file = relative(root, full);
+    const have = existsSync(full) ? readFileSync(full, 'utf8') : null;
+    if (text === null) {
+      if (have !== null)
+        report.add(
+          'ANTIGRAVITY_UNEXPECTED',
+          file,
+          undefined,
+          `${path} has nothing to describe: the plugin has no ${path === 'mcp_config.json' ? '.mcp.json' : 'usage log hook'}.`,
+          'Delete it.',
+        );
+      continue;
+    }
+    if (have === null) {
+      report.add('ANTIGRAVITY_MISSING', file, undefined, `${path} is missing.`, sync);
+      continue;
+    }
+    let same = false;
+    try {
+      same = sameJson(JSON.parse(have), JSON.parse(text));
+    } catch {}
+    if (!same)
+      report.add(
+        'ANTIGRAVITY_SYNC',
+        file,
+        undefined,
+        `${path} doesn't match the plugin's Claude Code and Codex files.`,
+        sync,
+      );
+  }
 }
 
 function checkLayout(pluginDir: string, root: string, report: Report): void {
@@ -939,6 +986,7 @@ export function checkPlugin(
   const tools = checkMcp(pluginDir, id, root, report);
   const skills = checkSkills(pluginDir, root, report, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report);
+  checkAntigravity(pluginDir, root, report);
   if (repoName)
     checkEvals(
       skills.map((s) => s.name),

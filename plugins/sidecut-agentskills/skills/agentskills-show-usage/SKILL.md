@@ -16,7 +16,7 @@ Count the plugin skills that ran over a period, by plugin, skill and host, and s
 4. For each host, give the newest other line. If one host's newest is days older than the other's, say recording may be off there. A missing file or a host with no lines only means nothing was recorded, not that the log is off.
 5. Count runs per plugin, per skill and per host.
 6. Name skills that never ran only among the plugin skills loaded in this session, and only for plugins whose loaded root has `hooks/post-tool-use-skill-log.mjs`. Say the list covers this host's plugins only.
-7. Say what the log never records: plugins without the hook, and Codex skills put straight into the prompt by a `$` mention without a file read. Draw no conclusion from their absence.
+7. Say what the log never records: plugins without the hook, plugins synced before Agentskills 2.6.0 in Antigravity, and Codex skills put straight into the prompt by a `$` mention without a file read. Draw no conclusion from their absence.
 8. For more than a handful of rows, use `server/data/visual-reports.md` from the loaded plugin root for a small chart. Open it in the host's local browser view, not an Artifact or other hosted page, unless the user asks.
 9. Explain it in a few short lines and name the one thing most worth acting on, such as a recorded skill that never starts or recording that has stopped in one host.
 

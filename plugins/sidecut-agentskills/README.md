@@ -36,13 +36,20 @@ codex plugin marketplace add SidecutStudio/sidecut-agentskills
 codex plugin add sidecut-agentskills@sidecut-agentskills
 ```
 
+In Antigravity, install the plugin folder from a clone:
+
+```bash
+git clone https://github.com/SidecutStudio/sidecut-agentskills
+agy plugin install ./sidecut-agentskills/plugins/sidecut-agentskills
+```
+
 ## Use
 
 - "Make me a plugin that keeps my release checklist and runs it before every tag."
 - "Is my notes plugin ready to publish?"
 - "Bring my old deploy plugin up to the Agentskills template without losing anything."
 
-The repos it makes run four commands from it: `npm exec --no -- sidecut-check` checks a repo against the house style, `npm exec --no -- sidecut-sync` applies the shared files and tool versions from the pinned release, `sidecut-icon` draws a Sidecut-style icon, and `sidecut-version` syncs the version across manifests and changelogs. Skill references in `agentskills-build-mcp-server` and `agentskills-design-workflow` also cover adapting plugins for Gemini/Antigravity.
+The repos it makes run four commands from it: `npm exec --no -- sidecut-check` checks a repo against the house style, `npm exec --no -- sidecut-sync` applies the shared files and tool versions from the pinned release, `sidecut-icon` draws a Sidecut-style icon, and `sidecut-version` syncs the version across manifests and changelogs. Every plugin it makes also installs in Antigravity: sync writes its `.antigravity-plugin/plugin.json`, `mcp_config.json` and `hooks.json` from the Claude Code and Codex files.
 
 ## Settings
 

@@ -11,6 +11,7 @@ import {
   OWNED_FILES,
   planSync,
   pluginOwnedFile,
+  pluginSyncFiles,
 } from '../plugins/sidecut-agentskills/server/src/check/sync.ts';
 import { ownVersion } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
@@ -53,6 +54,7 @@ if (!values.check && !values.force) {
     ...OWNED_FILES,
     ...BLOCK_FILES,
     pluginOwnedFile(who.id),
+    ...pluginSyncFiles(who.id),
     ...guideMoveFiles(root, who.id),
     'package.json',
     'package-lock.json',
@@ -77,8 +79,12 @@ if (!values.check && !values.force) {
 }
 
 const keys = Object.keys(who.keep);
-const changes = planSync(root, { id: who.id, repo: who.repo, version: ownVersion }, (file) =>
-  keys.some((key) => keepCovers(key, 'REPO_SYNC', file)),
+// A file is kept by its path, by `REPO_SYNC <file>`, or by the plugin rule that reports it.
+const changes = planSync(root, { id: who.id, repo: who.repo, version: ownVersion }, (file, code) =>
+  keys.some(
+    (key) =>
+      keepCovers(key, 'REPO_SYNC', file) || (code !== undefined && keepCovers(key, code, file)),
+  ),
 );
 if (changes.length === 0) {
   console.log(`Up to date with sidecut-agentskills v${ownVersion}.`);

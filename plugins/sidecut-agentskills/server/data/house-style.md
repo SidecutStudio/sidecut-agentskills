@@ -134,11 +134,13 @@ codex plugin add <plugin-id>@<plugin-id>
 
 ```text
 plugins/<plugin-id>/
+  .antigravity-plugin/plugin.json  Antigravity manifest, written by sidecut-sync
   .claude-plugin/plugin.json  Claude Code manifest
   .codex-plugin/plugin.json   Codex manifest
   .app.json                   registered app connector, only when bundled
   .mcp.json                   Claude Code MCP config, only with an MCP server
   mcp.json                    Codex MCP config, only with an MCP server
+  mcp_config.json             Antigravity MCP config, written by sidecut-sync from .mcp.json
   CHANGELOG.md                copy of the repo's, kept identical
   LICENSE                     copy of the repo's, kept identical
   README.md                   copy of the repo's, kept identical
@@ -147,6 +149,7 @@ plugins/<plugin-id>/
   codex/agents/<prefix>-<role>.toml  Codex profile of each subagent, generated
   hooks/hooks.json            Claude Code hooks, only with hooks
   hooks/codex-hooks.json      Codex hooks, the same scripts
+  hooks.json                  Antigravity hooks, written by sidecut-sync, only with the usage log hook
   hooks/<event>-<what>.mjs
   server/index.mjs            bundled MCP server, generated
   server/THIRD_PARTY_LICENSES.txt  licence notices of the packages the bundle inlines, generated
@@ -158,7 +161,7 @@ plugins/<plugin-id>/
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Slash commands | None; skills are invocable on their own | yes |
-| Hosts | Claude Code and Codex only | yes |
+| Hosts | Claude Code, Codex and Antigravity only | yes |
 | Copies of repo files | Byte-identical to the repo root | yes |
 | Empty folders | None | yes |
 | Icon | `npm exec --no -- sidecut-icon <lucide-name>` draws it: a near-black rounded tile, one white [Lucide](https://lucide.dev/icons) mark and a full stop in the brand color. One mark per plugin, never another plugin's | no |
@@ -181,6 +184,16 @@ Claude Code reads only `.claude-plugin/plugin.json`. Codex reads `.codex-plugin/
 | Codex extra fields | After the shared fields: `skills` (`./skills/`), `mcpServers` (`./mcp.json`) with an MCP server, `apps` (`./.app.json`) with a registered connector, `hooks` (`./hooks/codex-hooks.json`) with hooks, then `interface` last | yes |
 | `interface`, in order | `displayName`, `shortDescription` (the description), `longDescription` (2 or 3 sentences), `developerName` (`<author>`), `category`, `capabilities`, `websiteURL`, `defaultPrompt` (1 to 3 prompts, each at most 128 characters), `brandColor` (the configured brand color), `composerIcon` and `logo` (both `./assets/icon.png`) | yes |
 | Unknown fields | None | yes |
+
+### Antigravity
+
+Antigravity reads `.antigravity-plugin/plugin.json`, the manifest a plugin that also ships `.claude-plugin/` uses, and the same `skills/` folder. It ignores `.mcp.json`, `mcp.json` and `hooks/`, so a plugin carries Antigravity's own `mcp_config.json` and `hooks.json` at its root. All three follow from the Claude Code and Codex files: scaffolding writes them, `sidecut-sync` rewrites them, and the checker reports any other content as `ANTIGRAVITY_SYNC`, a missing one as `ANTIGRAVITY_MISSING` and one with nothing to describe as `ANTIGRAVITY_UNEXPECTED`.
+
+| Item | Rule | Checked |
+| --- | --- | --- |
+| Manifest, in order | `$schema` (`https://antigravity.google/schemas/v1/plugin.json`), `name`, `displayName` (the Codex `interface.displayName`), `version`, `description`, `logo` (`assets/icon.png`), `suggestedPrompts` (the Codex `defaultPrompt`), then `author`, `homepage`, `repository`, `license` and `keywords` as in the Claude Code manifest | yes |
+| `mcp_config.json` | With `.mcp.json` only: the same servers under the same keys. A local server is `"command": "node"` with `"args": ["${PLUGIN_ROOT}/server/index.mjs"]`, the root variable Antigravity fills in; a remote one is its `url` alone | yes |
+| `hooks.json` | With the usage log hook only: a `skill-log` group running `node ./hooks/post-tool-use-skill-log.mjs` after `view_file` and `run_command`, from the plugin's folder, as Antigravity runs plugin hooks. Other hooks have no Antigravity equivalent yet | yes |
 
 ## MCP servers
 
@@ -297,7 +310,7 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 | Timeout | Every hook sets `"timeout"` of at most 5 | yes |
 | Scripts | Node ESM, built-in modules only, no network, exit 0 even when they fail themselves | yes |
 | Output | Nothing on stdout unless the hook's job is to add context | review |
-| Usage log hook | `post-tool-use-skill-log.mjs` is byte-identical to the template's copy | yes |
+| Usage log hook | `post-tool-use-skill-log.mjs` is byte-identical to the template's copy, which `sidecut-sync` restores. It also counts Antigravity's skill reads, through the root `hooks.json` | yes |
 | Registration | Every script in `hooks/` is registered in both files and every registered file exists; a test pins the list | yes |
 
 ## Usage log
@@ -306,9 +319,9 @@ The only telemetry a plugin made with Agentskills has.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Trigger | `PostToolUse`: matcher `Skill` in Claude Code; matcher `Bash` in Codex, which has no skill tool and opens a skill by reading its `SKILL.md` with a shell command (openai/codex#17132). A skill Codex puts straight into the prompt, without a read, isn't logged | yes |
+| Trigger | `PostToolUse`: matcher `Skill` in Claude Code; matcher `Bash` in Codex, which has no skill tool and opens a skill by reading its `SKILL.md` with a shell command (openai/codex#17132). A skill Codex puts straight into the prompt, without a read, isn't logged. Matcher `view_file|run_command` in Antigravity, which reads a skill's `SKILL.md` with either. Antigravity's `view_file` is its ordinary file reader, so only a successful first read of a `SKILL.md` inside the installed plugin's own folder counts | yes |
 | Switch | On by default, because nothing leaves the machine; `SIDECUT_SKILL_LOG=0`, `DO_NOT_TRACK=1` or a CI environment turns it off; tests in the template prove all three | yes |
-| Record | One JSON line per skill run with `time`, `plugin`, `skill`, `host` and nothing else | yes |
+| Record | One JSON line per skill run with `time`, `plugin`, `skill`, `host` (`claude-code`, `codex` or `antigravity`) and nothing else | yes |
 | Location | `~/.sidecut/skill-log.jsonl`, never sent anywhere | yes |
 | Ownership | Records only this plugin's skills | yes |
 | Mentions in skills | None; skills never ask the agent to log, report or send feedback. A skill that reads usage back to the user, as `agentskills-show-usage` does, is the one exception | review |
@@ -346,7 +359,7 @@ Sections in this order:
 
 1. `# <Display name>`, then one paragraph that is the manifest description.
 2. `## What it does`: a table with columns `Skill` and `Does`, one row per skill, using each description's first sentence.
-3. `## Install`: the install commands in a code block, with a short `#` comment naming the host where it helps. In a public repo, the steps under Install source; in a private repo, install from the shared marketplace that lists it, in Claude Code and Codex. No command output.
+3. `## Install`: the install commands in a code block, with a short `#` comment naming the host where it helps. In a public repo, the steps under Install source; in a private repo, install from the shared marketplace that lists it, in Claude Code and Codex. Antigravity installs the plugin folder from a clone with `agy plugin install`. No command output.
 4. `## Use`: 2 or 3 example requests. A plugin built around a file people write, such as a definition or a config, ends the section with one complete example of that file, with a short comment on each line that needs one.
 5. `## Settings`: a table of environment variables with default and meaning, or the line "None." A plugin with hooks then says Codex runs them only once trusted.
 6. `## Privacy`: every field the usage log records and where it goes, or the line "This plugin records nothing."
@@ -377,6 +390,7 @@ sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecu
 | `CLAUDE.md`, `scripts/build-server.ts`, `scripts/release.ts` | The whole file | Nothing |
 | `.gitignore`, `AGENTS.md`, `SECURITY.md` | The block between `sidecut:start house-style` and `sidecut:end house-style` | Everything outside it |
 | `package.json` | `packageManager` and the versions of Biome, TypeScript, Lefthook, `@types/node` and `sidecut-agentskills`, which sync only ever raises | Everything else |
+| `hooks/post-tool-use-skill-log.mjs`, `.antigravity-plugin/plugin.json`, `mcp_config.json`, `hooks.json` in the plugin | The whole file: the hook is the template's copy, and Antigravity's files are written from the Claude Code and Codex ones. They're reported under their own rules (`HOOK_SKILL_LOG`, `ANTIGRAVITY_*`), and a keep under that rule or the file's path stops sync rewriting them | Nothing |
 
 | Item | Rule | Checked |
 | --- | --- | --- |

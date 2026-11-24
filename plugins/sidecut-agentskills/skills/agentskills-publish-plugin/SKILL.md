@@ -30,7 +30,7 @@ A repo with `.github/workflows/release.yml` makes a tag release (step 2). A plug
 The change to publish is merged to `main` first. For either release type, reuse existing publication authorization. If it is missing, use the user-input guidance after preparing the version and before the first action that publishes it.
 
 1. On a branch, add the dated version entry to the top of the root CHANGELOG.
-2. Run `npm exec --no -- sidecut-version <version>` (in Agentskills itself, `node scripts/version.ts <version>`). It updates the package and lockfile versions, both host manifests and the plugin CHANGELOG. In older repositories, follow their own version instructions.
+2. Run `npm exec --no -- sidecut-version <version>` (in Agentskills itself, `node scripts/version.ts <version>`). It updates the package and lockfile versions, every host manifest and the plugin CHANGELOG. In older repositories, follow their own version instructions.
 3. Run `npm run check`, then merge through the repo's own flow once its required checks pass. The merge is the release: after Check passes on `main`, the Release workflow tags the merge commit `v<version>` and publishes the GitHub Release with its ZIP and checksum.
 4. Confirm the release in the plugin's own repo: `gh release view v<version> --repo <org>/<repo>` shows it published, not a draft, with `<plugin-id>-<version>.zip` and its `.sha256`, and `gh api repos/<org>/<repo>/commits/v<version> --jq .sha` is the merge commit. If the Release run failed, read its log and re-run it; never tag by hand.
 5. With a shared marketplace, point its entry at the new tag the way that repo says, and merge that change through its own checks.
@@ -40,7 +40,7 @@ The change to publish is merged to `main` first. For either release type, reuse 
 
 The product repo has no plugin tags or Release workflow, so the merge commit on `main` is the release.
 
-1. With the change, or on its own branch, set the new version in `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` under `plugins/<plugin-id>/`. Add an entry to `plugins/<plugin-id>/CHANGELOG.md` in the same format.
+1. With the change, or on its own branch, set the new version in `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `.antigravity-plugin/plugin.json` under `plugins/<plugin-id>/`, or run `npm exec --no -- sidecut-version <version>`, which sets all of them. Add an entry to `plugins/<plugin-id>/CHANGELOG.md` in the same format.
 2. Merge to `main` through that repo's own flow and checks, read from its `AGENTS.md`. Take the full 40-character merge commit from the merged PR: `gh pr view <number> --repo <org>/<repo> --json mergeCommit --jq .mergeCommit.oid`. Don't use the newest `main` commit, which a later sync may have moved past it.
 3. Point the shared marketplace's entry at that commit the way its repo says, and merge that change.
 

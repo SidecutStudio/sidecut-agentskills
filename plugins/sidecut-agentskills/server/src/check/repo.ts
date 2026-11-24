@@ -800,7 +800,9 @@ export function checkRepo(root: string, report: Report): void {
     }
   }
   // Kept files still get a REPO_SYNC problem here, so applyKeep can tell a stale keep from a live one.
-  for (const change of planSync(root, { id, repo: repoName, version: ownVersion }))
+  for (const change of planSync(root, { id, repo: repoName, version: ownVersion })) {
+    // The plugin check already names these under their own rule.
+    if (change.code) continue;
     report.add(
       'REPO_SYNC',
       change.file,
@@ -808,6 +810,7 @@ export function checkRepo(root: string, report: Report): void {
       change.what,
       'Run `npm exec --no -- sidecut-sync`. If this repo got it right, change the template in sidecut-agentskills instead.',
     );
+  }
   const security = join(root, 'SECURITY.md');
   if (existsSync(security)) {
     const text = readFileSync(security, 'utf8');

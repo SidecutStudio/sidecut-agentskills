@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -58,8 +58,12 @@ export function syncVersion(version: string, root = process.cwd(), check = false
     return contents.replace(versionLine, (_, start, end) => `${start}${version}${end}`);
   };
   lock.version = lock.packages[''].version = version;
+  // Antigravity's manifest joined in 2.6.0; a repo synced before then doesn't have it yet.
+  const hosts = ['.claude-plugin', '.codex-plugin', '.antigravity-plugin'].filter(
+    (host) => host !== '.antigravity-plugin' || existsSync(join(root, plugin, host, 'plugin.json')),
+  );
   const derived = [
-    ...['.claude-plugin', '.codex-plugin'].map((host) => {
+    ...hosts.map((host) => {
       const path = `${plugin}/${host}/plugin.json`;
       const manifest = JSON.parse(read(path));
       if (manifest.name !== pkg.name) throw new Error(`Plugin identity differs in ${path}.`);

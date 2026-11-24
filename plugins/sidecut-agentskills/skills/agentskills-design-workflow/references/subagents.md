@@ -49,7 +49,7 @@ Codex runs a subagent with the parent session's permissions; `tools` limits it o
 
 ## In Gemini / Antigravity
 
-When adapting a plugin for Antigravity (`~/.gemini/config/plugins/<name>/`), write `agents/<role>.md` with `subagent: true`, `mainAgent: false`, and native tool names (`read_file`, `edit_file`, `write_file`, `run_command`, `manage_task`, `search_web`), dropping `model` and `color`. Prefix `name` (for example `agentskills-reviewer`) if it clashes with a built-in or another plugin's agent.
+Sync doesn't write Antigravity agents. When a plugin needs one there (installed under `~/.gemini/config/plugins/<name>/`), write `agents/<role>.md` with `subagent: true`, `mainAgent: false`, and native tool names (`read_file`, `edit_file`, `write_file`, `run_command`, `manage_task`, `search_web`), dropping `model` and `color`. Prefix `name` (for example `agentskills-reviewer`) if it clashes with a built-in or another plugin's agent.
 
 ## Rules
 

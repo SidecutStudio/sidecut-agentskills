@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { antigravityFiles } from '../plugins/sidecut-agentskills/server/src/antigravity.ts';
 import {
   bunlessToolSteps,
   checkRepo,
@@ -112,6 +113,15 @@ function codes(root: string): string[] {
   return report.problems.map((p) => p.code);
 }
 
+/** Brings Antigravity's files in line with the edited Claude Code and Codex ones, as sync would. */
+function agree(repo: Repo): Repo {
+  for (const { path, text } of antigravityFiles(join(repo.root, P)) ?? []) {
+    if (text === null) rmSync(join(repo.root, P, path), { force: true });
+    else repo.write(`${P}/${path}`, text);
+  }
+  return repo;
+}
+
 function managedConnector(): Repo {
   const repo = copy();
   for (const path of ['.mcp.json', 'mcp.json']) {
@@ -126,7 +136,7 @@ function managedConnector(): Repo {
     for (const key of Object.keys(value)) delete value[key];
     Object.assign(value, fields, { apps: './.app.json', hooks, interface: ui });
   });
-  return repo;
+  return agree(repo);
 }
 
 describe('managed connectors', () => {
@@ -141,6 +151,7 @@ describe('managed connectors', () => {
     repo.json(`${P}/.codex-plugin/plugin.json`, (value) => {
       delete value.mcpServers;
     });
+    agree(repo);
     expect(codes(repo.root)).toEqual([]);
   });
 
@@ -433,6 +444,21 @@ const cases: [string, (repo: Repo) => void][] = [
     (r) => r.write(`${P}/agents/reviewer.md`, '# Reviewer\n\nReviews code.\n'),
   ],
   ['MANIFEST_MISSING', (r) => r.rm(`${P}/.codex-plugin/plugin.json`)],
+  ['ANTIGRAVITY_MISSING', (r) => r.rm(`${P}/.antigravity-plugin/plugin.json`)],
+  [
+    'ANTIGRAVITY_SYNC',
+    (r) =>
+      r.json(`${P}/.antigravity-plugin/plugin.json`, (v) => Object.assign(v, { version: '0.2.0' })),
+  ],
+  ['ANTIGRAVITY_SYNC', (r) => r.edit(`${P}/mcp_config.json`, (t) => t.replace('PLUGIN_ROOT', 'X'))],
+  [
+    'ANTIGRAVITY_UNEXPECTED',
+    (r) => {
+      r.rm(`${P}/hooks/post-tool-use-skill-log.mjs`);
+      r.rm(`${P}/hooks/hooks.json`);
+      r.rm(`${P}/hooks/codex-hooks.json`);
+    },
+  ],
   [
     'MANIFEST_FIELDS',
     (r) =>
@@ -742,6 +768,7 @@ test('a repo that kept an older name still gets the repo checks when its package
   repo.json(`${P}/.codex-plugin/plugin.json`, (v) =>
     Object.assign(v, { repository: 'https://github.com/SidecutStudio/demo' }),
   );
+  agree(repo);
   repo.write('CLAUDE.md', 'Read AGENTS.md.\n');
   // Both CLAUDE.md and the security advisory link, which now names the repo.
   expect(codes(repo.root)).toEqual(['REPO_SYNC', 'REPO_SYNC']);
@@ -758,7 +785,7 @@ function appRepo(): Repo {
     );
   repo.write('src/main.ts', 'export {};\n');
   repo.rm('CLAUDE.md');
-  return repo;
+  return agree(repo);
 }
 
 test('an app repo whose package names the plugin gets the plugin checks only', () => {
@@ -826,6 +853,7 @@ describe('install source', () => {
     '```text',
     `/plugin install ${ID}@sidecut-plugins      # Claude Code`,
     `codex plugin add ${ID}@sidecut-plugins     # Codex`,
+    `agy plugin install ./${ID}/plugins/${ID}   # Antigravity, in a clone of SidecutStudio/${ID}`,
     '```',
     '',
   ].join('\n');
@@ -842,6 +870,13 @@ describe('install source', () => {
     '```bash',
     `codex plugin marketplace add SidecutStudio/${ID}`,
     `codex plugin add ${ID}@${ID}`,
+    '```',
+    '',
+    'In Antigravity, install the plugin folder from a clone:',
+    '',
+    '```bash',
+    `git clone https://github.com/SidecutStudio/${ID}`,
+    `agy plugin install ./${ID}/plugins/${ID}`,
     '```',
     '',
   ].join('\n');

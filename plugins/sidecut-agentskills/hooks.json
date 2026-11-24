@@ -1,0 +1,16 @@
+{
+  "skill-log": {
+    "PostToolUse": [
+      {
+        "matcher": "view_file|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/post-tool-use-skill-log.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
