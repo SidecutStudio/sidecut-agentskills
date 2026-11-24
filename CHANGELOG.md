@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.3] - 2026-11-24
+
+### Changed
+
+- Refreshed `README.md`, `AGENTS.md`, and `server/data/house-style.md` to match current repository layout (`bin/`, `evals/`, `scripts/`), CLI commands (`sidecut-icon`, `sidecut-version`), `SCAN_TEXT` rules, and Gemini/Antigravity guidance.
+
 ## [2.4.2] - 2026-11-24
 
 ### Changed

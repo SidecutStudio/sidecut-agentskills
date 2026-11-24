@@ -42,7 +42,7 @@ codex plugin add sidecut-agentskills@sidecut-agentskills
 - "Is my notes plugin ready to publish?"
 - "Bring my old deploy plugin up to the Agentskills template without losing anything."
 
-The repos it makes run two commands from it: `npm exec --no -- sidecut-check` checks a repo against the house style, and `npm exec --no -- sidecut-sync` applies the shared files and tool versions from the pinned release.
+The repos it makes run four commands from it: `npm exec --no -- sidecut-check` checks a repo against the house style, `npm exec --no -- sidecut-sync` applies the shared files and tool versions from the pinned release, `sidecut-icon` draws a Sidecut-style icon, and `sidecut-version` syncs the version across manifests and changelogs. Skill references in `agentskills-build-mcp-server` and `agentskills-design-workflow` also cover adapting plugins for Gemini/Antigravity.
 
 ## Settings
 

@@ -33,7 +33,7 @@ Scaffolding reads the call's answers, then the user's file, then the defaults; a
 
 ## Repo layout
 
-A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/<org>/<plugin-id>`. A repo that kept its older name, the plugin id without `<prefix>`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bunfig.toml` when used, `docs/` for longer documentation, such as a specification, a `.claude/` folder that holds only worktrees Claude Code registered under `.claude/worktrees/` and files `.gitignore` ignores, and a `.codex/` folder that holds only files `.gitignore` ignores, such as the subagent profiles under `.codex/agents/`. A public repo also has its install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, described under Install source.
+A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/<org>/<plugin-id>`. A repo that kept its older name, the plugin id without `<prefix>`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bin/`, `vitest.config.ts`, `VOICE.md`, and `RELEASING.md` when used, `docs/` for longer documentation, such as a specification, a `.claude/` folder that holds only worktrees Claude Code registered under `.claude/worktrees/` and files `.gitignore` ignores, and a `.codex/` folder that holds only files `.gitignore` ignores, such as the subagent profiles under `.codex/agents/`. A public repo also has its install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, described under Install source.
 
 A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `sidecut.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
 
@@ -50,6 +50,7 @@ LICENSE
 README.md
 SECURITY.md
 biome.json
+evals/
 package-lock.json
 lefthook.yml
 package.json
@@ -407,4 +408,4 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 | Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses runners of its own or actions from a private repo | yes |
 | Private repo CI | Keeps the runner picker, whose budget guard stops hosted jobs near the monthly credit; the checker can't tell a private repo from a public one, so a hosted-only private repo is caught in review | review |
 | Merge gate | The release script requires the `check` and `secrets` jobs to pass on the release commit; a profile's workflow file may set its own list, which has to include `check` | yes |
-| Scan text | No shipped text file outside the server's bundle and source names credentials, CI secrets, your own CI runners or a download-and-run install, since Claude's plugin scan may then mark the plugin Caution; CI lines like these come from the server's code, and a plugin whose job is that text lists its files under `scanTextAllow` in `.agentskills.json` and says what it does with them in the README | advisory |
+| Scan text | No shipped text file outside the server's bundle and source names credentials, CI secrets, your own CI runners, unpinned package launchers, SSH key paths, OS credential stores, or a download-and-run install, since Claude's plugin scan may then mark the plugin Caution; CI lines like these come from the server's code, and a plugin whose job is that text lists its files under `scanTextAllow` in `.agentskills.json` and says what it does with them in the README | advisory |

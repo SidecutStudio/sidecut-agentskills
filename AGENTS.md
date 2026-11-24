@@ -6,7 +6,7 @@ This repo ships the Sidecut Agentskills plugin, the template every Sidecut plugi
 
 | Command | Does |
 | --- | --- |
-| `npm run build` | Bundles the MCP server into `plugins/sidecut-agentskills/server/index.mjs`, writes its bundled licences and the reviewer's Codex profile |
+| `npm run build` | Bundles the MCP server into `plugins/sidecut-agentskills/server/index.mjs`, writes its bundled licences and the reviewer's Codex profile, and builds the `bin/` CLIs (`node scripts/build-cli.ts`) |
 | `npm run check` | Runs everything CI runs: Biome, types, the house-style checker, tests and the stale-bundle check |
 | `npm run fix` | Formats and fixes what Biome can |
 | `npm run icon` | Draws a plugin icon in the Sidecut style from a Lucide icon name, for example `npm run icon blocks`; other repos run it as `npm exec --no -- sidecut-icon` |
@@ -18,12 +18,13 @@ This repo ships the Sidecut Agentskills plugin, the template every Sidecut plugi
 ## Layout
 
 ```text
+bin/                     built CLI entrypoints (check.mjs, icon.mjs, sync.mjs, version.mjs)
 plugins/sidecut-agentskills/
   server/src/              MCP server, generator (scaffold.ts) and checker (check/)
   server/data/             house style, patterns and the templates the generator copies
   skills/                  the plugin's skills
   agents/                  the reviewer subagent; codex/agents/ holds its generated Codex profile
-scripts/                   new.ts, check.ts and sync.ts (npm run new, sidecut-check, sidecut-sync), and release.ts, which the Release workflow runs
+scripts/                   new.ts, check.ts, sync.ts, build-server.ts, build-cli.ts, icon.ts, version.ts, eval.mjs and release.ts
 evals/                     development-only trigger and near-miss cases
 tests/                     checker and template tests
 ```
