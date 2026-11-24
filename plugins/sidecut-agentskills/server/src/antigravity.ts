@@ -62,14 +62,15 @@ export function antigravityMcp(claudeMcp: Json): Json {
 
 /**
  * Antigravity's hooks for a plugin with the usage log hook. Antigravity runs a plugin hook from the
- * plugin's folder and reads skills with `view_file`, or `run_command` for a shell read.
+ * plugin's folder and reads skills with `read_file` (its CLI) or `view_file` (its app), or
+ * `run_command` for a shell read.
  */
 export function antigravityHooks(): Json {
   return {
     'skill-log': {
       PostToolUse: [
         {
-          matcher: 'view_file|run_command',
+          matcher: 'read_file|view_file|run_command',
           hooks: [
             {
               type: 'command',

@@ -3,7 +3,7 @@
 // Sends nothing.
 // Claude Code runs a skill through its Skill tool. Codex has no skill tool: it reads the skill's
 // SKILL.md with a shell command, so a Bash call that reads one of this plugin's SKILL.md files counts.
-// Antigravity reads it with view_file, or with a shell command through run_command.
+// Antigravity reads it with read_file (view_file in its app), or a shell command through run_command.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -37,14 +37,15 @@ function skillOf(input, plugin, roots) {
     const [namespace, skill] = String(input.tool_input?.skill ?? '').split(':');
     return namespace === plugin ? skill : undefined;
   }
-  // Antigravity sends the call as toolCall, and an error when it failed. view_file is its ordinary
-  // file reader, so only the first read of a SKILL.md inside this installed plugin counts.
+  // Antigravity sends the call as toolCall, and an error when it failed. read_file (view_file in the
+  // app) is its ordinary file reader, so only the first read of a SKILL.md inside this installed
+  // plugin counts.
   if (input.toolCall) {
     if (input.error) return undefined;
     const { name, args } = input.toolCall;
-    if (name === 'view_file') {
+    if (name === 'read_file' || name === 'view_file') {
       if (Number(args?.StartLine ?? 1) > 1) return undefined;
-      const file = String(args?.AbsolutePath ?? '').replaceAll('\\', '/');
+      const file = String(args?.Path ?? args?.AbsolutePath ?? '').replaceAll('\\', '/');
       const own = roots
         .map((root) => `${root.replaceAll('\\', '/')}/skills/`)
         .find((dir) => file.startsWith(dir));

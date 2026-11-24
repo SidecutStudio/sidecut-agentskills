@@ -62,7 +62,7 @@ function antigravityHooks() {
     "skill-log": {
       PostToolUse: [
         {
-          matcher: "view_file|run_command",
+          matcher: "read_file|view_file|run_command",
           hooks: [
             {
               type: "command",
