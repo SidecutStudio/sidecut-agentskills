@@ -43,6 +43,8 @@ When bridging over stdio with `mcp-remote`, use the same server key:
 
 Pass `--header "Key: ${ENV_VAR}"` in `args` only when a host substitutes environment variables and the server requires a header instead of OAuth, or `--transport sse-only` / `http-only` when transport negotiation fails. Never hardcode API keys or bearer tokens in `args`. Because `sidecut-check` expects direct HTTP (`type: "http"` and `url`) for remote servers and `node server/index.mjs` for stdio servers, list `MCP_LOCAL` and `SERVER_FILES` under `sidecut.keep` in `package.json` with the reason when a plugin ships an `mcp-remote` bridge.
 
+When adapting a plugin for Antigravity (`~/.gemini/config/plugins/<name>/mcp_config.json`), omit `"type": "http"` on remote `url` entries, declare any `${VAR}` placeholders in the server's `variables` array (Antigravity does not expand OS environment variables in plugin MCP configs), or bridge with `mcp-remote@0.16.7` when the server rejects Antigravity's OAuth origin.
+
 ## Managed app declaration
 
 Find the connector id in its installed `.app.json`, supported connector metadata or the owning registration. Copy it unchanged after checking the connector's name and endpoint. A plugin id, a plugin URL and an MCP endpoint are not connector ids; if the registration cannot be verified, resolve it before wiring the package.

@@ -47,6 +47,10 @@ Codex loads subagents only from a project's `.codex/agents/` or the user's `~/.c
 
 Codex runs a subagent with the parent session's permissions; `tools` limits it only in Claude Code. The profile says so, and anything that must not happen is stated in the body as an instruction.
 
+## In Gemini / Antigravity
+
+When adapting a plugin for Antigravity (`~/.gemini/config/plugins/<name>/`), write `agents/<role>.md` with `subagent: true`, `mainAgent: false`, and native tool names (`read_file`, `edit_file`, `write_file`, `run_command`, `manage_task`, `search_web`), dropping `model` and `color`. Prefix `name` (for example `agentskills-reviewer`) if it clashes with a built-in or another plugin's agent.
+
 ## Rules
 
 - Give it only the tools its job needs.

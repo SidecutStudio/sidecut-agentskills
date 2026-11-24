@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.2] - 2026-11-24
+
+### Changed
+
+- `agentskills-build-mcp-server` and `agentskills-design-workflow` document Antigravity/Gemini (`mcp_config.json`, `variables`, and `agents/<role>.md` with `subagent: true` and native tool names) alongside Claude Code and Codex.
+
 ## [2.4.1] - 2026-11-24
 
 ### Changed
