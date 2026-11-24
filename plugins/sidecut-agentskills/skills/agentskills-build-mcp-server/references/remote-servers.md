@@ -5,6 +5,7 @@ Read this when a plugin connects to an existing hosted MCP server or bundles its
 ## Choose the connection
 
 - **Direct MCP:** use the verified server endpoint in `.mcp.json` for Claude Code and `mcp.json` for Codex. Let the host handle authentication.
+- **Stdio bridge (`mcp-remote`):** when a host lacks native remote OAuth, rejects the host's OAuth origin or redirect (such as `Forbidden - origin invalid`), or only supports legacy SSE, bridge the remote endpoint over stdio with a pinned version such as `npx -y mcp-remote@0.16.7 <url>`. It runs a standard `http://localhost` OAuth callback in the browser.
 - **Managed app:** when the user wants an existing registered connector in the bundle, add `.app.json` and its Codex manifest reference. Confirm the connector's identity, endpoint and account access before editing.
 - **Both routes:** keep a direct MCP fallback when API-key sessions need it. Give it the same declaration name as the app, so Codex selects one route for that backend.
 
@@ -26,6 +27,21 @@ Both files use the plugin id without the configured prefix as the server key. Fo
 ```
 
 Use the actual verified endpoint. Keep tokens, credentials and secret headers out of the package; when the server needs a token, document how the client obtains it without storing it here.
+
+When bridging over stdio with `mcp-remote`, use the same server key:
+
+```json
+{
+  "mcpServers": {
+    "example": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@0.16.7", "https://example.com/mcp"]
+    }
+  }
+}
+```
+
+Pass `--header "Key: ${ENV_VAR}"` in `args` only when a host substitutes environment variables and the server requires a header instead of OAuth, or `--transport sse-only` / `http-only` when transport negotiation fails. Never hardcode API keys or bearer tokens in `args`. Because `sidecut-check` expects direct HTTP (`type: "http"` and `url`) for remote servers and `node server/index.mjs` for stdio servers, list `MCP_LOCAL` and `SERVER_FILES` under `sidecut.keep` in `package.json` with the reason when a plugin ships an `mcp-remote` bridge.
 
 ## Managed app declaration
 

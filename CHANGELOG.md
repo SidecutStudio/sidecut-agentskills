@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.4.1] - 2026-11-24
+
+### Changed
+
+- `agentskills-build-mcp-server` documents `mcp-remote` as a stdio bridge option in `references/remote-servers.md` for hosts without native remote OAuth, when OAuth origin/redirect checks fail, or for legacy SSE endpoints, along with `--header` and `--transport` flags.
+
 ## [2.4.0] - 2026-11-24
 
 ### Added
