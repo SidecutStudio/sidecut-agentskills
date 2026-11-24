@@ -365,11 +365,14 @@ test('the usage log hook records skill reads from Claude Code, Codex and Antigra
   for (const input of [
     { tool_name: 'Skill', tool_input: { skill: `${ID}:demo-check-status` } },
     { tool_name: 'Bash', tool_input: { command: `cat ${skill}` }, turn_id: 't1' },
-    { toolCall: { name: 'view_file', args: { AbsolutePath: skill } }, conversationId: 'c1' },
+    // agy reads with read_file and `Path`, as a real run on 2026-11-24 showed; the app uses view_file.
+    { toolCall: { name: 'read_file', args: { Path: skill } }, conversationId: 'c1' },
+    { toolCall: { name: 'view_file', args: { AbsolutePath: skill } }, conversationId: 'c2' },
     { toolCall: { name: 'run_command', args: { CommandLine: `head -5 ${skill}` } } },
     // A failed read, a later chunk, another copy of the plugin and another tool don't count.
     { toolCall: { name: 'view_file', args: { AbsolutePath: skill } }, error: 'not found' },
     { toolCall: { name: 'view_file', args: { AbsolutePath: skill, StartLine: 40 } } },
+    { toolCall: { name: 'read_file', args: { Path: skill, StartLine: 40 } } },
     {
       toolCall: {
         name: 'view_file',
@@ -386,6 +389,7 @@ test('the usage log hook records skill reads from Claude Code, Codex and Antigra
   expect(lines.map((l) => `${l.plugin} ${l.skill} ${l.host}`)).toEqual([
     `${ID} demo-check-status claude-code`,
     `${ID} demo-check-status codex`,
+    `${ID} demo-check-status antigravity`,
     `${ID} demo-check-status antigravity`,
     `${ID} demo-check-status antigravity`,
   ]);

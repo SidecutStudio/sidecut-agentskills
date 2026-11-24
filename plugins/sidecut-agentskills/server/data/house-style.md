@@ -193,7 +193,7 @@ Antigravity reads `.antigravity-plugin/plugin.json`, the manifest a plugin that 
 | --- | --- | --- |
 | Manifest, in order | `$schema` (`https://antigravity.google/schemas/v1/plugin.json`), `name`, `displayName` (the Codex `interface.displayName`), `version`, `description`, `logo` (`assets/icon.png`), `suggestedPrompts` (the Codex `defaultPrompt`), then `author`, `homepage`, `repository`, `license` and `keywords` as in the Claude Code manifest | yes |
 | `mcp_config.json` | With `.mcp.json` only: the same servers under the same keys. A local server is `"command": "node"` with `"args": ["${PLUGIN_ROOT}/server/index.mjs"]`, the root variable Antigravity fills in; a remote one is its `url` alone | yes |
-| `hooks.json` | With the usage log hook only: a `skill-log` group running `node ./hooks/post-tool-use-skill-log.mjs` after `view_file` and `run_command`, from the plugin's folder, as Antigravity runs plugin hooks. Other hooks have no Antigravity equivalent yet | yes |
+| `hooks.json` | With the usage log hook only: a `skill-log` group running `node ./hooks/post-tool-use-skill-log.mjs` after `read_file`, `view_file` and `run_command`, from the plugin's folder, as Antigravity runs plugin hooks. Other hooks have no Antigravity equivalent yet | yes |
 
 ## MCP servers
 
@@ -319,7 +319,7 @@ The only telemetry a plugin made with Agentskills has.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Trigger | `PostToolUse`: matcher `Skill` in Claude Code; matcher `Bash` in Codex, which has no skill tool and opens a skill by reading its `SKILL.md` with a shell command (openai/codex#17132). A skill Codex puts straight into the prompt, without a read, isn't logged. Matcher `view_file|run_command` in Antigravity, which reads a skill's `SKILL.md` with either. Antigravity's `view_file` is its ordinary file reader, so only a successful first read of a `SKILL.md` inside the installed plugin's own folder counts | yes |
+| Trigger | `PostToolUse`: matcher `Skill` in Claude Code; matcher `Bash` in Codex, which has no skill tool and opens a skill by reading its `SKILL.md` with a shell command (openai/codex#17132). A skill Codex puts straight into the prompt, without a read, isn't logged. Matcher `read_file|view_file|run_command` in Antigravity, whose CLI reads a skill's `SKILL.md` with `read_file` (`Path`), its app with `view_file` (`AbsolutePath`), or either with a shell command. Those are its ordinary file readers, so only a successful first read of a `SKILL.md` inside the installed plugin's own folder counts | yes |
 | Switch | On by default, because nothing leaves the machine; `SIDECUT_SKILL_LOG=0`, `DO_NOT_TRACK=1` or a CI environment turns it off; tests in the template prove all three | yes |
 | Record | One JSON line per skill run with `time`, `plugin`, `skill`, `host` (`claude-code`, `codex` or `antigravity`) and nothing else | yes |
 | Location | `~/.sidecut/skill-log.jsonl`, never sent anywhere | yes |

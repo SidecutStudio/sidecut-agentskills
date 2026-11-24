@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.6.1] - 2026-11-24
+
+### Fixed
+
+- The usage log hook counted skill runs in the Antigravity CLI, which reads a `SKILL.md` with `read_file` and a `Path` argument; 2.6.0 matched only the app's `view_file` and `AbsolutePath`. Antigravity's `hooks.json` now runs it after `read_file` too. Run `npm exec --no -- sidecut-sync` after updating the pin.
+
 ## [2.6.0] - 2026-11-24
 
 ### Added
