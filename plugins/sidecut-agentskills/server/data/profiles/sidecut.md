@@ -19,9 +19,9 @@ A repo with no answers file whose manifest points at a `SidecutStudio` repo is c
 | Item | Rule | Checked |
 | --- | --- | --- |
 | `solo-workflow.toml` | At the repo root; `required_checks` is the merge gate, includes `check`, and the release script reads it. `solo-workflow.local.toml` is ignored | yes |
-| AGENTS.md | Ends with the Sidecut Solo markers; the generator writes them empty, `solo-configure-project` fills them, and the checker skips the text between them | yes |
-| Merging | Through `solo-finish-change`, once the required checks pass on the latest commit | review |
-| Review level | The level `solo-review-change` reports, with `review_model` from the Solo settings | review |
+| AGENTS.md | Ends with the Sidecut Solo markers; the generator writes them empty, Solo project setup fills them, and the checker skips the text between them | yes |
+| Merging | Ask `solo` to deliver the change once the required checks pass on the latest commit | review |
+| Review level | Use the level Solo recommends for code review and `review_model` from the Solo settings | review |
 
 ### CI
 

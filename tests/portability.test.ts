@@ -128,6 +128,11 @@ test('shipped files name nothing private outside the sidecut profile', () => {
   expect(findings(root, files, PROFILE)).toEqual([]);
 });
 
+test('the Sidecut profile routes through Solo without naming specialist skills', () => {
+  const profile = readFileSync(join(root, `${plugin}/server/data/profiles/sidecut.md`), 'utf8');
+  expect(profile.match(/\bsolo-(?!workflow\b)[a-z0-9-]+\b/g) ?? []).toEqual([]);
+});
+
 test('every rule catches what it is for', () => {
   const samples = [
     'Bundle it into sidecut-plugins.',
