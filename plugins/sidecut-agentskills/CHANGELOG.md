@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.6.3] - 2026-11-25
+
+### Fixed
+
+- The Sidecut profile routes delivery through Solo and describes the review and setup jobs without naming specialist skills. A regression check catches direct skill references in the profile.
+
 ## [2.6.2] - 2026-11-24
 
 ### Changed
