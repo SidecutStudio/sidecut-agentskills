@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.6.2] - 2026-11-24
+
+### Changed
+
+- `VOICE.md` exempts skill descriptions, labels and manifest text from the Oxford comma. These are routing text with a length budget, and no Sidecut plugin's descriptions used it. Run `npm exec --no -- sidecut-sync` after updating the pin.
+
 ## [2.6.1] - 2026-11-24
 
 ### Fixed
