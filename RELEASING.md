@@ -1,6 +1,6 @@
 # Releasing Agentskills
 
-1. Add the dated release notes at the top of CHANGELOG.md. Run `node scripts/version.ts <version>` to set the npm package version and generate both host manifests, the lockfile version and the plugin changelog. Run `npm ci`, `npm run build` and `npm run check`. Commit the generated files with their sources.
+1. Add the dated release notes at the top of CHANGELOG.md. Run `node scripts/version.ts <version>` to set the npm package version and sync the lockfile, the Claude Code, Codex and Antigravity manifests, and the installed changelog. Run `npm ci`, `npm run build` and `npm run check`. Commit the generated files with their sources.
 2. Merge through the repo's own flow, in `AGENTS.md`, after the required checks pass. The Release workflow verifies the checked main commit, then publishes the stable tag, ZIP and SHA-256 checksum. Inspect the run and both assets in GitHub.
 3. Reconcile the shared marketplace from its own checkout. The public Claude Code and Codex catalogs live here and install from this repository.
 

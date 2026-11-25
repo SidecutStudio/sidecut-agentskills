@@ -41,6 +41,7 @@ tests/                     checker and template tests
 - The house style lives in `plugins/sidecut-agentskills/server/data/house-style.md`. Change a rule there, in the checker and in the templates together, and add a test to `tests/check.test.ts` for any rule the checker enforces.
 - A freshly generated repo has to pass its own `npm run check`; `tests/check.test.ts` proves it on every run.
 - Other repos depend on this one by tag for `sidecut-check`, so a change to a checker rule is a new version.
+- For versioning, release verification and marketplace handoff, follow [RELEASING.md](RELEASING.md).
 
 <!-- solo-workflow:start -->
 ## Sidecut Solo
