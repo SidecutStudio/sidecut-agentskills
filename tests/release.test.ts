@@ -3,6 +3,7 @@ import {
   findRelease,
   missingAssets,
   newerVersion,
+  onMain,
   releaseCommit,
   releasePlan,
   requiredChecksPass,
@@ -92,6 +93,13 @@ describe('release script', () => {
         [1],
       ),
     ).toBeUndefined();
+  });
+
+  test('a commit main has moved past is still on main', () => {
+    expect(onMain('identical')).toBe(true);
+    expect(onMain('ahead')).toBe(true);
+    expect(onMain('behind')).toBe(false);
+    expect(onMain('diverged')).toBe(false);
   });
 
   test('compares versions numerically', () => {

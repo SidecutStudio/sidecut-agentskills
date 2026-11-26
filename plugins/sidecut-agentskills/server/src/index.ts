@@ -196,7 +196,13 @@ server.registerTool(
     const target = absolute(out);
     if (!target) return failure('Give the folder as an absolute path.');
     try {
-      return text({ files: scaffoldPlugin(input, target) });
+      // The templates are those of the running server, which can be older than the latest release
+      // or than the version a repo pins; say which, so a rebuild can tell.
+      return text({
+        files: scaffoldPlugin(input, target),
+        templatesVersion: manifest.version,
+        note: `Written from sidecut-agentskills ${manifest.version}. When copying these files into a repo that pins another version, take them from that version instead: run npm exec --no -- sidecut-sync there.`,
+      });
     } catch (error) {
       if (error instanceof SettingsNeeded)
         return text({

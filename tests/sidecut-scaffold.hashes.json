@@ -1,6 +1,6 @@
 {
   ".github/workflows/check.yml": "4aa2d93c7978b88909f3f8e0aa7d5aef7e7b316298febcd736fb35dcdcd5f06c",
-  ".github/workflows/release.yml": "82328349eefaeb93519a9bcd27cfdd223816fb81b25a0339f41133d7643bcf13",
+  ".github/workflows/release.yml": "3888f0b484e75d122d85f61dd832df26f605016eb2123dfa2064aed030520977",
   ".gitignore": "dd5c0df697f464f16b51ff5cdb6decb537071f06892fda6de980fe9b01558280",
   "AGENTS.md": "0316f97f0a7f772c6ddf6f631dce9a8a2d8530b703227bab5b25137db5dc0302",
   "CHANGELOG.md": "bc1542932ba4a020a8d12255f705057d2f7921471affb8c47fd4765010f35c30",
@@ -36,7 +36,7 @@
   "plugins/sidecut-demo/skills/demo-check-status/agents/openai.yaml": "614d32f73ab289a1ddad5e7da74ebfe9cda3e099b2cb60726c7fd884136c4d36",
   "scripts/build-server.ts": "a1bdb7b2835c46537cdc635a78b2923b8dac9adcacbd2bf8acae50697830cd10",
   "scripts/eval.mjs": "54a192103b2a482e5b3decdf06a6d240c4422e7ad28adb6383b45d8fe44b715e",
-  "scripts/release.ts": "a238acbef545dd26feda0264930c4da4f93830f57faf1f8ff589991d87029919",
+  "scripts/release.ts": "7554cc95ed465f3dc840a97034427e738994842270b1f881a000b9faa927ee0c",
   "solo-workflow.toml": "95edf3c861b875e271f2d6165ca56c553954826ca55cfe2c3439a40ef18fb069",
   "tests/plugin.test.ts": "36857ef4165a29826b96b251c6f6d13b977a142acf69083e23aa3e30fb4ed8e7",
   "tests/setup.ts": "e5e68081aaf6a33cfe4c123efa2316151e7288bd5096b008f3a900d247a00693",

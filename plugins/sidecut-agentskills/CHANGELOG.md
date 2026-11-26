@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.1] - 2026-11-26
+
+### Fixed
+
+- Two quick merges each publish their own version. The release script used to quit when main had moved past its commit, so the earlier version was never tagged (sidecut-home 0.3.0 and 0.4.0). It now publishes any checked commit still on main, and marks it Latest only when no newer version is tagged. The template's Release workflow keeps every waiting run (`queue: max`), so a third quick merge no longer cancels the second one's release. This applies to the template's `scripts/release.ts`, so repos pick it up with `sidecut-sync`, and to this repo's own release script.
+- `scaffold_plugin` says which Agentskills version its templates came from (`templatesVersion`). A session's server can be older than the release a repo pins, and copying its files into that repo brought back old versions of `scripts/eval.mjs` and the usage-log hook. The rebuild skill now checks the version before copying.
+
 ## [2.8.0] - 2026-11-26
 
 ### Added

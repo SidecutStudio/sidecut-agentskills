@@ -50,7 +50,9 @@ const mutate = label => {
 };
 const release = () => ({tag_name:'v1.2.0', draft:state.draft, prerelease:false, assets:state.assets});
 if (args[0] === 'api') {
-  if (path.endsWith('/git/ref/heads/main')) {
+  if (path.includes('/compare/')) {
+    respond({status:process.env.STALE ? 'diverged' : 'ahead'});
+  } else if (path.endsWith('/git/ref/heads/main')) {
     respond({object:{sha:process.env.STALE ? 'other' : head}});
   } else if (path.endsWith('/git/matching-refs/tags/v')) {
     respond(state.tag ? [{ref:'refs/tags/v1.2.0',object:{sha:state.tag,type:'commit'}}] : []);
@@ -103,7 +105,8 @@ if (args[0] === 'api') {
           },
         });
       const state = () => JSON.parse(readFileSync(statePath, 'utf8'));
-      expect(publish(first, { STALE: '1' }).status).toBe(0);
+      // A commit that is no longer on main is refused before any write.
+      expect(publish(first, { STALE: '1' }).status).not.toBe(0);
       expect(state().writes).toEqual([]);
       expect(publish(first, { FAIL_UPLOAD: '1' }).status).not.toBe(0);
       expect(state().writes).toEqual(['tag', 'draft', 'sample-1.2.0.zip', 'starter']);
