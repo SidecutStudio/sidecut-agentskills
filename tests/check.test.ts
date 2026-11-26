@@ -691,7 +691,7 @@ const cases: [string, (repo: Repo) => void][] = [
   ],
   [
     'SOLO_REQUIRED',
-    (r) => r.edit('solo-workflow.toml', (t) => t.replace('["check", "secrets"]', '["secrets"]')),
+    (r) => r.edit('solo-workflow.toml', (t) => t.replace(/\["check"[^\]]*\]/, '["secrets"]')),
   ],
   ['REPO_COPY', (r) => r.append('README.md', '\nExtra line.\n')],
 ];
