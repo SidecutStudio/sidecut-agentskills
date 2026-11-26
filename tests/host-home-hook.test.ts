@@ -44,6 +44,11 @@ test.each([
   ['cat ~/.codex/config.toml'],
   [`cat ${homedir()}/.claude.json`],
   ['cd ~/.codex && ls'],
+  ['cat "$HOME/.codex/config.toml"'],
+  [`cat '${homedir()}/.claude.json'`],
+  ['timeout 20 codex mcp list'],
+  ['bash -c "codex mcp list | head"'],
+  ['npx --yes codex mcp list'],
 ])('refuses %s from the reviewer', (command) => {
   expect(decide(bash(command))).toBe('deny');
 });
@@ -56,6 +61,8 @@ test.each([
   ['npm run check'],
   ['git log | grep codex'],
   ['grep -rn "~/.codex" plugins'],
+  ['command -v codex'],
+  ['cat ~/.claude/plugins/cache/sidecut/sidecut-agentskills/2.11.0/server/data/house-style.md'],
 ])('lets %s through', (command) => {
   expect(decide(bash(command))).toBeUndefined();
 });
@@ -64,6 +71,11 @@ test('applies to the Codex profile and leaves other agents and the main session 
   expect(decide(bash('codex mcp list', 'agentskills_reviewer'))).toBe('deny');
   expect(decide(bash('codex mcp list', 'Explore'))).toBeUndefined();
   expect(decide({ tool_name: 'Bash', tool_input: { command: 'codex mcp list' } })).toBeUndefined();
+});
+
+test('resolves a relative path against the folder the call runs in', () => {
+  const input = { ...bash('cat ../../.codex/auth.json'), cwd: join(homedir(), 'Developer/repo') };
+  expect(decide(input)).toBe('deny');
 });
 
 test('refuses file tools pointed at a host config', () => {
@@ -81,6 +93,16 @@ test('refuses file tools pointed at a host config', () => {
     }),
   ).toBe('deny');
   expect(decide(read('/tmp/plugin/README.md'))).toBeUndefined();
+  expect(
+    decide({
+      agent_type: REVIEWER,
+      tool_name: 'Glob',
+      tool_input: { pattern: `${homedir()}/.codex/**` },
+    }),
+  ).toBe('deny');
+  expect(
+    decide({ agent_type: REVIEWER, tool_name: 'Grep', tool_input: { pattern: '~/.codex' } }),
+  ).toBeUndefined();
 });
 
 test('lets a call through when its input is not JSON', () => {

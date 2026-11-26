@@ -9,21 +9,25 @@ import { basename, resolve } from 'node:path';
 
 const OWN_AGENT = /^(?:sidecut-agentskills:|agentskills_)/;
 const HOSTS = {
-  codex: { variable: 'CODEX_HOME', home: '.codex', packages: /^@openai\/codex(?:@|$)/ },
+  codex: { variable: 'CODEX_HOME', packages: /^(?:@openai\/)?codex(?:@|$)/ },
   claude: {
     variable: 'CLAUDE_CONFIG_DIR',
-    home: '.claude',
-    packages: /^@anthropic-ai\/claude-code(?:@|$)/,
+    packages: /^(?:@anthropic-ai\/claude-code|claude)(?:@|$)/,
   },
 };
-const WRAPPERS = new Set(['env', 'command', 'exec', 'time', 'nohup', 'sudo']);
+// Programs that run the command after them; timeout also takes a duration first.
+const WRAPPERS = new Set(['env', 'exec', 'time', 'nohup', 'sudo', 'nice', 'xargs', 'timeout']);
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash']);
+// Search tools whose first plain argument is a pattern, not a path being read.
+const SEARCHES = new Set(['grep', 'egrep', 'rg', 'ag']);
 const RUNNERS = new Set(['npx', 'bunx', 'pnpx']);
 const HARMLESS = new Set(['--version', '-V', '--help', '-h']);
 const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
 
 const unquote = (word) => word.replace(/^(['"])(.*)\1$/s, '$2');
 
-// The user's own config folders, as the paths a command or a file tool might name.
+// The user's own config folders, as the paths a command or a file tool might name. Installed
+// plugin copies inside them hold no sign-ins, so reading those is fine.
 function ownFolders(env) {
   const home = homedir();
   const folders = [
@@ -43,8 +47,10 @@ function expand(value, env) {
     .replace(/\$\{HOME\}|\$HOME\b/g, home);
 }
 
+const within = (path, folder) => path === folder || path.startsWith(`${folder}/`);
 const inside = (path, folders) =>
-  folders.some((folder) => path === folder || path.startsWith(`${folder}/`));
+  folders.some((folder) => within(path, folder)) &&
+  !folders.some((folder) => within(path, `${folder}/plugins`));
 
 // A home is throwaway when it's named, and isn't one of the user's own folders or their home itself.
 function throwaway(value, env) {
@@ -65,19 +71,12 @@ const commands = (line) =>
     .map((part) => part.trim())
     .filter(Boolean);
 
-function problem(line, env) {
+function problem(line, env, cwd) {
   const exported = {};
   const folders = ownFolders(env);
   for (const part of commands(line)) {
     const words = part.match(/(?:[^\s'"]+|'[^']*'|"[^"]*")+/g) ?? [];
-    // Only bare words: a quoted one is usually a pattern or a message, not a path being read.
-    for (const word of words.filter((w) => !/['"]/.test(w))) {
-      const path = expand(word.replace(/^[^=]*=/, ''), env);
-      if (path.startsWith('/') && inside(resolve(path), folders))
-        return `\`${part}\` reads the user's own host config, which holds their sign-ins and tokens.`;
-    }
     const assigned = { ...exported };
-    let i = 0;
     if (words[0] === 'export') {
       for (const word of words.slice(1)) {
         const match = ASSIGNMENT.exec(word);
@@ -85,14 +84,34 @@ function problem(line, env) {
       }
       continue;
     }
+    let i = 0;
     for (; i < words.length; i++) {
       const match = ASSIGNMENT.exec(words[i]);
       if (match) assigned[match[1]] = match[2];
+      else if (words[i] === 'timeout' && /^\d/.test(words[i + 1] ?? '')) i++;
       else if (WRAPPERS.has(words[i]) || words[i].startsWith('-')) continue;
       else break;
     }
     let program = basename(unquote(words[i] ?? ''));
     let rest = words.slice(i + 1);
+    // A search pattern isn't a path; every other word may be one.
+    const pattern = SEARCHES.has(program) ? rest.find((word) => !word.startsWith('-')) : undefined;
+    for (const word of words) {
+      if (word === pattern) continue;
+      const path = expand(word.replace(/^[^=/]*=/, ''), env);
+      if (!/^[/.]/.test(path)) continue;
+      if (inside(resolve(cwd, path), folders))
+        return `\`${part}\` reads the user's own host config, which holds their sign-ins and tokens.`;
+    }
+    if (SHELLS.has(program) && rest.includes('-c')) {
+      const script = rest
+        .slice(rest.indexOf('-c') + 1)
+        .map(unquote)
+        .join(' ');
+      const found = problem(script, env, cwd);
+      if (found) return found;
+      continue;
+    }
     if (RUNNERS.has(program)) {
       const at = rest.findIndex((word) => !word.startsWith('-'));
       const name = Object.keys(HOSTS).find((key) => HOSTS[key].packages.test(rest[at] ?? ''));
@@ -113,10 +132,13 @@ function problem(line, env) {
 function check(input, env) {
   if (!OWN_AGENT.test(String(input.agent_type ?? ''))) return undefined;
   const tool = input.tool_input ?? {};
-  if (typeof tool.command === 'string') return problem(tool.command, env);
-  for (const key of ['file_path', 'path']) {
+  const cwd = input.cwd ?? process.cwd();
+  if (typeof tool.command === 'string') return problem(tool.command, env, cwd);
+  for (const key of ['file_path', 'path', 'pattern']) {
     if (typeof tool[key] !== 'string') continue;
-    const path = resolve(input.cwd ?? '.', expand(tool[key], env));
+    // Grep's pattern is a search, not a path; Glob's can be an absolute path.
+    if (key === 'pattern' && (input.tool_name !== 'Glob' || !/^[~/]/.test(tool[key]))) continue;
+    const path = resolve(cwd, expand(tool[key], env));
     if (inside(path, ownFolders(env)))
       return `${tool[key]} is the user's own host config, which holds their sign-ins and tokens.`;
   }
