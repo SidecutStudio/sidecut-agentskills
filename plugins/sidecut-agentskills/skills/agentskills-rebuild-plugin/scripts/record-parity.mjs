@@ -63,6 +63,13 @@ async function recordServer() {
   if (!existsSync(bundle)) return null;
   const child = spawn('node', [bundle], { env, stdio: ['pipe', 'pipe', 'ignore'] });
   const waiting = new Map();
+  let crashed = null;
+  child.on('error', (error) => {
+    crashed = error;
+  });
+  child.stdin.on('error', (error) => {
+    crashed = error;
+  });
   let buffer = '';
   let id = 0;
   child.stdout.on('data', (chunk) => {
@@ -82,6 +89,7 @@ async function recordServer() {
   const rpc = (method, params) =>
     new Promise((done, reject) => {
       const n = ++id;
+      if (crashed) return reject(crashed);
       const timer = setTimeout(() => reject(new Error(`${method} got no answer in 10 s.`)), 10_000);
       waiting.set(n, (message) => {
         clearTimeout(timer);
@@ -144,7 +152,9 @@ function recordSkills() {
     const text = texts[0];
     skills[name] = {
       description: /^description: "(.*)"$/m.exec(text)?.[1] ?? null,
-      allowedTools: [...text.matchAll(/^ {2}- (.+)$/gm)].map((m) => m[1].trim()),
+      allowedTools: [
+        ...(/^---\n([\s\S]*?)\n---/.exec(text)?.[1] ?? '').matchAll(/^ {2}- (.+)$/gm),
+      ].map((m) => m[1].trim()),
       rules: texts
         .join('\n')
         .split('\n')
