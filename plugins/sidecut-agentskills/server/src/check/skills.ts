@@ -9,6 +9,7 @@ import {
 } from '../scaffold.ts';
 import { checkMarkdown, parseMarkdown, prose } from './markdown.ts';
 import { type Report, relativePosix, sentences } from './report.ts';
+import type { ServerTools } from './server.ts';
 
 export type SkillInfo = {
   name: string;
@@ -64,7 +65,7 @@ function checkFrontmatter(
   lines: string[] | null,
   file: string,
   report: Report,
-  tools: Set<string> | null,
+  tools: ServerTools | null,
   plugin: string,
 ): SkillInfo | null {
   if (!lines) {
@@ -301,7 +302,7 @@ function checkSections(
   name: string,
   root: string,
   report: Report,
-  tools: Set<string> | null,
+  tools: ServerTools | null,
   skills: Set<string>,
   plugin: string,
 ): void {
@@ -338,6 +339,12 @@ function checkSections(
       );
     }
   }
+  // Read-only tools of this plugin's server that the skill names must be pre-approved.
+  const own = `mcp__plugin_${plugin}_${skillPrefixOf(plugin)}__`;
+  const allowed = new Set(
+    [...text.matchAll(/^ {2}- (mcp__\S+)\s*$/gm)].map((m) => m[1] ?? '').filter(Boolean),
+  );
+  const unlisted = new Map<string, number>();
   doc.lines.forEach((line, i) => {
     if (doc.inCode[i]) return;
     const words = stepWords(line);
@@ -371,6 +378,9 @@ function checkSections(
           'Point at a skill or subagent that exists.',
         );
       }
+      if (tools?.get(token) === true && !allowed.has(own + token) && !unlisted.has(token)) {
+        unlisted.set(token, i + 1);
+      }
       if (TOOL_NAME.test(token) && tools && !tools.has(token)) {
         report.add(
           'SKILL_TOOL',
@@ -382,6 +392,15 @@ function checkSections(
       }
     }
   });
+  for (const [tool, line] of unlisted) {
+    report.add(
+      'SKILL_ALLOWED_MCP_MISSING',
+      file,
+      line,
+      `The skill names \`${tool}\`, a read-only tool of this plugin's server, but \`allowed-tools\` doesn't list it.`,
+      `Add \`${own}${tool}\` to \`allowed-tools\`.`,
+    );
+  }
   for (const f of support) {
     const p = join(dir, f);
     if (f.endsWith('.md')) checkSupportDoc(p, root, report);
@@ -451,7 +470,7 @@ export function checkSkills(
   pluginDir: string,
   root: string,
   report: Report,
-  tools: Set<string> | null,
+  tools: ServerTools | null,
   plugin: string,
   brandColor: string,
 ): SkillInfo[] {

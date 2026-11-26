@@ -14,7 +14,7 @@ import { current } from '../settings.ts';
 import { checkMarkdown, paragraphAfter, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { type Report, sameJson, sentences } from './report.ts';
 import { checkScanText } from './scan-text.ts';
-import { checkServer } from './server.ts';
+import { checkServer, type ServerTools } from './server.ts';
 import { checkSkills } from './skills.ts';
 
 const PLUGIN_ENTRIES = new Set([
@@ -516,7 +516,7 @@ function checkApps(pluginDir: string, id: string, root: string, report: Report):
   }
 }
 
-function checkMcp(pluginDir: string, id: string, root: string, report: Report): Set<string> | null {
+function checkMcp(pluginDir: string, id: string, root: string, report: Report): ServerTools | null {
   const claudePath = join(pluginDir, '.mcp.json');
   const portablePath = join(pluginDir, 'mcp.json');
   const hasClaude = existsSync(claudePath);

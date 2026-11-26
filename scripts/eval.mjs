@@ -27,6 +27,9 @@ try {
       '--report',
       join(output, 'report.html'),
       ...args,
+      // The staged copy is this repo's own plugin, and a background or CI shell can't answer the
+      // trust prompt, so the run asserts trust instead of stopping at it.
+      '--trust-plugin',
       '--no-publish',
     ],
     {

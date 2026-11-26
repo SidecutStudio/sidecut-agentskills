@@ -3,6 +3,7 @@ name: agentskills-publish-plugin
 description: "Publishes a new version of a plugin through its marketplace, with the version, CHANGELOG and both listings in step. Use when the user says ship, release or publish a plugin, or wants it to show up in Claude Code or Codex. Not for merging a change to the plugin's code, which goes through the repo's own merge flow."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
+  - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
 ---
 
 # Publish plugin

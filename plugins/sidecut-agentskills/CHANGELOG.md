@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.7.0] - 2026-11-26
+
+### Added
+
+- `agentskills-rebuild-plugin` shipped `scripts/record-parity.mjs`, which records a plugin's tools, read-only tool output on fixed inputs, skills, hard-rule lines and hooks as JSON in one run, for the before and after comparison.
+- `sidecut-check` reported `SKILL_ALLOWED_MCP_MISSING` when a skill names a read-only tool of its plugin's server that `allowed-tools` doesn't list. A repo moving to 2.7.0 lists each read-only tool its skills name, usually `get_status` in its status skill; `sidecut-sync` doesn't add it. The template's status skill lists `get_status`, and `agentskills-publish-plugin` lists `get_house_style`, which it reads.
+
+### Changed
+
+- `agentskills-rebuild-plugin`'s parity record included the trigger evals before and after, and treated a case that already failed before the rebuild as a known failure to rerun, not a regression.
+- The template's `scripts/eval.mjs` passed `--trust-plugin`, so `npm run eval` ran in a background or CI shell instead of stopping at the trust prompt. `sidecut-sync` carries it to each repo.
+- The house style let a plugin for a product with its own results view name that view as the visual for its comparisons.
+
+### Fixed
+
+- The usage log hook counted an Antigravity `read_file` or `view_file` read of a skill on macOS, where `/var` resolves to `/private/var` and the path the host sent never matched the plugin's resolved folder.
+
 ## [2.6.3] - 2026-11-25
 
 ### Fixed

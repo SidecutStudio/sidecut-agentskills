@@ -14,6 +14,8 @@ type Tool = {
   annotations?: Record<string, unknown>;
 };
 type Listing = { instructions?: string; tools: Tool[] };
+/** Each of the server's tools by name, with whether it sets `readOnlyHint: true`. */
+export type ServerTools = Map<string, boolean>;
 
 const HINTS = ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'];
 
@@ -70,7 +72,7 @@ export function listTools(bundle: string): Listing | null {
 }
 
 /** Checks the local MCP server: source, bundle drift and tool metadata. Returns the tool names, or null. */
-export function checkServer(pluginDir: string, root: string, report: Report): Set<string> | null {
+export function checkServer(pluginDir: string, root: string, report: Report): ServerTools | null {
   const source = join(pluginDir, 'server', 'src', 'index.ts');
   const bundle = join(pluginDir, 'server', 'index.mjs');
   const where = relative(root, join(pluginDir, 'server'));
@@ -224,5 +226,5 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
       );
     }
   }
-  return new Set(listing.tools.map((t) => t.name));
+  return new Map(listing.tools.map((t) => [t.name, t.annotations?.readOnlyHint === true]));
 }
