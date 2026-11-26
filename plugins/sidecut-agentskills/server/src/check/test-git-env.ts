@@ -30,7 +30,7 @@ const RUNS_GIT =
  * that keeps them does, doesn't count.
  */
 const DROPS_GIT_ENV =
-  /startsWith\(\s*['"`]GIT_['"`]\s*\)[^;]{0,120}?\bdelete\b|\/\^GIT_\/\.test\([^;]{0,120}?\bdelete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(/;
+  /startsWith\(\s*['"`]GIT_['"`]\s*\)[^;]{0,120}?\bdelete\b|startsWith\(\s*['"`]GIT_['"`]\s*\)\s*\)\s*\{[^}]{0,200}?\bdelete\b|\/\^GIT_\/\.test\([^;]{0,120}?\bdelete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(/;
 /** Deleting by name counts only when it covers both variables a hook always exports. */
 const DELETES_BY_NAME = ['GIT_DIR', 'GIT_INDEX_FILE'].map(
   (name) =>
@@ -66,6 +66,8 @@ function callEnd(text: string, from: number): number {
  * runs can't inherit the variables. Only that call's own arguments are read.
  */
 function ownEnv(text: string, at: number): boolean {
+  // Bun's shell template has no call of its own to carry an env.
+  if (text.startsWith('$`', at)) return false;
   const open = text.indexOf('(', at);
   const call = text.slice(open, callEnd(text, open));
   const env = /\benv\s*:\s*\{([^}]*)\}/.exec(call);

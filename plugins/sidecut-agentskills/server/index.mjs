@@ -24587,7 +24587,7 @@ var SKIP = /* @__PURE__ */ new Set([
 ]);
 var CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 var RUNS_GIT = /\b(?:spawn|spawnSync|execFile|execFileSync|execa|execaSync)\(\s*['"`](?:[^'"`]*\/)?git['"`]|\b(?:exec|execSync)\(\s*['"`](?:[^'"`]*(?:&&|;|\|)\s*)?(?:[^'"`\s]*\/)?git\s|\bBun\.spawn(?:Sync)?\(\s*(?:\{\s*cmd:\s*)?\[\s*['"`](?:[^'"`]*\/)?git['"`]|\$`(?:[^`]*(?:&&|;)\s*)?git\s/;
-var DROPS_GIT_ENV = /startsWith\(\s*['"`]GIT_['"`]\s*\)[^;]{0,120}?\bdelete\b|\/\^GIT_\/\.test\([^;]{0,120}?\bdelete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(/;
+var DROPS_GIT_ENV = /startsWith\(\s*['"`]GIT_['"`]\s*\)[^;]{0,120}?\bdelete\b|startsWith\(\s*['"`]GIT_['"`]\s*\)\s*\)\s*\{[^}]{0,200}?\bdelete\b|\/\^GIT_\/\.test\([^;]{0,120}?\bdelete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(/;
 var DELETES_BY_NAME = ["GIT_DIR", "GIT_INDEX_FILE"].map(
   (name) => new RegExp(`\\bdelete\\s+process\\.env(?:\\.${name}\\b|\\[\\s*['"\`]${name}['"\`]\\s*\\])`)
 );
@@ -24611,6 +24611,7 @@ function callEnd(text2, from) {
   return text2.length;
 }
 function ownEnv(text2, at) {
+  if (text2.startsWith("$`", at)) return false;
   const open2 = text2.indexOf("(", at);
   const call = text2.slice(open2, callEnd(text2, open2));
   const env = /\benv\s*:\s*\{([^}]*)\}/.exec(call);

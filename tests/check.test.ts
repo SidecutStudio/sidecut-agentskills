@@ -914,6 +914,15 @@ describe('git in tests', () => {
         ),
       ),
     ).toEqual([]);
+    // A delete inside the block an if opens.
+    expect(
+      passes((r) =>
+        r.write(
+          'tests/git.test.ts',
+          `for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) {\n  console.log(k);\n  delete process.env[k];\n}\n${GIT_TEST}`,
+        ),
+      ),
+    ).toEqual([]);
     // An env of its own.
     expect(
       passes((r) =>
@@ -955,6 +964,10 @@ describe('git in tests', () => {
     ).toEqual(['tests/git.test.ts:2']);
     // Only GIT_DIR deleted: a hook's GIT_INDEX_FILE still reaches git.
     expect(flagged(`delete process.env.GIT_DIR;\n${GIT_TEST}`)).toEqual(['tests/git.test.ts:6']);
+    // Bun's shell has no env of its own, whatever a later call passes.
+    expect(flagged("await $`git init`;\nrun({ env: { A: '1' } });\n")).toEqual([
+      'tests/git.test.ts:1',
+    ]);
     // A glob in a string is not a comment, and a later call's env is not this one's.
     expect(
       flagged(
