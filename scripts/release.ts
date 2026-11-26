@@ -177,6 +177,20 @@ async function main() {
   const tagged = tag ? git('rev-parse', `refs/tags/${plan.tag}^{commit}`) : undefined;
   if (tag && tag.object.sha !== git('rev-parse', `refs/tags/${plan.tag}`))
     throw new Error('The remote tag changed since checkout. Rerun Release.');
+  // A later commit at the same version may have been released first; then this one has nothing to do.
+  const laterTag =
+    tagged !== undefined &&
+    !ancestor(tagged) &&
+    spawnSync('git', ['merge-base', '--is-ancestor', head, tagged], { cwd: root }).status === 0;
+  if (laterTag) {
+    const published = findRelease(repo, plan.tag);
+    if (published && !published.draft) {
+      console.log(
+        `Already published ${plan.tag} at a later commit ${tagged}: ${published.html_url}`,
+      );
+      return;
+    }
+  }
   const commit = releaseCommit(head, tagged, ancestor);
   const plugin = `plugins/${id}`;
   if (tagged && git('rev-parse', `${head}:${plugin}`) !== git('rev-parse', `${commit}:${plugin}`))
