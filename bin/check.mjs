@@ -2553,7 +2553,7 @@ function mergeBlocks(current2, template, file) {
 function afterImports(lines) {
   let last = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (!/^import\b/.test(lines[i] ?? "")) continue;
+    if (!/^import(?=[\s{*'"])/.test(lines[i] ?? "")) continue;
     let j = i;
     while (j < lines.length - 1 && !/\bfrom\s|;\s*$|^import\s+['"]/.test(lines[j] ?? "")) j++;
     last = j;

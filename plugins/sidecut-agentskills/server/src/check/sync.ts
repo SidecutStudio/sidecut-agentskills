@@ -174,7 +174,8 @@ export function mergeBlocks(
 function afterImports(lines: string[]): number {
   let last = -1;
   for (let i = 0; i < lines.length; i++) {
-    if (!/^import\b/.test(lines[i] ?? '')) continue;
+    // A static import, not a dynamic import( call or import.meta.
+    if (!/^import(?=[\s{*'"])/.test(lines[i] ?? '')) continue;
     // An import can span lines until its `from` clause or closing semicolon.
     let j = i;
     while (j < lines.length - 1 && !/\bfrom\s|;\s*$|^import\s+['"]/.test(lines[j] ?? '')) j++;

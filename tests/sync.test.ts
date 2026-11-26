@@ -531,10 +531,10 @@ test("the git-env block goes after a preload's imports, which have to come first
   write(
     root,
     'tests/setup.ts',
-    "// Loaded before every test file.\nimport {\n  quietGitEnv,\n} from './git-env.ts';\nimport './other.ts';\n\nquietGitEnv();\n",
+    "// Loaded before every test file.\nimport {\n  quietGitEnv,\n} from './git-env.ts';\nimport './other.ts';\n\nquietGitEnv();\nimport.meta.x = 1;\n",
   );
   applySync(root, planSync(root, vars));
   expect(read(root, 'tests/setup.ts')).toMatch(
-    /^\/\/ Loaded before every test file\.\nimport \{\n {2}quietGitEnv,\n\} from '\.\/git-env\.ts';\nimport '\.\/other\.ts';\n\n\/\/ sidecut:start git-env\n[\s\S]*\/\/ sidecut:end git-env\n\nquietGitEnv\(\);\n$/,
+    /^\/\/ Loaded before every test file\.\nimport \{\n {2}quietGitEnv,\n\} from '\.\/git-env\.ts';\nimport '\.\/other\.ts';\n\n\/\/ sidecut:start git-env\n[\s\S]*\/\/ sidecut:end git-env\n\nquietGitEnv\(\);\nimport\.meta\.x = 1;\n$/,
   );
 });
