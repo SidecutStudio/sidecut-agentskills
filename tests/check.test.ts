@@ -897,9 +897,22 @@ describe('git in tests', () => {
         r.write('tests/git.test.ts', `import './h.js';\n${GIT_TEST}`);
       }),
     ).toEqual([]);
-    // Deleting GIT_DIR by name.
+    // Deleting by name the two a hook always exports, or each GIT_* in a loop.
     expect(
-      passes((r) => r.write('tests/git.test.ts', `delete process.env.GIT_DIR;\n${GIT_TEST}`)),
+      passes((r) =>
+        r.write(
+          'tests/git.test.ts',
+          `delete process.env.GIT_DIR;\ndelete process.env.GIT_INDEX_FILE;\n${GIT_TEST}`,
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      passes((r) =>
+        r.write(
+          'tests/git.test.ts',
+          `Object.keys(process.env)\n  .filter((k) => k.startsWith('GIT_'))\n  .forEach((k) => {\n    delete process.env[k];\n  });\n${GIT_TEST}`,
+        ),
+      ),
     ).toEqual([]);
     // An env of its own.
     expect(
@@ -940,6 +953,14 @@ describe('git in tests', () => {
         "import { execSync } from 'node:child_process';\nexecSync('cd /tmp/x && git init');\n",
       ),
     ).toEqual(['tests/git.test.ts:2']);
+    // Only GIT_DIR deleted: a hook's GIT_INDEX_FILE still reaches git.
+    expect(flagged(`delete process.env.GIT_DIR;\n${GIT_TEST}`)).toEqual(['tests/git.test.ts:6']);
+    // A glob in a string is not a comment, and a later call's env is not this one's.
+    expect(
+      flagged(
+        "import { execSync, spawnSync } from 'node:child_process';\nconst g = 'tests/*';\nexecSync('git init');\nconst h = '*/x';\nspawnSync('echo', ['x'], { env: { PATH: '/bin' } });\n",
+      ),
+    ).toEqual(['tests/git.test.ts:3']);
   });
 });
 

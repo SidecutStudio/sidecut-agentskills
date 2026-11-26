@@ -755,6 +755,11 @@ function applySync(root2, changes2) {
   return left2;
 }
 
+// plugins/sidecut-agentskills/server/src/check/test-git-env.ts
+var DELETES_BY_NAME = ["GIT_DIR", "GIT_INDEX_FILE"].map(
+  (name) => new RegExp(`\\bdelete\\s+process\\.env(?:\\.${name}\\b|\\[\\s*['"\`]${name}['"\`]\\s*\\])`)
+);
+
 // plugins/sidecut-agentskills/server/src/check/repo.ts
 function readJson(path) {
   try {

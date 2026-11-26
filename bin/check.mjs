@@ -2751,14 +2751,60 @@ var SKIP = /* @__PURE__ */ new Set([
 ]);
 var CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 var RUNS_GIT = /\b(?:spawn|spawnSync|execFile|execFileSync|execa|execaSync)\(\s*['"`](?:[^'"`]*\/)?git['"`]|\b(?:exec|execSync)\(\s*['"`](?:[^'"`]*(?:&&|;|\|)\s*)?(?:[^'"`\s]*\/)?git\s|\bBun\.spawn(?:Sync)?\(\s*(?:\{\s*cmd:\s*)?\[\s*['"`](?:[^'"`]*\/)?git['"`]|\$`(?:[^`]*(?:&&|;)\s*)?git\s/;
-var DROPS_GIT_ENV = /startsWith\(\s*['"`]GIT_['"`]\s*\)\s*\)?\s*(?:\{\s*)?delete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(|\/\^GIT_\/\.test\([^)]*\)\s*\)?\s*(?:\{\s*)?delete\b|\bdelete\s+process\.env(?:\.GIT_DIR\b|\[\s*['"`]GIT_DIR['"`]\s*\])/;
+var DROPS_GIT_ENV = /startsWith\(\s*['"`]GIT_['"`]\s*\)[^;]{0,120}?\bdelete\b|\/\^GIT_\/\.test\([^;]{0,120}?\bdelete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(/;
+var DELETES_BY_NAME = ["GIT_DIR", "GIT_INDEX_FILE"].map(
+  (name) => new RegExp(`\\bdelete\\s+process\\.env(?:\\.${name}\\b|\\[\\s*['"\`]${name}['"\`]\\s*\\])`)
+);
+function dropsGitEnv(text) {
+  return DROPS_GIT_ENV.test(text) || DELETES_BY_NAME.every((re) => re.test(text));
+}
+function callEnd(text, from) {
+  let depth = 0;
+  let quote = "";
+  for (let i = from; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+      continue;
+    }
+    if (c === "'" || c === '"' || c === "`") quote = c;
+    else if (c === "(") depth++;
+    else if (c === ")" && --depth === 0) return i + 1;
+  }
+  return text.length;
+}
 function ownEnv(text, at) {
-  const call = text.slice(at, at + 400);
+  const open = text.indexOf("(", at);
+  const call = text.slice(open, callEnd(text, open));
   const env = /\benv\s*:\s*\{([^}]*)\}/.exec(call);
-  return env !== null && !/process\.env|\.\.\./.test(env[1] ?? "");
+  return env !== null && !/\.\.\./.test(env[1] ?? "");
 }
 function stripComments(text) {
-  return text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, "")).replace(/(^|[^:'"`\\])\/\/.*$/gm, "$1");
+  let out = "";
+  let quote = "";
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i] ?? "";
+    if (quote) {
+      out += c;
+      if (c === "\\") out += text[++i] ?? "";
+      else if (c === quote) quote = "";
+      continue;
+    }
+    if (c === "'" || c === '"' || c === "`") {
+      quote = c;
+      out += c;
+    } else if (c === "/" && text[i + 1] === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+      out += "\n";
+    } else if (c === "/" && text[i + 1] === "*") {
+      const end = text.indexOf("*/", i + 2);
+      const stop = end < 0 ? text.length : end + 2;
+      out += text.slice(i, stop).replace(/[^\n]/g, "");
+      i = stop - 1;
+    } else out += c;
+  }
+  return out;
 }
 function isTest(path) {
   const parts = path.split("/");
@@ -2830,7 +2876,7 @@ function checkTestGitEnv(root, report2) {
     }
     return text;
   };
-  const drops = (file, depth = 0) => DROPS_GIT_ENV.test(read(file)) || depth < 3 && importsOf(root, file, read(file)).some((f) => drops(f, depth + 1));
+  const drops = (file, depth = 0) => dropsGitEnv(read(file)) || depth < 3 && importsOf(root, file, read(file)).some((f) => drops(f, depth + 1));
   const inheritedGit = (file) => {
     const text = read(file);
     const runs = new RegExp(RUNS_GIT.source, "g");

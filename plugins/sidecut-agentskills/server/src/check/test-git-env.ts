@@ -25,26 +25,82 @@ const CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
 const RUNS_GIT =
   /\b(?:spawn|spawnSync|execFile|execFileSync|execa|execaSync)\(\s*['"`](?:[^'"`]*\/)?git['"`]|\b(?:exec|execSync)\(\s*['"`](?:[^'"`]*(?:&&|;|\|)\s*)?(?:[^'"`\s]*\/)?git\s|\bBun\.spawn(?:Sync)?\(\s*(?:\{\s*cmd:\s*)?\[\s*['"`](?:[^'"`]*\/)?git['"`]|\$`(?:[^`]*(?:&&|;)\s*)?git\s/;
 /**
- * Code that drops the GIT_* variables: deleting each one that starts with GIT_, building an env that
- * leaves them out, or deleting GIT_DIR by name. Reading them, as a filter that keeps them does, doesn't
- * count.
+ * Code that drops the GIT_* variables: deleting the ones that start with GIT_ (in the same statement
+ * or the loop body that follows), or building an env that leaves them out. Reading them, as a filter
+ * that keeps them does, doesn't count.
  */
 const DROPS_GIT_ENV =
-  /startsWith\(\s*['"`]GIT_['"`]\s*\)\s*\)?\s*(?:\{\s*)?delete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(|\/\^GIT_\/\.test\([^)]*\)\s*\)?\s*(?:\{\s*)?delete\b|\bdelete\s+process\.env(?:\.GIT_DIR\b|\[\s*['"`]GIT_DIR['"`]\s*\])/;
+  /startsWith\(\s*['"`]GIT_['"`]\s*\)[^;]{0,120}?\bdelete\b|\/\^GIT_\/\.test\([^;]{0,120}?\bdelete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(/;
+/** Deleting by name counts only when it covers both variables a hook always exports. */
+const DELETES_BY_NAME = ['GIT_DIR', 'GIT_INDEX_FILE'].map(
+  (name) =>
+    new RegExp(`\\bdelete\\s+process\\.env(?:\\.${name}\\b|\\[\\s*['"\`]${name}['"\`]\\s*\\])`),
+);
+function dropsGitEnv(text: string): boolean {
+  return DROPS_GIT_ENV.test(text) || DELETES_BY_NAME.every((re) => re.test(text));
+}
+
 /**
- * Whether the call starting at `at` passes an env object literal that doesn't start from
- * process.env, so the git it runs can't inherit the variables.
+ * Walks `text` from `from` and returns the index after the parenthesis that closes the one at
+ * `from`, skipping strings, so a call's arguments end where the call does.
+ */
+function callEnd(text: string, from: number): number {
+  let depth = 0;
+  let quote = '';
+  for (let i = from; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === '\\') i++;
+      else if (c === quote) quote = '';
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') quote = c;
+    else if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) return i + 1;
+  }
+  return text.length;
+}
+
+/**
+ * Whether the git call matched at `at` passes an env object literal with no spread, so the git it
+ * runs can't inherit the variables. Only that call's own arguments are read.
  */
 function ownEnv(text: string, at: number): boolean {
-  const call = text.slice(at, at + 400);
+  const open = text.indexOf('(', at);
+  const call = text.slice(open, callEnd(text, open));
   const env = /\benv\s*:\s*\{([^}]*)\}/.exec(call);
-  return env !== null && !/process\.env|\.\.\./.test(env[1] ?? '');
+  return env !== null && !/\.\.\./.test(env[1] ?? '');
 }
-/** Comments say what code does; only the code counts. */
+
+/**
+ * The code with its comments blanked out, newlines kept so line numbers hold. Strings are skipped,
+ * so a glob such as 'src/**' + '/*.ts' isn't taken for a comment.
+ */
 function stripComments(text: string): string {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ''))
-    .replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
+  let out = '';
+  let quote = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i] ?? '';
+    if (quote) {
+      out += c;
+      if (c === '\\') out += text[++i] ?? '';
+      else if (c === quote) quote = '';
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      quote = c;
+      out += c;
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+      out += '\n';
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      const stop = end < 0 ? text.length : end + 2;
+      out += text.slice(i, stop).replace(/[^\n]/g, '');
+      i = stop - 1;
+    } else out += c;
+  }
+  return out;
 }
 
 function isTest(path: string): boolean {
@@ -92,7 +148,7 @@ function importsOf(root: string, file: string, text: string): string[] {
 function setupFiles(root: string): string[] {
   const named: string[] = [];
   const quoted = (list: string) => [...list.matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1] ?? '');
-  // Vitest, Vite and Jest configs name them in setupFiles (Jest also in setupFilesAfterEach).
+  // Vitest, Vite and Jest configs name them in setupFiles (Jest also in setupFilesAfterEnv).
   for (const config of readdirSync(root).filter((n) =>
     /^(?:vite(?:st)?\.(?:config|workspace)|jest\.config)\.[cm]?[jt]s$/.test(n),
   )) {
@@ -137,7 +193,7 @@ export function checkTestGitEnv(root: string, report: Report): void {
   };
   // A file drops the variables when it, or a file it imports, does.
   const drops = (file: string, depth = 0): boolean =>
-    DROPS_GIT_ENV.test(read(file)) ||
+    dropsGitEnv(read(file)) ||
     (depth < 3 && importsOf(root, file, read(file)).some((f) => drops(f, depth + 1)));
   // The first git call that inherits this process's environment, as an index into the text.
   const inheritedGit = (file: string): number => {
