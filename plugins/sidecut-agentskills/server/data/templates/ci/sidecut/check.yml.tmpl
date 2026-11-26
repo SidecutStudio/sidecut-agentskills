@@ -10,18 +10,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  # Picks where check and secrets run on a pull request: the {{ciOwnLane}} light lane while it has a
-  # free runner, otherwise a GitHub-hosted machine (SidecutStudio/sidecut-ops README, "Runner
-  # picker"). Pushes to main and dispatched runs skip it and run on the light lane.
+  # Picks where check runs on a pull request: the {{ciOwnLane}} light lane while it has a free
+  # runner, otherwise a GitHub-hosted machine (SidecutStudio/sidecut-ops README, "Runner picker").
+  # Pushes to main, dispatched runs and air mode skip it and run on the light lane.
   runner:
-    if: github.event_name == 'pull_request'
-    runs-on: ${{ contains(vars.SIDECUT_RUNNER_MODE, 'air') && fromJSON({{ciLightRunner}}) || 'ubuntu-slim' }}
+    if: github.event_name == 'pull_request' && !contains(vars.SIDECUT_RUNNER_MODE, 'air')
+    runs-on: ubuntu-slim
     timeout-minutes: 5
     outputs:
       runs-on: ${{ steps.pick.outputs.runs-on }}
     steps:
       - id: pick
-        uses: SidecutStudio/sidecut-ops/.github/actions/pick-runner@47db9b0fc29fdd4a8075d2cf885f3f73ee394f0f
+        uses: SidecutStudio/sidecut-ops/.github/actions/pick-runner@c575cb5b82a695ca2b91e3dafdcd4a5d8602ac9a # v3.7.0
         with:
           mode: ${{ vars.SIDECUT_RUNNER_MODE }}
           client-id: ${{ vars.SIDECUT_CI_CLIENT_ID }}
@@ -34,8 +34,10 @@ jobs:
     runs-on: ${{ fromJSON(needs.runner.outputs.runs-on || {{ciLightRunner}}) }}
     timeout-minutes: 15
     steps:
+      # A full clone, so the secret scan can read every commit this one reaches.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -43,18 +45,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-  secrets:
-    needs: runner
-    # A skipped or failed picker must not skip this job, since GitHub counts a skipped required
-    # check as passed; without the picker's answer it runs on the light lane.
-    if: ${{ !cancelled() }}
-    runs-on: ${{ fromJSON(needs.runner.outputs.runs-on || {{ciLightRunner}}) }}
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
       # The pinned build and checksum from sidecut-ops' tools.json. Its setup-ci-tools action needs
       # Bun, which plugin repos don't install.
       - name: Install trufflehog 3.99.2

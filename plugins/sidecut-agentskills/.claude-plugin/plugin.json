@@ -1,6 +1,6 @@
 {
   "name": "sidecut-agentskills",
-  "version": "2.8.1",
+  "version": "2.9.0",
   "description": "Builds, checks and ships Claude Code and Codex plugins, skills and MCP servers that all follow one house style.",
   "author": {
     "name": "Sidecut Studio",

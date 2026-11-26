@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.0] - 2026-11-26
+
+### Changed
+
+- The Sidecut CI template ran a pull request in two jobs instead of three: the TruffleHog secret scan moved to the last steps of `check`, which now clones full history, and the `secrets` job is gone, so a PR takes one fewer runner slot. The runner picker job skipped itself in `air` mode instead of taking a light runner to answer, and pinned the picker's newest release, which counts only private-repo hosted minutes. A new Sidecut-CI repo's Solo settings and release script required only `check`; hosted CI keeps its `secrets` job. An existing Sidecut-CI repo that takes the new `check.yml` drops `"secrets"` from `required_checks` first.
+
 ## [2.8.1] - 2026-11-26
 
 ### Fixed

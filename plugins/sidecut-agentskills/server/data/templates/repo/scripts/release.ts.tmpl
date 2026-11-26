@@ -168,7 +168,7 @@ async function main() {
   const gate = join(root, 'solo-workflow.toml');
   const policy = existsSync(gate)
     ? (parse(readFileSync(gate, 'utf8')) as { required_checks: string[] })
-    : { required_checks: ['check', 'secrets'] };
+    : { required_checks: {{releaseChecks}} };
   const pages = json([
     'api',
     '--paginate',
