@@ -966,7 +966,7 @@ function checkServer(pluginDir, root, report2) {
       );
     }
   }
-  return new Set(listing.tools.map((t) => t.name));
+  return new Map(listing.tools.map((t) => [t.name, t.annotations?.readOnlyHint === true]));
 }
 
 // plugins/sidecut-agentskills/server/src/check/skills.ts
@@ -1249,6 +1249,11 @@ function checkSections(dir, name, root, report2, tools, skills, plugin) {
       );
     }
   }
+  const own = `mcp__plugin_${plugin}_${skillPrefixOf(plugin)}__`;
+  const allowed = new Set(
+    [...text.matchAll(/^ {2}- (mcp__\S+)\s*$/gm)].map((m) => m[1] ?? "").filter(Boolean)
+  );
+  const unlisted = /* @__PURE__ */ new Map();
   doc.lines.forEach((line, i) => {
     if (doc.inCode[i]) return;
     const words = stepWords(line);
@@ -1282,6 +1287,9 @@ function checkSections(dir, name, root, report2, tools, skills, plugin) {
           "Point at a skill or subagent that exists."
         );
       }
+      if (tools?.get(token) === true && !allowed.has(own + token) && !unlisted.has(token)) {
+        unlisted.set(token, i + 1);
+      }
       if (TOOL_NAME.test(token) && tools && !tools.has(token)) {
         report2.add(
           "SKILL_TOOL",
@@ -1293,6 +1301,15 @@ function checkSections(dir, name, root, report2, tools, skills, plugin) {
       }
     }
   });
+  for (const [tool, line] of unlisted) {
+    report2.add(
+      "SKILL_ALLOWED_MCP_MISSING",
+      file,
+      line,
+      `The skill names \`${tool}\`, a read-only tool of this plugin's server, but \`allowed-tools\` doesn't list it.`,
+      `Add \`${own}${tool}\` to \`allowed-tools\`.`
+    );
+  }
   for (const f of support) {
     const p = join6(dir, f);
     if (f.endsWith(".md")) checkSupportDoc(p, root, report2);

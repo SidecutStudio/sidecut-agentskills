@@ -251,7 +251,7 @@ Fields appear in this order and no others are used: `name`, `description`, `argu
 | Description | State the capability and concrete trigger. Include exclusions only when they disambiguate the request. | yes |
 | First sentence | One main verb, so Codex's starter prompt reads correctly | review |
 | `allowed-tools` | A YAML list, narrowest patterns that work: `Bash(gh pr view *)` | yes |
-| Own MCP tools | Every read-only tool of the plugin's own server that the skill calls is listed, as `mcp__plugin_<plugin id>_<server key>__<tool>`; tools that write stay unlisted so Claude Code asks first. An entry naming a tool the server doesn't have fails | yes |
+| Own MCP tools | Every read-only tool of the plugin's own server that the skill calls is listed, as `mcp__plugin_<plugin id>_<server key>__<tool>`; tools that write stay unlisted so Claude Code asks first. An entry naming a tool the server doesn't have fails, and so does a read-only tool the skill names but doesn't list | yes |
 | `argument-hint` | Only on a skill that takes an argument, in the form `[issue-number]` | review |
 | `disable-model-invocation` | `true` only for a skill that must never start without the user asking for it by name | review |
 | `effort` | One of `low`, `medium`, `high`, `xhigh`, `max`, only when the skill needs a different level from the session | yes |
@@ -336,7 +336,7 @@ Use [VOICE.md](templates/repo/VOICE.md.tmpl) as editorial guidance. It is not a 
 | Item | Rule | Checked |
 | --- | --- | --- |
 | When to use HTML | The test in [visual-reports.md](visual-reports.md): an HTML report for 5 or more findings, 3 or more options compared, a parity table, a diagram, measured data over 10 rows or a design comparison; otherwise chat | review |
-| Where the choice is made | A skill that ends in a review, audit, rebuild, research answer or comparison chooses its format in a numbered step that points to visual-reports.md, not in a note after the steps | review |
+| Where the choice is made | A skill that ends in a review, audit, rebuild, research answer or comparison chooses its format in a numbered step that points to visual-reports.md, not in a note after the steps. A plugin for a product with its own viewer for that result, such as a results matrix, names that view as the visual in the step instead | review |
 | Follow-ups | A skill whose result leaves next actions to choose offers them as one question, following Offer follow-ups in [user-input.md](user-input.md), never as a prose "want me to" line | review |
 | Method and assets | Read [visual-reports.md](visual-reports.md); the sibling HTML, CSS and licensed Geist fonts provide the layout | review |
 | Design and voice | Use the packaged tokens and the plain, specific voice in [VOICE.md](templates/repo/VOICE.md.tmpl); preserve the subject product's own design inside the report | review |

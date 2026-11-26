@@ -11,6 +11,7 @@ Read this when recording a plugin before and after a rebuild. The same record, t
 | Tools | The server's `tools/list` result, then each read-only tool called with fixed inputs |
 | Hooks | Each event, matcher and script from `hooks.json`, then the decision each hook makes on fixed inputs: the cases in its tests, plus any spellings the old script handles specially, such as quotes, backslashes and line breaks |
 | Checks | The repo's `required_checks` and the result of its check command |
+| Evals | `npm run eval` per case, with and without the plugin. A case that already fails before the rebuild is a known failure, not a regression; rerun it 3 times on each side before calling it either |
 | Hosts | Whether the plugin loads in Claude Code and in Codex, and how each skill can be started there |
 | Names | The plugin id, skill prefix, each skill and tool name, the plugin's path, the repo name and its config and state file names, and every file outside the repo that uses one: other repos, both marketplaces, README install commands |
 
@@ -18,7 +19,7 @@ Save each record as JSON in the scratch folder, named `before.json` and `after.j
 
 ## Calling the tools
 
-Start the bundled server over stdio with `node`, send `initialize`, `notifications/initialized`, `tools/list` and one `tools/call` per tool, and keep the replies. Use the same inputs both times. Call only tools with `readOnlyHint` set to true; changing tools are compared by reading their code.
+`scripts/record-parity.mjs` in the rebuild skill takes the tools, skills, rules and hooks parts in one run. It starts the bundled server over stdio with `node`, sends `initialize`, `notifications/initialized`, `tools/list` and one `tools/call` per read-only tool, and keeps the replies. Use the same inputs both times. Call only tools with `readOnlyHint` set to true; changing tools are compared by reading their code.
 
 Fields that change on every call, such as timestamps or counters, are compared by name and type only.
 

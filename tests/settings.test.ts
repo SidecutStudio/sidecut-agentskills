@@ -123,7 +123,7 @@ test("the sidecut profile writes today's Sidecut repo byte for byte, plus its an
     out,
     envWith(),
   );
-  // Hashes of Agentskills 1.4.1's output for the same input, before settings existed.
+  // Hashes of the Sidecut profile's output for this input. Update the file only for a deliberate template change.
   const want = JSON.parse(
     readFileSync(join(import.meta.dirname, 'sidecut-scaffold.hashes.json'), 'utf8'),
   ) as Record<string, string>;

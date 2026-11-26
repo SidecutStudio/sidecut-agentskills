@@ -45,11 +45,18 @@ function skillOf(input, plugin, roots) {
     const { name, args } = input.toolCall;
     if (name === 'read_file' || name === 'view_file') {
       if (Number(args?.StartLine ?? 1) > 1) return undefined;
-      const file = String(args?.Path ?? args?.AbsolutePath ?? '').replaceAll('\\', '/');
-      const own = roots
-        .map((root) => `${root.replaceAll('\\', '/')}/skills/`)
-        .find((dir) => file.startsWith(dir));
-      return own ? /^([a-z0-9-]+)\/SKILL\.md$/.exec(file.slice(own.length))?.[1] : undefined;
+      const asked = String(args?.Path ?? args?.AbsolutePath ?? '');
+      // Resolve links too: on macOS /var is /private/var, and the root comes back resolved.
+      const files = [asked, existsSync(asked) ? realpathSync(asked) : asked].map((f) =>
+        f.replaceAll('\\', '/'),
+      );
+      for (const file of files) {
+        const own = roots
+          .map((root) => `${root.replaceAll('\\', '/')}/skills/`)
+          .find((dir) => file.startsWith(dir));
+        if (own) return /^([a-z0-9-]+)\/SKILL\.md$/.exec(file.slice(own.length))?.[1];
+      }
+      return undefined;
     }
     return name === 'run_command' ? skillRead(String(args?.CommandLine ?? ''), plugin) : undefined;
   }

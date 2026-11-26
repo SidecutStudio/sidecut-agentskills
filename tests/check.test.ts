@@ -274,6 +274,11 @@ const cases: [string, (repo: Repo) => void][] = [
       ),
   ],
   [
+    // The status skill calls get_status, which is read-only, so it must be pre-approved.
+    'SKILL_ALLOWED_MCP_MISSING',
+    (r) => r.edit(skillMd, (t) => t.replace(/\nallowed-tools:\n {2}- mcp__\S+get_status/, '')),
+  ],
+  [
     'SKILL_EFFORT',
     (r) => r.edit(skillMd, (t) => t.replace('\n---\n\n#', '\neffort: huge\n---\n\n#')),
   ],
