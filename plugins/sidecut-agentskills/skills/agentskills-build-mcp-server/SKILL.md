@@ -20,7 +20,7 @@ Produces tools that agents pick correctly, that return data a check can verify, 
 
 ### 1. Choose the route
 
-For an existing hosted server or registered app connector, follow [remote-servers.md](references/remote-servers.md), then step 3. For a new local server or changed tool, follow step 2. If the result needs a view in the chat, also follow [mcp-apps.md](references/mcp-apps.md); connecting an existing view does not mean rebuilding it.
+For a hosted server, new or existing, or a registered app connector, follow [remote-servers.md](references/remote-servers.md), then step 3. For a new local server or changed tool, follow step 2. If the result needs a view in the chat, also follow [mcp-apps.md](references/mcp-apps.md); connecting an existing view does not mean rebuilding it.
 
 ### 2. Build the local server
 
@@ -33,7 +33,7 @@ For an existing hosted server or registered app connector, follow [remote-server
 
 1. Run the repo's checks, `npm run check` in a repo made from the template. Check declaration names and manifest paths for a managed connector, as the remote-server reference describes.
 2. For a local server, load it with `claude --plugin-dir plugins/<plugin-id>` and use an isolated Codex profile, following [codex-testing.md](references/codex-testing.md). Confirm the agent picks its tool for a request that needs it.
-3. For a hosted connection, check installation and connector authentication separately in the intended host. Use a harmless read or a test account; preserve unrelated connections and permissions.
+3. For a hosted connection, check installation and connector authentication separately in each intended host, signing in through the host itself and ending in a tool call that works: a scripted OAuth client, a 401 or readable sign-in metadata only prove the server. Use a harmless read or a test account; preserve unrelated connections and permissions. A host you couldn't sign in through is named as unproven, and `agentskills-publish-plugin` won't release without it.
 4. If views changed, verify one rendered tool result in the intended chat host. Report structural checks, installed version, authentication and rendered views separately; name any part that could not be exercised.
 
 Use `server/data/visual-reports.md` from the loaded plugin root for useful architecture comparisons, design reports and proposed views. Keep building and verifying a live MCP App separate from saving an HTML report.

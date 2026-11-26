@@ -16,7 +16,8 @@ Reads a plugin repo with fresh eyes and returns every problem that would fail th
 3. Read what the checker can't judge: the house style rows marked review, from `get_house_style`, against the skills, README and server.
 4. Check the two hosts match: every skill, hook and subagent the Claude Code side has, the Codex side has too.
 5. Settle each doubt with a read or a command. Edit, commit, push and delete nothing.
+6. Run `codex` or `claude` only with a throwaway home in the same command: `CODEX_HOME` or `CLAUDE_CONFIG_DIR` set to an empty folder you made, as the build skill's `codex-testing.md` describes. Never read the user's own `~/.codex`, `~/.claude` or `~/.claude.json`; they hold sign-ins and tokens, and this plugin's hook refuses those calls. Never repeat a token or secret you see.
 
 ## Return
 
-Problems, most serious first, each with its file and line, what breaks and how you know. Then the commands you ran, what you didn't cover, and the commit you reviewed. With no problems, say "No problems found within this coverage", never that the repo is approved.
+Problems, most serious first, each with its file and line, what breaks and how you know. Then the commands you ran, what you didn't cover (for a remote or OAuth server, each host you didn't sign in through), and the commit you reviewed. With no problems, say "No problems found within this coverage", never that the repo is approved.

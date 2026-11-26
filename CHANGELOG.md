@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.11.0] - 2026-11-26
+
+### Added
+
+- `agentskills-build-mcp-server` had a route for turning a new hosted server into a registered app: the owner registers it on the ChatGPT plugins page and copies its `plugin_asdk_app` id into `.app.json`, with the direct MCP route kept under the same name as its fallback. In Claude, the server stays a direct MCP entry in Claude Code and can be added as a custom connector or submitted to the directory. The steps link each host's current docs. Before, the only app route assumed a connector that was already registered, so a new server shipped to Codex as a plain server entry. A trigger case, from sidecut-evals, covers the request.
+- A hook refused this plugin's subagents, such as the reviewer, any `codex` or `claude` command without a throwaway `CODEX_HOME` or `CLAUDE_CONFIG_DIR` in the same command, and any read of `~/.codex`, `~/.claude` or `~/.claude.json`, telling them what to run instead. Claude Code and Codex both send the subagent's name to the hook, so the main session is untouched. A reviewer had run `codex mcp list` against the owner's own config, which printed a live token. The reviewer's instructions in both hosts say the same.
+
+### Changed
+
+- `agentskills-publish-plugin` stopped before releasing a plugin whose hosted server signs in until sign-in had been done through Claude Code and Codex themselves, ending in a harmless read. A scripted OAuth client doesn't count. A host left unproven needs the user's agreement and is named in the CHANGELOG entry. Codex's `codex-testing.md` gained the sign-in step in an isolated profile.
+
 ## [2.10.1] - 2026-11-26
 
 ### Fixed

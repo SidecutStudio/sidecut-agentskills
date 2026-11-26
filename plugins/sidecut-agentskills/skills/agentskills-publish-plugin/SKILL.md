@@ -19,6 +19,7 @@ Produces a new version of the plugin that its marketplace serves to Claude Code 
 - `check_plugin` reports no problems on the plugin.
 - Reuse a settled version or apply the release rule: a fix is a patch, a new skill or tool is a minor version, and a renamed or removed skill or tool is a major version once the plugin is past 1.0. Ask only if the correct version is a material unresolved choice. Follow `server/data/user-input.md` from the loaded plugin root.
 - Read the repo's `AGENTS.md` for how it merges: its own flow and its required checks.
+- When the plugin connects to a hosted server (a `url` or an `mcp-remote` bridge in its MCP files, or an `.app.json`) and that server signs in, stop here until sign-in has been done through each host the plugin ships to, Claude Code and Codex, ending in a harmless read: an app's connection in that host, or the plugin loaded in an isolated profile as `agentskills-build-mcp-server` describes. A scripted OAuth client, a staging script or a review that read the config is not sign-in. Release with a host unproven only once the user has agreed to it, and then name that host in the CHANGELOG entry and the report.
 
 ## Steps
 
@@ -73,6 +74,7 @@ After the marketplace syncs, start a new Claude Code session and confirm the plu
 
 - A tag release is published with its ZIP and checksum, or the commit pin is merged.
 - A shared marketplace names the new tag or merge commit, and that change is merged.
+- A plugin whose hosted server signs in was signed in through each host before release, or the unproven host is named in its CHANGELOG entry.
 - A public repo's README install steps work from clean profiles in both hosts, or the unproven host is named.
 - A new session shows the plugin at the new version.
 
