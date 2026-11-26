@@ -6,8 +6,8 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
-import { existsSync as existsSync5, lstatSync, readdirSync as readdirSync4, readFileSync as readFileSync5, realpathSync } from "node:fs";
-import { join as join5 } from "node:path";
+import { existsSync as existsSync6, lstatSync, readdirSync as readdirSync4, readFileSync as readFileSync6, realpathSync } from "node:fs";
+import { join as join6 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
 import { existsSync as existsSync3, mkdirSync as mkdirSync2, readdirSync as readdirSync2, readFileSync as readFileSync3, statSync, writeFileSync as writeFileSync2 } from "node:fs";
@@ -266,10 +266,10 @@ function readRepoSettings(root2) {
 function inferRepoSettings(root2) {
   const plugins = join2(root2, "plugins");
   const ids = existsSync2(plugins) ? readdirSync(plugins).filter((n) => n !== ".DS_Store") : [];
-  for (const id of ids) {
+  for (const id2 of ids) {
     try {
       const manifest = JSON.parse(
-        readFileSync2(join2(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
+        readFileSync2(join2(plugins, id2, ".claude-plugin", "plugin.json"), "utf8")
       );
       const owner = /^https:\/\/github\.com\/([\w.-]+)\//.exec(
         String(manifest.repository ?? "")
@@ -329,8 +329,8 @@ function escapeRegExp(text) {
 function brandSpace(s = active) {
   return s.brand ? `${s.brand} ` : "";
 }
-function marketplaceName(id, s = active) {
-  return s.marketplace ? s.marketplace.split("/")[1] ?? s.marketplace : id;
+function marketplaceName(id2, s = active) {
+  return s.marketplace ? s.marketplace.split("/")[1] ?? s.marketplace : id2;
 }
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
@@ -369,8 +369,8 @@ var ACRONYMS = /* @__PURE__ */ new Set([
   "ux",
   "yaml"
 ]);
-function displayNameOf(id) {
-  return id.split("-").map(
+function displayNameOf(id2) {
+  return id2.split("-").map(
     (word) => ACRONYMS.has(word) ? word.toUpperCase() : (word[0] ?? "").toUpperCase() + word.slice(1)
   ).join(" ");
 }
@@ -384,9 +384,9 @@ function render(text, vars) {
 function renderFile(path, vars) {
   return render(readFileSync3(join3(templatesRoot, path), "utf8"), vars);
 }
-function settingsVars(id, s = current()) {
+function settingsVars(id2, s = current()) {
   const brand = brandSpace(s);
-  const market = marketplaceName(id, s);
+  const market = marketplaceName(id2, s);
   let host = "";
   try {
     host = s.homepage ? new URL(s.homepage).host : "";
@@ -395,30 +395,30 @@ function settingsVars(id, s = current()) {
   }
   const installBlock = s.marketplace ? [
     "```text",
-    `/plugin install ${id}@${market}      # Claude Code`,
-    `codex plugin add ${id}@${market}     # Codex`,
-    `agy plugin install ./${id}/plugins/${id}   # Antigravity, in a clone of ${s.org}/${id}`,
+    `/plugin install ${id2}@${market}      # Claude Code`,
+    `codex plugin add ${id2}@${market}     # Codex`,
+    `agy plugin install ./${id2}/plugins/${id2}   # Antigravity, in a clone of ${s.org}/${id2}`,
     "```"
   ].join("\n") : [
     "In Claude Code, add this repo's marketplace, then install the plugin:",
     "",
     "```text",
-    `/plugin marketplace add ${s.org}/${id}`,
-    `/plugin install ${id}@${id}`,
+    `/plugin marketplace add ${s.org}/${id2}`,
+    `/plugin install ${id2}@${id2}`,
     "```",
     "",
     "In Codex, run:",
     "",
     "```bash",
-    `codex plugin marketplace add ${s.org}/${id}`,
-    `codex plugin add ${id}@${id}`,
+    `codex plugin marketplace add ${s.org}/${id2}`,
+    `codex plugin add ${id2}@${id2}`,
     "```",
     "",
     "In Antigravity, install the plugin folder from a clone:",
     "",
     "```bash",
-    `git clone https://github.com/${s.org}/${id}`,
-    `agy plugin install ./${id}/plugins/${id}`,
+    `git clone https://github.com/${s.org}/${id2}`,
+    `agy plugin install ./${id2}/plugins/${id2}`,
     "```"
   ].join("\n");
   return {
@@ -447,9 +447,16 @@ ${SOLO_LOCAL_FILE}` : ""
   };
 }
 
+// plugins/sidecut-agentskills/server/src/check/server.ts
+import { existsSync as existsSync4, mkdtempSync, readFileSync as readFileSync4, rmSync } from "node:fs";
+import { join as join4, relative } from "node:path";
+var ESBUILD = /"esbuild": "([^"]+)"/.exec(
+  readFileSync4(join4(templatesRoot, "repo", "package.json.tmpl"), "utf8")
+)?.[1] ?? "";
+
 // plugins/sidecut-agentskills/server/src/check/sync.ts
-import { existsSync as existsSync4, mkdirSync as mkdirSync3, readdirSync as readdirSync3, readFileSync as readFileSync4, rmSync, writeFileSync as writeFileSync3 } from "node:fs";
-import { dirname as dirname3, join as join4 } from "node:path";
+import { existsSync as existsSync5, mkdirSync as mkdirSync3, readdirSync as readdirSync3, readFileSync as readFileSync5, rmSync as rmSync2, writeFileSync as writeFileSync3 } from "node:fs";
+import { dirname as dirname3, join as join5 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
   "VOICE.md",
@@ -457,15 +464,16 @@ var OWNED_FILES = [
   "scripts/build-server.ts",
   "scripts/release.ts"
 ];
-function pluginOwnedFile(id) {
-  return `plugins/${id}/${USER_INPUT_PATH}`;
+function pluginOwnedFile(id2) {
+  return `plugins/${id2}/${USER_INPUT_PATH}`;
 }
-function pluginSyncFiles(id) {
+function pluginSyncFiles(id2) {
   return [`hooks/${SKILL_LOG_HOOK}`, ANTIGRAVITY_MANIFEST, ANTIGRAVITY_MCP, ANTIGRAVITY_HOOKS].map(
-    (path) => `plugins/${id}/${path}`
+    (path) => `plugins/${id2}/${path}`
   );
 }
 var BLOCK_FILES = [".gitignore", "AGENTS.md", "SECURITY.md"];
+var SETUP_FILE = "tests/setup.ts";
 var SHARED_TOOLS = [
   "@biomejs/biome",
   "@types/node",
@@ -476,7 +484,7 @@ var SHARED_TOOLS = [
   "vitest"
 ];
 var CHECKER = "github:SidecutStudio/sidecut-agentskills#v";
-var MARK = /^(?:<!--|#) sidecut:(start|end) ([\w-]+)(?: -->)?$/;
+var MARK = /^(?:<!--|#|\/\/) sidecut:(start|end) ([\w-]+)(?: -->)?$/;
 function blocksOf(lines) {
   const blocks = [];
   let open = null;
@@ -496,6 +504,10 @@ function blocksOf(lines) {
     }
   }
   return open ? `block "${open.name}" is never ended` : blocks;
+}
+function hasBlocks(text) {
+  const found = blocksOf(text.replaceAll("\r\n", "\n").split("\n"));
+  return typeof found === "string" || found.length > 0;
 }
 function fenced(lines) {
   let inside = false;
@@ -563,10 +575,10 @@ function newer(a, b) {
   for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
   return false;
 }
-function planPackage(root2, vars) {
-  const path = join4(root2, "package.json");
-  if (!existsSync4(path)) return null;
-  const text = readFileSync4(path, "utf8");
+function planPackage(root2, vars, pinOnly) {
+  const path = join5(root2, "package.json");
+  if (!existsSync5(path)) return null;
+  const text = readFileSync5(path, "utf8");
   const pkg = JSON.parse(text);
   const indent = /^\{\r?\n([ \t]+)"/.exec(text)?.[1] ?? "  ";
   const template = JSON.parse(
@@ -578,12 +590,12 @@ function planPackage(root2, vars) {
   );
   const raised = [];
   const npm = (s) => String(s ?? "").replace(/^npm@/, "");
-  if (newer(npm(template.packageManager), npm(pkg.packageManager))) {
+  if (!pinOnly && newer(npm(template.packageManager), npm(pkg.packageManager))) {
     pkg.packageManager = template.packageManager;
     raised.push(template.packageManager);
   }
   const dev = pkg.devDependencies ?? {};
-  for (const name of SHARED_TOOLS) {
+  for (const name of pinOnly ? [] : SHARED_TOOLS) {
     const want = template.devDependencies[name];
     if (want && dev[name] && newer(want, dev[name])) {
       dev[name] = want;
@@ -613,11 +625,13 @@ function planSync(root2, vars, kept = () => false) {
     displayName: displayNameOf(vars.id)
   });
   const guide = pluginOwnedFile(vars.id);
-  for (const file of [...OWNED_FILES, guide]) {
+  const beside = vars.scope === "beside";
+  const applies = (file) => !beside || file === guide && existsSync5(join5(root2, file)) || file === "scripts/eval.mjs" && existsSync5(join5(root2, "evals"));
+  for (const file of [...OWNED_FILES, guide].filter(applies)) {
     if (kept(file)) continue;
     const want = file === guide ? userInput() : render2(file);
-    const path = join4(root2, file);
-    const have = existsSync4(path) ? readFileSync4(path, "utf8") : null;
+    const path = join5(root2, file);
+    const have = existsSync5(path) ? readFileSync5(path, "utf8") : null;
     if (have !== want)
       changes2.push({
         file,
@@ -626,9 +640,9 @@ function planSync(root2, vars, kept = () => false) {
       });
   }
   const hook = `plugins/${vars.id}/hooks/${SKILL_LOG_HOOK}`;
-  if (!kept(hook, "HOOK_SKILL_LOG") && existsSync4(join4(root2, hook))) {
+  if (!kept(hook, "HOOK_SKILL_LOG") && existsSync5(join5(root2, hook))) {
     const want = renderFile(`plugin/hooks/${SKILL_LOG_HOOK}.tmpl`, settings);
-    if (readFileSync4(join4(root2, hook), "utf8") !== want)
+    if (readFileSync5(join5(root2, hook), "utf8") !== want)
       changes2.push({
         file: hook,
         what: `${hook} differs from the template copy.`,
@@ -636,9 +650,9 @@ function planSync(root2, vars, kept = () => false) {
         code: "HOOK_SKILL_LOG"
       });
   }
-  for (const { path, text } of antigravityFiles(join4(root2, "plugins", vars.id)) ?? []) {
+  for (const { path, text } of antigravityFiles(join5(root2, "plugins", vars.id)) ?? []) {
     const file = `plugins/${vars.id}/${path}`;
-    const have = existsSync4(join4(root2, file)) ? readFileSync4(join4(root2, file), "utf8") : null;
+    const have = existsSync5(join5(root2, file)) ? readFileSync5(join5(root2, file), "utf8") : null;
     if (text === null) {
       if (have !== null && !kept(file, "ANTIGRAVITY_UNEXPECTED"))
         changes2.push({
@@ -671,22 +685,25 @@ function planSync(root2, vars, kept = () => false) {
       changes2.push({ file, what: `${file} is now ${guide}.`, next: "", remove: true });
       continue;
     }
-    const have = readFileSync4(join4(root2, file), "utf8");
+    const have = readFileSync5(join5(root2, file), "utf8");
     changes2.push({
       file,
       what: `${file} points at ${OLD_USER_INPUT_PATH}, now ${USER_INPUT_PATH}.`,
       next: have.replaceAll(OLD_USER_INPUT_PATH, USER_INPUT_PATH)
     });
   }
-  for (const file of BLOCK_FILES) {
+  for (const file of [...BLOCK_FILES, SETUP_FILE]) {
     if (kept(file)) continue;
-    const path = join4(root2, file);
+    const path = join5(root2, file);
+    if (file === SETUP_FILE && !existsSync5(path)) continue;
+    if (beside && file !== SETUP_FILE && !(existsSync5(path) && hasBlocks(readFileSync5(path, "utf8"))))
+      continue;
     const template = render2(file);
-    if (!existsSync4(path)) {
+    if (!existsSync5(path)) {
       changes2.push({ file, what: `${file} is missing.`, next: template });
       continue;
     }
-    const have = readFileSync4(path, "utf8");
+    const have = readFileSync5(path, "utf8");
     const merged = mergeBlocks(have, template, file);
     if ("error" in merged)
       changes2.push({ file, what: `${merged.error} Fix them by hand.`, next: null });
@@ -698,22 +715,22 @@ function planSync(root2, vars, kept = () => false) {
       });
   }
   if (!kept("package.json")) {
-    const pkg = planPackage(root2, vars);
+    const pkg = planPackage(root2, vars, beside);
     if (pkg) changes2.push(pkg);
   }
   return changes2;
 }
-function guideMoveFiles(root2, id) {
-  const plugin = `plugins/${id}`;
+function guideMoveFiles(root2, id2) {
+  const plugin = `plugins/${id2}`;
   const oldGuide = `${plugin}/${OLD_USER_INPUT_PATH}`;
   const pointers = markdownUnder(root2, plugin).filter(
-    (file) => file !== oldGuide && readFileSync4(join4(root2, file), "utf8").includes(OLD_USER_INPUT_PATH)
+    (file) => file !== oldGuide && readFileSync5(join5(root2, file), "utf8").includes(OLD_USER_INPUT_PATH)
   );
-  return [...existsSync4(join4(root2, oldGuide)) ? [oldGuide] : [], ...pointers];
+  return [...existsSync5(join5(root2, oldGuide)) ? [oldGuide] : [], ...pointers];
 }
 function markdownUnder(root2, dir) {
-  const path = join4(root2, dir);
-  if (!existsSync4(path)) return [];
+  const path = join5(root2, dir);
+  if (!existsSync5(path)) return [];
   return readdirSync3(path, { withFileTypes: true }).flatMap((entry) => {
     const file = `${dir}/${entry.name}`;
     if (entry.isDirectory()) return entry.name === "node_modules" ? [] : markdownUnder(root2, file);
@@ -727,9 +744,9 @@ function applySync(root2, changes2) {
       left2.push(change);
       continue;
     }
-    const path = join4(root2, change.file);
+    const path = join5(root2, change.file);
     if (change.remove) {
-      rmSync(path, { force: true });
+      rmSync2(path, { force: true });
       continue;
     }
     mkdirSync3(dirname3(path), { recursive: true });
@@ -738,20 +755,25 @@ function applySync(root2, changes2) {
   return left2;
 }
 
+// plugins/sidecut-agentskills/server/src/check/test-git-env.ts
+var DELETES_BY_NAME = ["GIT_DIR", "GIT_INDEX_FILE"].map(
+  (name) => new RegExp(`\\bdelete\\s+process\\.env(?:\\.${name}\\b|\\[\\s*['"\`]${name}['"\`]\\s*\\])`)
+);
+
 // plugins/sidecut-agentskills/server/src/check/repo.ts
 function readJson(path) {
   try {
-    return JSON.parse(readFileSync5(path, "utf8"));
+    return JSON.parse(readFileSync6(path, "utf8"));
   } catch {
     return {};
   }
 }
 function identify(root2) {
-  const pluginsDir = join5(root2, "plugins");
-  const plugins = existsSync5(pluginsDir) ? readdirSync4(pluginsDir).filter((n) => n !== ".DS_Store") : [];
+  const pluginsDir = join6(root2, "plugins");
+  const plugins = existsSync6(pluginsDir) ? readdirSync4(pluginsDir).filter((n) => n !== ".DS_Store") : [];
   const only = plugins.length === 1 ? plugins[0] ?? "" : "";
-  const manifest = readJson(join5(pluginsDir, only, ".claude-plugin", "plugin.json"));
-  const pkg = readJson(join5(root2, "package.json"));
+  const manifest = readJson(join6(pluginsDir, only, ".claude-plugin", "plugin.json"));
+  const pkg = readJson(join6(root2, "package.json"));
   const settings = repoSettings(root2);
   const owner = settings.org ? escapeRegExp(settings.org) : "[\\w.-]+";
   const repo = new RegExp(`^https:\\/\\/github\\.com\\/${owner}\\/([\\w.-]+)$`).exec(
@@ -761,9 +783,16 @@ function identify(root2) {
   const olderName = Boolean(settings.prefix) && only === `${settings.prefix}${repo}` && pkg.name === only;
   const renamed = pkg.name === only && Object.hasOwn(keep, "REPO_PLUGIN_ID");
   if (only && repo && (repo === only || olderName || renamed))
-    return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
-  const scope = !only ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? "none" : "more than one"}.` : `Checked the plugin only: its manifest points at ${repo || `no ${settings.org || "GitHub"} repo`}, not a repo that exists only for ${only}.`;
-  return { plugins, id: null, repo, scope, keep };
+    return {
+      plugins,
+      id: only,
+      plugin: only,
+      repo,
+      scope: `Checked the whole repo for ${only}.`,
+      keep
+    };
+  const scope2 = !only ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? "none" : "more than one"}.` : `Checked the plugin only: its manifest points at ${repo || `no ${settings.org || "GitHub"} repo`}, not a repo that exists only for ${only}.`;
+  return { plugins, id: null, plugin: only || null, repo, scope: scope2, keep };
 }
 
 // scripts/sync.ts
@@ -789,10 +818,16 @@ if (values.help) {
 }
 var root = resolve(positionals[0] ?? ".");
 var who = identify(root);
-if (!who.id) {
+var id = who.id ?? who.plugin;
+if (!id) {
   console.log(`Nothing to sync. ${who.scope}`);
   process.exit(0);
 }
+var scope = who.id ? "whole" : "beside";
+if (scope === "beside")
+  console.log(
+    `Syncing ${id} and the repo files that already follow the template: the repo ships it beside other work.`
+  );
 if (!values.check && !values.force) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_"))
@@ -800,9 +835,10 @@ if (!values.check && !values.force) {
   const touched = [
     ...OWNED_FILES,
     ...BLOCK_FILES,
-    pluginOwnedFile(who.id),
-    ...pluginSyncFiles(who.id),
-    ...guideMoveFiles(root, who.id),
+    SETUP_FILE,
+    pluginOwnedFile(id),
+    ...pluginSyncFiles(id),
+    ...guideMoveFiles(root, id),
     "package.json",
     "package-lock.json"
   ];
@@ -828,7 +864,7 @@ ${dirty.stdout}Commit or stash them first, or pass --force.`
 var keys = Object.keys(who.keep);
 var changes = planSync(
   root,
-  { id: who.id, repo: who.repo, version: ownVersion },
+  { id, repo: who.repo, version: ownVersion, scope },
   (file, code) => keys.some(
     (key) => keepCovers(key, "REPO_SYNC", file) || code !== void 0 && keepCovers(key, code, file)
   )

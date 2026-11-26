@@ -22,6 +22,7 @@ import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.t
 import { checkPlugin } from './plugin.ts';
 import type { Report } from './report.ts';
 import { planSync } from './sync.ts';
+import { checkTestGitEnv } from './test-git-env.ts';
 
 const REQUIRED_ENTRIES = [
   '.github',
@@ -641,11 +642,13 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
  * Each job in a workflow and its `runs-on` value, read from the indentation of the `jobs:` block.
  * Only a `runs-on` directly under the job counts, so one inside a called workflow's `with:` doesn't.
  */
-export function jobsOf(workflow: string): { name: string; runsOn: string | undefined }[] {
+export function jobsOf(
+  workflow: string,
+): { name: string; runsOn: string | undefined; title?: string }[] {
   const lines = workflow.split('\n').map((line) => line.replace(/(^|\s+)#.*$/, ''));
   const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
   if (start < 0) return [];
-  const jobs: { name: string; runsOn: string | undefined }[] = [];
+  const jobs: { name: string; runsOn: string | undefined; title?: string }[] = [];
   let jobIndent = -1;
   let keyIndent = -1;
   for (const line of lines.slice(start + 1)) {
@@ -662,6 +665,9 @@ export function jobsOf(workflow: string): { name: string; runsOn: string | undef
       const job = jobs.at(-1);
       if (indent === keyIndent && key?.[2] === 'runs-on' && job) {
         job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, '');
+      }
+      if (indent === keyIndent && key?.[2] === 'name' && job) {
+        job.title = key[3]?.trim().replace(/^['"]|['"]$/g, '');
       }
     }
   }
@@ -682,7 +688,8 @@ function checkSolo(root: string, report: Report): void {
     );
     return;
   }
-  if (!/required_checks\s*=\s*\[[^\]]*"check"/.test(readFileSync(path, 'utf8'))) {
+  const required = requiredChecks(readFileSync(path, 'utf8'));
+  if (!required.includes('check')) {
     report.add(
       'SOLO_REQUIRED',
       SOLO_FILE,
@@ -691,6 +698,52 @@ function checkSolo(root: string, report: Report): void {
       'Add "check" to required_checks.',
     );
   }
+  const runs = workflowChecks(root);
+  if (runs === null) return;
+  for (const name of required.filter((name) => !runs(name)))
+    report.add(
+      'SOLO_REQUIRED',
+      SOLO_FILE,
+      undefined,
+      `\`required_checks\` lists "${name}", but no job in .github/workflows/ reports a check by that name, so the merge gate waits for one that never runs.`,
+      'Remove it from required_checks, or add the job. A check another service reports goes under sidecut.keep with its source.',
+    );
+}
+
+/** The names in Solo's `required_checks`, ignoring comments. */
+export function requiredChecks(toml: string): string[] {
+  const body = /^required_checks\s*=\s*\[([^\]]*)\]/m.exec(
+    toml
+      .split('\n')
+      .map((line) => line.replace(/\s#.*$/, ''))
+      .join('\n'),
+  )?.[1];
+  return body ? [...body.matchAll(/"([^"]*)"/g)].map((m) => m[1] ?? '') : [];
+}
+
+/**
+ * Whether a check name is one some workflow job reports: its `name:`, or its id when it has none,
+ * which GitHub extends with ` (<matrix values>)` and, for a called workflow, ` / <its job>`. Null
+ * when the repo has no workflows to read.
+ */
+function workflowChecks(root: string): ((name: string) => boolean) | null {
+  const dir = join(root, '.github', 'workflows');
+  if (!existsSync(dir)) return null;
+  const names = readdirSync(dir)
+    .filter((file) => /\.ya?ml$/.test(file))
+    .flatMap((file) => jobsOf(readFileSync(join(dir, file), 'utf8')))
+    .map((job) => job.title ?? job.name);
+  // An expression in a name can become anything, so it matches any text in its place.
+  const patterns = names.map(
+    (name) =>
+      new RegExp(
+        `^${name
+          .split(/\$\{\{[^}]*\}\}/)
+          .map(escapeRegExp)
+          .join('.*')}(?: \\(.*\\)| / .*)?$`,
+      ),
+  );
+  return (check) => patterns.some((pattern) => pattern.test(check));
 }
 
 /** The repo's own facts sync and the checker share. */
@@ -698,6 +751,12 @@ export type Identity = {
   plugins: string[];
   /** The one plugin the repo exists to ship, or null when it only holds plugins. */
   id: string | null;
+  /**
+   * The repo's only plugin, whether or not the repo exists to ship it. When `id` is null this is a
+   * plugin that sits beside other work, and sync keeps it and the repo files that already follow
+   * the template.
+   */
+  plugin: string | null;
   /** The GitHub repo name from the plugin's manifest. */
   repo: string;
   /** What gets checked, and why. */
@@ -740,11 +799,38 @@ export function identify(root: string): Identity {
     Boolean(settings.prefix) && only === `${settings.prefix}${repo}` && pkg.name === only;
   const renamed = pkg.name === only && Object.hasOwn(keep, 'REPO_PLUGIN_ID');
   if (only && repo && (repo === only || olderName || renamed))
-    return { plugins, id: only, repo, scope: `Checked the whole repo for ${only}.`, keep };
+    return {
+      plugins,
+      id: only,
+      plugin: only,
+      repo,
+      scope: `Checked the whole repo for ${only}.`,
+      keep,
+    };
   const scope = !only
     ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? 'none' : 'more than one'}.`
     : `Checked the plugin only: its manifest points at ${repo || `no ${settings.org || 'GitHub'} repo`}, not a repo that exists only for ${only}.`;
-  return { plugins, id: null, repo, scope, keep };
+  return { plugins, id: null, plugin: only || null, repo, scope, keep };
+}
+
+/** What sync would change, as REPO_SYNC problems. */
+function reportSync(
+  root: string,
+  vars: { id: string; repo: string; scope: 'whole' | 'beside' },
+  report: Report,
+): void {
+  // Kept files still get a REPO_SYNC problem here, so applyKeep can tell a stale keep from a live one.
+  for (const change of planSync(root, { ...vars, version: ownVersion })) {
+    // The plugin check already names these under their own rule.
+    if (change.code) continue;
+    report.add(
+      'REPO_SYNC',
+      change.file,
+      undefined,
+      change.what,
+      'Run `npm exec --no -- sidecut-sync`. If this repo got it right, change the template in sidecut-agentskills instead.',
+    );
+  }
 }
 
 /** Runs every house-style check that applies to the repo at `root`. */
@@ -761,10 +847,13 @@ export function checkRepo(root: string, report: Report): void {
     return;
   }
   useSettings(repoSettings(root));
-  const { plugins, id: only, repo: repoName, scope, keep } = identify(root);
+  const { plugins, id: only, plugin, repo: repoName, scope, keep } = identify(root);
   report.scope = scope;
   if (!only) {
     for (const id of plugins) checkPlugin(join(pluginsDir, id), root, report, null);
+    // A plugin beside other work still keeps the repo files it shares with the template current.
+    if (plugin) reportSync(root, { id: plugin, repo: repoName, scope: 'beside' }, report);
+    checkTestGitEnv(root, report);
     report.applyKeep(keep);
     return;
   }
@@ -800,18 +889,8 @@ export function checkRepo(root: string, report: Report): void {
       );
     }
   }
-  // Kept files still get a REPO_SYNC problem here, so applyKeep can tell a stale keep from a live one.
-  for (const change of planSync(root, { id, repo: repoName, version: ownVersion })) {
-    // The plugin check already names these under their own rule.
-    if (change.code) continue;
-    report.add(
-      'REPO_SYNC',
-      change.file,
-      undefined,
-      change.what,
-      'Run `npm exec --no -- sidecut-sync`. If this repo got it right, change the template in sidecut-agentskills instead.',
-    );
-  }
+  reportSync(root, { id, repo: repoName, scope: 'whole' }, report);
+  checkTestGitEnv(root, report);
   const security = join(root, 'SECURITY.md');
   if (existsSync(security)) {
     const text = readFileSync(security, 'utf8');

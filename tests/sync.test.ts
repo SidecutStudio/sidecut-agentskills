@@ -426,3 +426,102 @@ test("an unreadable .mcp.json leaves Antigravity's MCP config alone", () => {
   checkRepo(root, report);
   expect(report.problems.map((p) => p.code)).not.toContain('ANTIGRAVITY_UNEXPECTED');
 });
+
+/** Makes the copy a repo that ships the plugin beside other work, as sidecut-ops ships sidecut-ci. */
+function besideRepo(): string {
+  const root = copy();
+  for (const host of ['.claude-plugin', '.codex-plugin']) {
+    const path = `${P}/${host}/plugin.json`;
+    const manifest = JSON.parse(read(root, path));
+    manifest.repository = 'https://github.com/SidecutStudio/demo-ops';
+    write(root, path, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  pkg(root, (v) => Object.assign(v, { name: 'demo-ops' }));
+  applySync(root, planSync(root, vars));
+  // The repo's own files: no CLAUDE.md, its own voice, AGENTS.md and build script, and an older
+  // TypeScript than the template's.
+  rmSync(join(root, 'CLAUDE.md'));
+  write(root, 'VOICE.md', '# Voice\n\nHow demo-ops sounds.\n');
+  write(root, 'scripts/build-server.ts', '// demo-ops builds its own way\n');
+  write(root, 'AGENTS.md', '# demo-ops\n\nRunners and the demo plugin.\n');
+  pkg(root, (v) => {
+    v.devDependencies.typescript = '1.0.0';
+  });
+  git(root, 'init', '-q');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-qm', 'base');
+  return root;
+}
+
+test('a plugin beside other work gets its hook, Antigravity files and eval script synced', () => {
+  const root = besideRepo();
+  for (const file of ANTIGRAVITY) rmSync(join(root, file));
+  write(root, HOOK, read(root, HOOK).replace('antigravity', 'old'));
+  write(root, 'scripts/eval.mjs', '// copied by hand\n');
+  git(root, 'commit', '-qam', 'drift');
+  const result = cli(root);
+  expect(result.stdout).not.toContain('Nothing to sync');
+  expect(result.status, result.stderr).toBe(0);
+  const beside = { ...vars, repo: 'demo-ops', scope: 'beside' as const };
+  expect(planSync(root, beside)).toEqual([]);
+  for (const file of ANTIGRAVITY) expect(existsSync(join(root, file))).toBe(true);
+  expect(read(root, 'scripts/eval.mjs')).toContain('--trust-plugin');
+  // Nothing the repo chose not to have comes back, and its own files and tools are left alone.
+  expect(existsSync(join(root, 'CLAUDE.md'))).toBe(false);
+  expect(read(root, 'VOICE.md')).toBe('# Voice\n\nHow demo-ops sounds.\n');
+  expect(read(root, 'scripts/build-server.ts')).toBe('// demo-ops builds its own way\n');
+  expect(read(root, 'AGENTS.md')).toBe('# demo-ops\n\nRunners and the demo plugin.\n');
+  expect(JSON.parse(read(root, 'package.json')).devDependencies.typescript).toBe('1.0.0');
+  // The checker names the same drift, so the repo's own check fails until it syncs.
+  write(root, 'scripts/eval.mjs', '// copied by hand\n');
+  const report = new Report();
+  checkRepo(root, report);
+  // The sync fixture has no built server, so only the sync findings are compared.
+  expect(report.problems.filter((p) => p.code === 'REPO_SYNC').map((p) => p.file)).toEqual([
+    'scripts/eval.mjs',
+  ]);
+});
+
+test('the eval script finds the plugin when the package is named after something else', () => {
+  const root = besideRepo();
+  const script = read(root, 'scripts/eval.mjs');
+  expect(script).not.toContain("JSON.parse(readFileSync(join(root, 'package.json')");
+  expect(script).toContain("existsSync(join(root, 'plugins', f, '.claude-plugin', 'plugin.json'))");
+});
+
+test("sync adds the git-env block to an existing test preload, and doesn't create one", () => {
+  const root = copy();
+  write(root, 'tests/setup.ts', "process.env.SIDECUT_SKILL_LOG = '0';\nexport {};\n");
+  expect(files(root)).toEqual(['tests/setup.ts']);
+  applySync(root, planSync(root, vars));
+  const setup = read(root, 'tests/setup.ts');
+  expect(setup).toContain('// sidecut:start git-env');
+  expect(setup).toContain("if (key.startsWith('GIT_')) delete process.env[key];");
+  expect(setup.startsWith('// sidecut:start git-env')).toBe(true);
+  expect(planSync(root, vars)).toEqual([]);
+  rmSync(join(root, 'tests/setup.ts'));
+  expect(files(root)).toEqual([]);
+});
+
+test('the git-env block drops what a git hook exports before any test runs', () => {
+  const root = copy();
+  const probe = join(root, 'tests', 'probe.ts');
+  writeFileSync(
+    probe,
+    `${read(root, 'tests/setup.ts')}\nconsole.log(Object.keys(process.env).filter((k) => k.startsWith('GIT_')).join(','));\n`,
+  );
+  const run = spawnSync(process.execPath, [probe], {
+    encoding: 'utf8',
+    env: { ...process.env, GIT_DIR: '/elsewhere/.git', GIT_INDEX_FILE: 'x' },
+  });
+  expect(run.stderr).toBe('');
+  expect(run.stdout.trim()).toBe('');
+});
+
+test('a file that only mentions the markers gets no block beside other work', () => {
+  const root = besideRepo();
+  const text = '# demo-ops\n\nSync fills blocks marked `sidecut:start house-style`.\n';
+  write(root, 'AGENTS.md', text);
+  applySync(root, planSync(root, { ...vars, repo: 'demo-ops', scope: 'beside' }));
+  expect(read(root, 'AGENTS.md')).toBe(text);
+});

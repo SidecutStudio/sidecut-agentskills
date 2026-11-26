@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { antigravityFiles } from '../plugins/sidecut-agentskills/server/src/antigravity.ts';
-import { treeHash } from '../plugins/sidecut-agentskills/server/src/check/plugin.ts';
+import { treeHash } from '../plugins/sidecut-agentskills/server/src/check/evals-stamp.ts';
 import {
   bunlessToolSteps,
   checkRepo,
@@ -694,6 +694,16 @@ const cases: [string, (repo: Repo) => void][] = [
     (r) => r.edit('solo-workflow.toml', (t) => t.replace(/\["check"[^\]]*\]/, '["secrets"]')),
   ],
   ['REPO_COPY', (r) => r.append('README.md', '\nExtra line.\n')],
+  [
+    'TEST_GIT_ENV',
+    (r) => {
+      r.write('tests/setup.ts', "process.env.SIDECUT_SKILL_LOG = '0';\n");
+      r.write(
+        'tests/git.test.ts',
+        "import { execSync } from 'node:child_process';\nexecSync('git status');\n",
+      );
+    },
+  ],
 ];
 
 test('evals copied from another repo pass while they match their recorded hash', () => {
@@ -710,6 +720,261 @@ test('evals copied from another repo pass while they match their recorded hash',
     Object.assign(v, { copies: [{ path: '../outside', hash: 'x' }] }),
   );
   expect(codes(repo.root)).toContain('EVAL_SOURCE');
+});
+
+test('the evals stamp has one hash, and sidecut-evals-stamp checks it in any repo', () => {
+  const repo = copy();
+  const hash = treeHash(join(repo.root, 'evals'));
+  repo.write('evals-source.json', JSON.stringify({ copies: [{ path: 'evals', hash }] }));
+  // sidecut-evals imports the built copy, so the two can't drift apart.
+  const built = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { treeHash } from ${JSON.stringify(join(repoRoot, 'bin', 'evals-hash.mjs'))}; console.log(treeHash(process.argv[1]));`,
+      join(repo.root, 'evals'),
+    ],
+    { encoding: 'utf8' },
+  );
+  expect(built.stdout.trim()).toBe(hash);
+  const stamp = () =>
+    spawnSync(process.execPath, [join(repoRoot, 'scripts', 'evals-stamp.ts'), repo.root], {
+      encoding: 'utf8',
+    });
+  expect(stamp().status).toBe(0);
+  repo.append('evals/demo-check-status-trigger/prompt.md', 'Edited here.\n');
+  const edited = stamp();
+  expect(edited.status).toBe(1);
+  expect(edited.stderr).toContain("evals doesn't match the hash in evals-source.json.");
+});
+
+test('a symlink loop in a copied evals folder is a finding that says so, not a hang', () => {
+  const repo = copy();
+  symlinkSync('..', join(repo.root, 'evals', 'loop'), 'dir');
+  repo.write('evals-source.json', JSON.stringify({ copies: [{ path: 'evals', hash: 'x' }] }));
+  const report = new Report();
+  checkRepo(repo.root, report);
+  expect(report.problems.find((p) => p.code === 'EVAL_SOURCE')?.message).toContain(
+    "evals can't be hashed: loop/evals links back into the copy.",
+  );
+});
+
+test('the stamp hash is the one every stamped repo already records', () => {
+  // Stamped repos hold hashes made by this exact algorithm, so any change to it fails them all.
+  const dir = mkdtempSync(join(tmpdir(), 'evals-hash-'));
+  scratch.push(dir);
+  mkdirSync(join(dir, 'sub'));
+  writeFileSync(join(dir, 'a.txt'), 'a\n');
+  writeFileSync(join(dir, 'sub', 'b.txt'), 'b\n');
+  writeFileSync(join(dir, '.DS_Store'), 'ignored');
+  expect(treeHash(dir)).toBe(
+    'sha256-40f9175e859ebb5a87aea6c792dbac208c711f98da2e22f10370d4778355a00e',
+  );
+});
+
+test('a repo without esbuild is told the checker needs it, not just that a module is missing', () => {
+  const repo = copy();
+  repo.rm('node_modules');
+  const report = new Report();
+  checkRepo(repo.root, report);
+  const build = report.problems.find((p) => p.code === 'SERVER_BUILD');
+  expect(build?.message).toContain("esbuild isn't installed");
+  expect(build?.message).toContain("Bun's bundler can't stand in");
+  expect(build?.fix).toMatch(/Add esbuild \d+\.\d+\.\d+ to devDependencies/);
+});
+
+describe('required checks', () => {
+  const solo = (repo: Repo, list: string) =>
+    repo.edit('solo-workflow.toml', (t) =>
+      t.replace(/^required_checks\s*=\s*\[[^\]]*\]/m, `required_checks = ${list}`),
+    );
+  const problems = (repo: Repo) => {
+    const report = new Report();
+    checkRepo(repo.root, report);
+    return report.problems.filter((p) => p.code === 'SOLO_REQUIRED').map((p) => p.message);
+  };
+
+  test('a required check no job reports is flagged, since the gate would wait forever', () => {
+    const repo = copy();
+    solo(repo, '["check", "secrets"]');
+    expect(problems(repo)).toEqual([
+      '`required_checks` lists "secrets", but no job in .github/workflows/ reports a check by that name, so the merge gate waits for one that never runs.',
+    ]);
+  });
+
+  test("a job's name, matrix entries and called workflows count; comments don't", () => {
+    const repo = copy();
+    repo.write(
+      '.github/workflows/extra.yml',
+      'name: Extra\non: [push]\njobs:\n  e2e:\n    name: Browser\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        os: [a]\n    steps:\n      - run: "true"\n  shared:\n    uses: ./.github/workflows/check.yml\n',
+    );
+    solo(repo, '[\n  "check", # the main job\n  "Browser (a)",\n  "shared / check",\n]');
+    expect(problems(repo)).toEqual([]);
+    // A job with a name reports that name, not its id.
+    solo(repo, '["check", "e2e"]');
+    expect(problems(repo)).toHaveLength(1);
+  });
+
+  test('a job named with an expression matches what it can become, and nothing else', () => {
+    const repo = copy();
+    repo.write(
+      '.github/workflows/extra.yml',
+      'name: Extra\non: [push]\njobs:\n  build:\n    name: Build (${{ matrix.os }})\n    runs-on: ubuntu-24.04\n    steps:\n      - run: "true"\n',
+    );
+    solo(repo, '["check", "Build (linux)", "secrets"]');
+    expect(problems(repo)).toEqual([expect.stringContaining('lists "secrets"')]);
+  });
+});
+
+describe('git in tests', () => {
+  const GIT_TEST =
+    "import { spawnSync } from 'node:child_process';\nimport { test } from 'vitest';\n\ntest('git', () => {\n  spawnSync('git', ['init', '-q']);\n});\n";
+  const withoutBlock = (repo: Repo) =>
+    repo.edit('tests/setup.ts', (t) =>
+      t.replace(/\/\/ sidecut:start git-env[\s\S]*\/\/ sidecut:end git-env\n/, ''),
+    );
+  const gitCodes = (repo: Repo) => {
+    const report = new Report();
+    checkRepo(repo.root, report);
+    return report.problems
+      .filter((p) => p.code === 'TEST_GIT_ENV')
+      .map((p) => `${p.file}:${p.line}`);
+  };
+
+  test("the template's preload covers a test that runs git", () => {
+    const repo = copy();
+    repo.write('tests/git.test.ts', GIT_TEST);
+    expect(gitCodes(repo)).toEqual([]);
+  });
+
+  test('a test that runs git with nothing dropping GIT_* is flagged at the git call', () => {
+    const repo = copy();
+    repo.write('tests/git.test.ts', GIT_TEST);
+    withoutBlock(repo);
+    expect(gitCodes(repo)).toEqual(['tests/git.test.ts:5']);
+  });
+
+  test('dropping GIT_* in the test, a helper it imports or a Bun preload counts', () => {
+    const drop =
+      "for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) delete process.env[k];\n";
+    const inFile = copy();
+    withoutBlock(inFile);
+    inFile.write('tests/git.test.ts', drop + GIT_TEST);
+    expect(gitCodes(inFile)).toEqual([]);
+
+    const helper = copy();
+    withoutBlock(helper);
+    helper.write('app/test/helpers.js', `export function clean() {\n  ${drop}}\n`);
+    helper.write(
+      'app/test/git.test.js',
+      "import { execFileSync } from 'node:child_process';\nimport { clean } from './helpers.js';\nclean();\nexecFileSync('git', ['status']);\n",
+    );
+    expect(gitCodes(helper)).toEqual([]);
+
+    const bun = copy();
+    withoutBlock(bun);
+    bun.write('tests/git.test.ts', GIT_TEST.replace("spawnSync('git'", "Bun.spawnSync(['git'"));
+    expect(gitCodes(bun)).toEqual(['tests/git.test.ts:5']);
+    bun.write('bunfig.toml', '[test]\npreload = ["./tests/bun-setup.ts"]\n');
+    bun.write('tests/bun-setup.ts', drop);
+    expect(gitCodes(bun)).toEqual([]);
+  });
+
+  test('other ways of keeping git off the hook environment count', () => {
+    const passes = (setup: (repo: Repo) => void) => {
+      const repo = copy();
+      withoutBlock(repo);
+      setup(repo);
+      return gitCodes(repo);
+    };
+    const drop =
+      "for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) delete process.env[k];\n";
+    // A TypeScript helper imported by the .js name it compiles to.
+    expect(
+      passes((r) => {
+        r.write('tests/h.ts', drop);
+        r.write('tests/git.test.ts', `import './h.js';\n${GIT_TEST}`);
+      }),
+    ).toEqual([]);
+    // Deleting by name the two a hook always exports, or each GIT_* in a loop.
+    expect(
+      passes((r) =>
+        r.write(
+          'tests/git.test.ts',
+          `delete process.env.GIT_DIR;\ndelete process.env.GIT_INDEX_FILE;\n${GIT_TEST}`,
+        ),
+      ),
+    ).toEqual([]);
+    expect(
+      passes((r) =>
+        r.write(
+          'tests/git.test.ts',
+          `Object.keys(process.env)\n  .filter((k) => k.startsWith('GIT_'))\n  .forEach((k) => {\n    delete process.env[k];\n  });\n${GIT_TEST}`,
+        ),
+      ),
+    ).toEqual([]);
+    // A delete inside the block an if opens.
+    expect(
+      passes((r) =>
+        r.write(
+          'tests/git.test.ts',
+          `for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) {\n  console.log(k);\n  delete process.env[k];\n}\n${GIT_TEST}`,
+        ),
+      ),
+    ).toEqual([]);
+    // An env of its own.
+    expect(
+      passes((r) =>
+        r.write(
+          'tests/git.test.ts',
+          GIT_TEST.replace("['init', '-q']", "['init', '-q'], { env: { PATH: '/usr/bin' } }"),
+        ),
+      ),
+    ).toEqual([]);
+    // A Jest preload.
+    expect(
+      passes((r) => {
+        r.write('jest.config.js', "module.exports = { setupFiles: ['./tests/jest-setup.js'] };\n");
+        r.write('tests/jest-setup.js', drop);
+        r.write('tests/git.test.ts', GIT_TEST);
+      }),
+    ).toEqual([]);
+  });
+
+  test('reading GIT_* or mentioning it in a comment is not dropping it, and shell git counts', () => {
+    const flagged = (text: string) => {
+      const repo = copy();
+      withoutBlock(repo);
+      repo.write('tests/git.test.ts', text);
+      return gitCodes(repo);
+    };
+    expect(
+      flagged(
+        `const seen = Object.keys(process.env).filter((k) => k.startsWith('GIT_'));\n${GIT_TEST}`,
+      ),
+    ).toEqual(['tests/git.test.ts:6']);
+    expect(flagged(`// k.startsWith('GIT_') would drop them\n${GIT_TEST}`)).toEqual([
+      'tests/git.test.ts:6',
+    ]);
+    expect(
+      flagged(
+        "import { execSync } from 'node:child_process';\nexecSync('cd /tmp/x && git init');\n",
+      ),
+    ).toEqual(['tests/git.test.ts:2']);
+    // Only GIT_DIR deleted: a hook's GIT_INDEX_FILE still reaches git.
+    expect(flagged(`delete process.env.GIT_DIR;\n${GIT_TEST}`)).toEqual(['tests/git.test.ts:6']);
+    // Bun's shell has no env of its own, whatever a later call passes.
+    expect(flagged("await $`git init`;\nrun({ env: { A: '1' } });\n")).toEqual([
+      'tests/git.test.ts:1',
+    ]);
+    // A glob in a string is not a comment, and a later call's env is not this one's.
+    expect(
+      flagged(
+        "import { execSync, spawnSync } from 'node:child_process';\nconst g = 'tests/*';\nexecSync('git init');\nconst h = '*/x';\nspawnSync('echo', ['x'], { env: { PATH: '/bin' } });\n",
+      ),
+    ).toEqual(['tests/git.test.ts:3']);
+  });
 });
 
 test('a docs folder is part of the layout', () => {
@@ -803,7 +1068,9 @@ test('a repo that kept an older name still gets the repo checks when its package
   // Both CLAUDE.md and the security advisory link, which now names the repo.
   expect(codes(repo.root)).toEqual(['REPO_SYNC', 'REPO_SYNC']);
   repo.json('package.json', (v) => Object.assign(v, { name: 'demo-tools' }));
-  expect(codes(repo.root)).not.toContain('REPO_SYNC');
+  const report = new Report();
+  checkRepo(repo.root, report);
+  expect(report.scope).toContain('Checked the plugin only');
 });
 
 /** Makes the copy an app repo: the package names the plugin, but the repo is named after the app. */
@@ -815,6 +1082,8 @@ function appRepo(): Repo {
     );
   repo.write('src/main.ts', 'export {};\n');
   repo.rm('CLAUDE.md');
+  // An app's security advisories are filed on the app's repo.
+  repo.edit('SECURITY.md', (t) => t.replace(`SidecutStudio/${ID}`, `SidecutStudio/${ID}-app`));
   return agree(repo);
 }
 
@@ -825,7 +1094,7 @@ test('an app repo whose package names the plugin gets the plugin checks only', (
   expect(report.scope).toBe(
     `Checked the plugin only: its manifest points at ${ID}-app, not a repo that exists only for ${ID}.`,
   );
-  expect(report.problems.map((p) => p.code)).toEqual([]);
+  expect(report.problems.map((p) => `${p.code} ${p.file}`)).toEqual([]);
 });
 
 test('sidecut.keep is honoured in plugin-only scope, and a stale key still fails', () => {

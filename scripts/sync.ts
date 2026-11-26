@@ -12,6 +12,7 @@ import {
   planSync,
   pluginOwnedFile,
   pluginSyncFiles,
+  SETUP_FILE,
 } from '../plugins/sidecut-agentskills/server/src/check/sync.ts';
 import { ownVersion } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
@@ -38,10 +39,18 @@ if (values.help) {
 }
 const root = resolve(positionals[0] ?? '.');
 const who = identify(root);
-if (!who.id) {
+// A repo that ships its one plugin beside other work still gets the plugin's files and the repo
+// files it already shares with the template.
+const id = who.id ?? who.plugin;
+if (!id) {
   console.log(`Nothing to sync. ${who.scope}`);
   process.exit(0);
 }
+const scope = who.id ? 'whole' : 'beside';
+if (scope === 'beside')
+  console.log(
+    `Syncing ${id} and the repo files that already follow the template: the repo ships it beside other work.`,
+  );
 
 // Never overwrite work that isn't committed yet: git couldn't bring it back. This runs once, before
 // anything changes, so the move to a newer release below doesn't count as someone's edit.
@@ -53,9 +62,10 @@ if (!values.check && !values.force) {
   const touched = [
     ...OWNED_FILES,
     ...BLOCK_FILES,
-    pluginOwnedFile(who.id),
-    ...pluginSyncFiles(who.id),
-    ...guideMoveFiles(root, who.id),
+    SETUP_FILE,
+    pluginOwnedFile(id),
+    ...pluginSyncFiles(id),
+    ...guideMoveFiles(root, id),
     'package.json',
     'package-lock.json',
   ];
@@ -80,7 +90,7 @@ if (!values.check && !values.force) {
 
 const keys = Object.keys(who.keep);
 // A file is kept by its path, by `REPO_SYNC <file>`, or by the plugin rule that reports it.
-const changes = planSync(root, { id: who.id, repo: who.repo, version: ownVersion }, (file, code) =>
+const changes = planSync(root, { id, repo: who.repo, version: ownVersion, scope }, (file, code) =>
   keys.some(
     (key) =>
       keepCovers(key, 'REPO_SYNC', file) || (code !== undefined && keepCovers(key, code, file)),

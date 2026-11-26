@@ -1,11 +1,12 @@
 {
   "name": "sidecut-agentskills",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "private": true,
   "type": "module",
   "packageManager": "npm@11.19.1",
   "bin": {
     "sidecut-check": "bin/check.mjs",
+    "sidecut-evals-stamp": "bin/evals-stamp.mjs",
     "sidecut-icon": "bin/icon.mjs",
     "sidecut-sync": "bin/sync.mjs",
     "sidecut-version": "bin/version.mjs"

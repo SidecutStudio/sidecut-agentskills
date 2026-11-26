@@ -1,11 +1,18 @@
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const { name } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+// The one folder in plugins/ with a Claude Code manifest, so a repo that ships its plugin beside other
+// work, under a package named after that work, runs it too.
+const plugins = readdirSync(join(root, 'plugins')).filter((f) =>
+  existsSync(join(root, 'plugins', f, '.claude-plugin', 'plugin.json')),
+);
+if (plugins.length !== 1)
+  throw new Error(`Expected one plugin in plugins/, found ${plugins.length}.`);
+const [name = ''] = plugins;
 const args = process.argv.slice(2);
 if (args.some((arg) => ['--publish', '--publish-report'].includes(arg.split('=')[0])))
   throw new Error('Development evals are not published.');
