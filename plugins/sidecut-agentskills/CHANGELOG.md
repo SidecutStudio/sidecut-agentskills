@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.10.1] - 2026-11-26
+
+### Fixed
+
+- `sidecut-sync` put the `git-env` block after a test preload's imports when the file has no line it can anchor to. It used to go at the very top, above the imports, which Biome's import ordering rejects.
+
 ## [2.10.0] - 2026-11-26
 
 ### Added

@@ -24371,6 +24371,7 @@ function mergeBlocks(current2, template, file) {
     const anchor2 = want.slice(0, block.start).reverse().find((line) => line.trim() !== "" && !MARK.test(line));
     let at = anchor2 === void 0 ? -1 : have.indexOf(anchor2);
     if (at < 0 && file.endsWith(".md")) at = have.findIndex((line) => line.startsWith("# "));
+    if (at < 0 && /\.[cm]?[jt]s$/.test(file)) at = afterImports(have);
     const head = have.slice(0, at + 1);
     let rest = have.slice(at + 1);
     const covered = new Set(body.filter((line) => line.trim() !== ""));
@@ -24384,6 +24385,17 @@ function mergeBlocks(current2, template, file) {
   }
   const text2 = have.join("\n");
   return { text: crlf ? text2.replaceAll("\n", "\r\n") : text2 };
+}
+function afterImports(lines) {
+  let last = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^import\b/.test(lines[i] ?? "")) continue;
+    let j = i;
+    while (j < lines.length - 1 && !/\bfrom\s|;\s*$|^import\s+['"]/.test(lines[j] ?? "")) j++;
+    last = j;
+    i = j;
+  }
+  return last;
 }
 function sameParsed(a, b) {
   try {

@@ -150,6 +150,8 @@ export function mergeBlocks(
       .find((line) => line.trim() !== '' && !MARK.test(line));
     let at = anchor === undefined ? -1 : have.indexOf(anchor);
     if (at < 0 && file.endsWith('.md')) at = have.findIndex((line) => line.startsWith('# '));
+    // In code, a new block goes after the imports, which have to come first.
+    if (at < 0 && /\.[cm]?[jt]s$/.test(file)) at = afterImports(have);
     const head = have.slice(0, at + 1);
     let rest = have.slice(at + 1);
     // Adopting a block replaces the lines it now covers, so the file doesn't say them twice. Fenced
@@ -166,6 +168,20 @@ export function mergeBlocks(
   }
   const text = have.join('\n');
   return { text: crlf ? text.replaceAll('\n', '\r\n') : text };
+}
+
+/** The index of the last line of a module's top-level imports, or -1 when it has none. */
+function afterImports(lines: string[]): number {
+  let last = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^import\b/.test(lines[i] ?? '')) continue;
+    // An import can span lines until its `from` clause or closing semicolon.
+    let j = i;
+    while (j < lines.length - 1 && !/\bfrom\s|;\s*$|^import\s+['"]/.test(lines[j] ?? '')) j++;
+    last = j;
+    i = j;
+  }
+  return last;
 }
 
 /** Whether two JSON texts hold the same value, so formatting alone never counts as a change. */
