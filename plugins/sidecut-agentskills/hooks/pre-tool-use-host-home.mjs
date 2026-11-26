@@ -71,11 +71,25 @@ const commands = (line) =>
     .map((part) => part.trim())
     .filter(Boolean);
 
-function problem(line, env, cwd) {
-  const exported = {};
+// Shell keywords and brackets that can come before a command without being one.
+const KEYWORDS = new Set(['do', 'then', 'else', 'elif', '!', '{', '(', 'while', 'until', 'if']);
+// Wrapper options that take a value, such as `nice -n 5` or `sudo -u me`.
+const VALUED = new Set(['-n', '-k', '-s', '-u', '-g', '-C', '--signal', '--kill-after']);
+
+function problem(line, env, cwd, inherited = {}) {
+  const exported = { ...inherited };
   const folders = ownFolders(env);
+  // A command inside $(...) or backticks runs too.
+  for (const [, inner] of line.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {
+    const found = inner && problem(inner, env, cwd, exported);
+    if (found) return found;
+  }
   for (const part of commands(line)) {
-    const words = part.match(/(?:[^\s'"]+|'[^']*'|"[^"]*")+/g) ?? [];
+    const words = (part.match(/(?:[^\s'"]+|'[^']*'|"[^"]*")+/g) ?? [])
+      .map((word) => word.replace(/^\(+(?=.)/, ''))
+      .filter(
+        (word, at, all) => !(KEYWORDS.has(word) && all.slice(0, at).every((w) => KEYWORDS.has(w))),
+      );
     const assigned = { ...exported };
     if (words[0] === 'export') {
       for (const word of words.slice(1)) {
@@ -88,7 +102,12 @@ function problem(line, env, cwd) {
     for (; i < words.length; i++) {
       const match = ASSIGNMENT.exec(words[i]);
       if (match) assigned[match[1]] = match[2];
-      else if (words[i] === 'timeout' && /^\d/.test(words[i + 1] ?? '')) i++;
+      else if (VALUED.has(words[i]) && i > 0) i++;
+      else if (
+        /^\d+(?:\.\d+)?[smhd]?$/.test(words[i]) &&
+        words.slice(0, i).some((word) => WRAPPERS.has(word))
+      )
+        continue;
       else if (WRAPPERS.has(words[i]) || words[i].startsWith('-')) continue;
       else break;
     }
@@ -103,12 +122,13 @@ function problem(line, env, cwd) {
       if (inside(resolve(cwd, path), folders))
         return `\`${part}\` reads the user's own host config, which holds their sign-ins and tokens.`;
     }
-    if (SHELLS.has(program) && rest.includes('-c')) {
+    const flag = rest.findIndex((word) => /^-[a-z]*c$/.test(word));
+    if (SHELLS.has(program) && flag >= 0) {
       const script = rest
-        .slice(rest.indexOf('-c') + 1)
+        .slice(flag + 1)
         .map(unquote)
         .join(' ');
-      const found = problem(script, env, cwd);
+      const found = problem(script, env, cwd, exported);
       if (found) return found;
       continue;
     }

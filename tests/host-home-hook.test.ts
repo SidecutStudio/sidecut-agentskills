@@ -49,6 +49,13 @@ test.each([
   ['timeout 20 codex mcp list'],
   ['bash -c "codex mcp list | head"'],
   ['npx --yes codex mcp list'],
+  ['nice -n 5 codex exec x'],
+  ['timeout -k 5 10 codex exec x'],
+  ['sudo -u me codex mcp list'],
+  ["bash -lc 'codex exec hi'"],
+  ['for f in a b; do codex exec $f; done'],
+  ['(codex exec x)'],
+  ['echo $(codex mcp list)'],
 ])('refuses %s from the reviewer', (command) => {
   expect(decide(bash(command))).toBe('deny');
 });
@@ -62,6 +69,7 @@ test.each([
   ['git log | grep codex'],
   ['grep -rn "~/.codex" plugins'],
   ['command -v codex'],
+  ['export CODEX_HOME=/tmp/x && sh -c "codex mcp list"'],
   ['cat ~/.claude/plugins/cache/sidecut/sidecut-agentskills/2.11.0/server/data/house-style.md'],
 ])('lets %s through', (command) => {
   expect(decide(bash(command))).toBeUndefined();
