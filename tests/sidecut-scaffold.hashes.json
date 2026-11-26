@@ -35,11 +35,11 @@
   "plugins/sidecut-demo/skills/demo-check-status/SKILL.md": "f3eb3dfec6c4f9c9e87c9ed3ebbbeb81455347b62b0161cca329ce06ea9bf100",
   "plugins/sidecut-demo/skills/demo-check-status/agents/openai.yaml": "614d32f73ab289a1ddad5e7da74ebfe9cda3e099b2cb60726c7fd884136c4d36",
   "scripts/build-server.ts": "a1bdb7b2835c46537cdc635a78b2923b8dac9adcacbd2bf8acae50697830cd10",
-  "scripts/eval.mjs": "54a192103b2a482e5b3decdf06a6d240c4422e7ad28adb6383b45d8fe44b715e",
+  "scripts/eval.mjs": "bdd0b7149baf1f8cdf8e5268c5af1761dbf09873b7487247ffebb8333a659034",
   "scripts/release.ts": "a498b9a001a23e8ecdc4736b890f98eed1da0da442bf9fc68fbbee01fe3374e4",
   "solo-workflow.toml": "4d115447acf8f8843655229e321ef08a6e8596dcbaf1ff1dbc8478a23f680e6f",
   "tests/plugin.test.ts": "36857ef4165a29826b96b251c6f6d13b977a142acf69083e23aa3e30fb4ed8e7",
-  "tests/setup.ts": "e5e68081aaf6a33cfe4c123efa2316151e7288bd5096b008f3a900d247a00693",
+  "tests/setup.ts": "651bf8ba59bd73a883a9594b6835f3958cfe8f00b802b0736a3cfcdd45ad6a21",
   "tsconfig.json": "c7d08542dece55c82d21325ad662ca4562dc80dd0d82137a996af4f607d5d352",
   "vitest.config.ts": "0ff864fa6063a0e0d938078d7d7d68b3761c50b14f9d60b23c1cff9c20fda803"
 }

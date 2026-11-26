@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.10.0] - 2026-11-26
+
+### Added
+
+- `sidecut-check` reported `TEST_GIT_ENV` when test code runs git and nothing drops the `GIT_*` variables a git hook exports, so a test run from a pre-push hook can't write into the real checkout (one set `core.bare=true` there). Dropping them in the test preload, in the test itself or in a helper it imports all count. The template's `tests/setup.ts` carries a `git-env` block that does it, and `sidecut-sync` adds the block to a repo's existing `tests/setup.ts`.
+- `sidecut-check` reported `SOLO_REQUIRED` for any `required_checks` entry that no workflow job reports, such as `secrets` left behind after the two-job CI template, since the merge gate would wait for it forever. A job's `name:`, matrix entries and called workflows count. A check another service reports goes under `sidecut.keep`.
+- `sidecut-evals-stamp` checked a repo's copied evals against `evals-source.json` without the rest of `sidecut-check`, for repos not built from the template. The tree hash now lives in one place: `sidecut-check` and `sidecut-evals-stamp` use it, and sidecut-evals imports the same code from `bin/evals-hash.mjs`. A symlink loop in a copied folder is a finding instead of a hang.
+
+### Changed
+
+- `sidecut-sync` synced a repo that ships its plugin beside other work, such as an operations repo with its CI plugin, instead of printing "Nothing to sync": the usage log hook, the Antigravity files, the packaged guide, `scripts/eval.mjs` once the repo has `evals/`, the marked blocks it already carries and the checker pin. It leaves that repo's other files and its own tool versions alone, and `sidecut-check` reports the same drift there as `REPO_SYNC`.
+- The template's `scripts/eval.mjs` found its plugin as the one folder in `plugins/` with a Claude Code manifest, so it runs where the package is named after other work.
+- A repo without esbuild got a `SERVER_BUILD` problem that says the checker builds the server with the repo's own esbuild and that Bun's bundler can't stand in, instead of "Cannot find module 'esbuild'". The house style says a Bun-only repo adds esbuild too.
+
 ## [2.9.0] - 2026-11-26
 
 ### Changed

@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import type { buildSync } from 'esbuild';
-import { listFiles } from '../scaffold.ts';
+import { listFiles, templatesRoot } from '../scaffold.ts';
 import { type Report, sentences } from './report.ts';
 
 type Tool = {
@@ -17,6 +17,11 @@ type Listing = { instructions?: string; tools: Tool[] };
 /** Each of the server's tools by name, with whether it sets `readOnlyHint: true`. */
 export type ServerTools = Map<string, boolean>;
 
+/** The esbuild version the template pins, which the error for a repo without it names. */
+const ESBUILD =
+  /"esbuild": "([^"]+)"/.exec(
+    readFileSync(join(templatesRoot, 'repo', 'package.json.tmpl'), 'utf8'),
+  )?.[1] ?? '';
 const HINTS = ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'];
 
 // The checked server starts with only what node needs to run, so it never sees tokens or other
@@ -102,9 +107,22 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
     const built = join(out, 'index.mjs');
     let inputs: string[] | undefined;
     let failure: string | undefined;
+    let build: typeof buildSync | undefined;
     try {
-      const build = createRequire(join(root, 'package.json'))('esbuild')
-        .buildSync as typeof buildSync;
+      build = createRequire(join(root, 'package.json'))('esbuild').buildSync as typeof buildSync;
+    } catch {
+      // Bun's bundler writes different bytes, so it can't stand in: the check compares this build
+      // with the committed bundle byte for byte.
+      report.add(
+        'SERVER_BUILD',
+        where,
+        undefined,
+        "The server can't be checked: sidecut-check builds it with esbuild from this repo's devDependencies, and esbuild isn't installed. Bun's bundler can't stand in, because the check compares the bytes of the two builds.",
+        `Add esbuild ${ESBUILD} to devDependencies, install, and build server/index.mjs with it using the options in the template's scripts/build-server.ts.`,
+      );
+      return null;
+    }
+    try {
       const result = build({
         absWorkingDir: root,
         entryPoints: [relative(root, source)],

@@ -208,7 +208,7 @@ Antigravity reads `.antigravity-plugin/plugin.json`, the manifest a plugin that 
 | App routing | A direct MCP fallback uses the same declaration key and a remote HTTP server; it must not shadow a local stdio server; an app can omit the direct fallback | yes |
 | Connection and views | App declarations package a registered connection; building, deploying, authenticating and rendering MCP Apps views are separate outcomes | review |
 | Finding its own files | The server resolves paths from `import.meta.url`, never from the working directory, which is the user's project in Claude Code | yes |
-| Source and build | TypeScript in `server/src/`, bundled to `server/index.mjs` with every dependency inlined, built file committed; CI rebuilds and fails on any difference | yes |
+| Source and build | TypeScript in `server/src/`, bundled with esbuild to `server/index.mjs` with every dependency inlined, built file committed; CI rebuilds and fails on any difference. The checker builds with the repo's own esbuild, so a Bun-only repo adds esbuild to its devDependencies too: Bun's bundler writes different bytes | yes |
 | Build script | `npm run build` is `node scripts/build-server.ts`, the same file in every plugin repo; it also writes `server/THIRD_PARTY_LICENSES.txt` with the licence of every package the bundle inlines, and the Codex profile of each subagent | yes |
 | Transport | stdio for local servers; a remote server is hosted elsewhere and only configured here | review |
 | Tool annotations | Every tool sets `title`, `readOnlyHint`, `destructiveHint`, `idempotentHint` and `openWorldHint` explicitly | yes |
@@ -384,7 +384,7 @@ Sections in this order:
 
 ## Shared files
 
-sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecut-sync` keeps it current. Update the pinned dependency explicitly, then run the installed version. Sync never upgrades itself. The checker reports anything out of date as `REPO_SYNC`.
+sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecut-sync` keeps it current. Update the pinned dependency explicitly, then run the installed version. Sync never upgrades itself. The checker reports anything out of date as `REPO_SYNC`. In a repo that ships its plugin beside other work, sync keeps only the plugin's hook, Antigravity files and packaged guide, `scripts/eval.mjs` once the repo has `evals/`, the blocks in files that already carry the markers, and the checker pin; the repo's other files and tool versions are its own.
 
 | What | Owned by sidecut-agentskills | Belongs to the repo |
 | --- | --- | --- |
@@ -419,10 +419,11 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 | Checker output | What it checked, then what is kept on purpose, then one line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
+| Git in tests | A test that runs git drops every `GIT_*` variable first, in the preload file or in its own code: a git hook exports `GIT_DIR` and friends, so the test's git would otherwise act on the checkout running the hook. The template's `tests/setup.ts` carries the `git-env` block that does it | yes |
 | CI | `check.yml` from the template for the repo's CI mode; actions pinned by full SHA; Node.js pinned to an exact version and npm ci; no hosted macOS or Windows | yes |
 | CI tools | Tools such as trufflehog and gh come from their pinned download with a checksum check; a job uses a `setup-ci-tools` action that runs on Bun only after installing Bun | yes |
 | Release | `release.yml` runs `node scripts/release.ts`, the same file in every plugin repo, after Check passes on a push to `main`. It publishes the manifest version when that version has no published release: the `v<version>` tag on the checked commit, a GitHub Release with the CHANGELOG entry as notes, `<plugin-id>-<version>.zip` of the plugin folder and its `.sha256`. It never replaces a published release or moves Latest backwards, so merging a version bump is the release | yes |
 | Public repo CI | Every job runs on `ubuntu-24.04`, free for public repos, and tools come from pinned downloads with a checksum check; a public repo never uses runners of its own or actions from a private repo | yes |
 | Private repo CI | Keeps the runner picker, whose budget guard stops hosted jobs near the monthly credit; the checker can't tell a private repo from a public one, so a hosted-only private repo is caught in review | review |
-| Merge gate | The release script requires the template's check jobs to pass on the release commit (`check`, plus `secrets` on hosted CI); a profile's workflow file may set its own list, which has to include `check` | yes |
+| Merge gate | The release script requires the template's check jobs to pass on the release commit (`check`, plus `secrets` on hosted CI); a profile's workflow file may set its own list, which has to include `check`, and every name in it has to be a job some workflow runs | yes |
 | Scan text | No shipped text file outside the server's bundle and source names credentials, CI secrets, your own CI runners, unpinned package launchers, SSH key paths, OS credential stores, or a download-and-run install, since Claude's plugin scan may then mark the plugin Caution; CI lines like these come from the server's code, and a plugin whose job is that text lists its files under `scanTextAllow` in `.agentskills.json` and says what it does with them in the README | advisory |

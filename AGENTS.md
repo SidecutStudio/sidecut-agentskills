@@ -18,7 +18,7 @@ This repo ships the Sidecut Agentskills plugin, the template every Sidecut plugi
 ## Layout
 
 ```text
-bin/                     built CLI entrypoints (check.mjs, icon.mjs, sync.mjs, version.mjs)
+bin/                     built CLI entrypoints (check.mjs, evals-stamp.mjs, icon.mjs, sync.mjs, version.mjs) and evals-hash.mjs, the stamp hash sidecut-evals imports
 plugins/sidecut-agentskills/
   server/src/              MCP server, generator (scaffold.ts) and checker (check/)
   server/data/             house style, patterns and the templates the generator copies

@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { antigravityFiles } from '../plugins/sidecut-agentskills/server/src/antigravity.ts';
-import { treeHash } from '../plugins/sidecut-agentskills/server/src/check/plugin.ts';
+import { treeHash } from '../plugins/sidecut-agentskills/server/src/check/evals-stamp.ts';
 import {
   bunlessToolSteps,
   checkRepo,
@@ -694,6 +694,16 @@ const cases: [string, (repo: Repo) => void][] = [
     (r) => r.edit('solo-workflow.toml', (t) => t.replace(/\["check"[^\]]*\]/, '["secrets"]')),
   ],
   ['REPO_COPY', (r) => r.append('README.md', '\nExtra line.\n')],
+  [
+    'TEST_GIT_ENV',
+    (r) => {
+      r.write('tests/setup.ts', "process.env.SIDECUT_SKILL_LOG = '0';\n");
+      r.write(
+        'tests/git.test.ts',
+        "import { execSync } from 'node:child_process';\nexecSync('git status');\n",
+      );
+    },
+  ],
 ];
 
 test('evals copied from another repo pass while they match their recorded hash', () => {
@@ -710,6 +720,139 @@ test('evals copied from another repo pass while they match their recorded hash',
     Object.assign(v, { copies: [{ path: '../outside', hash: 'x' }] }),
   );
   expect(codes(repo.root)).toContain('EVAL_SOURCE');
+});
+
+test('the evals stamp has one hash, and sidecut-evals-stamp checks it in any repo', () => {
+  const repo = copy();
+  const hash = treeHash(join(repo.root, 'evals'));
+  repo.write('evals-source.json', JSON.stringify({ copies: [{ path: 'evals', hash }] }));
+  // sidecut-evals imports the built copy, so the two can't drift apart.
+  const built = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { treeHash } from ${JSON.stringify(join(repoRoot, 'bin', 'evals-hash.mjs'))}; console.log(treeHash(process.argv[1]));`,
+      join(repo.root, 'evals'),
+    ],
+    { encoding: 'utf8' },
+  );
+  expect(built.stdout.trim()).toBe(hash);
+  const stamp = () =>
+    spawnSync(process.execPath, [join(repoRoot, 'scripts', 'evals-stamp.ts'), repo.root], {
+      encoding: 'utf8',
+    });
+  expect(stamp().status).toBe(0);
+  repo.append('evals/demo-check-status-trigger/prompt.md', 'Edited here.\n');
+  const edited = stamp();
+  expect(edited.status).toBe(1);
+  expect(edited.stderr).toContain("evals doesn't match the hash in evals-source.json.");
+});
+
+test('a symlink loop in a copied evals folder is a finding, not a hang', () => {
+  const repo = copy();
+  symlinkSync('..', join(repo.root, 'evals', 'loop'), 'dir');
+  repo.write('evals-source.json', JSON.stringify({ copies: [{ path: 'evals', hash: 'x' }] }));
+  expect(codes(repo.root)).toContain('EVAL_SOURCE');
+});
+
+test('a repo without esbuild is told the checker needs it, not just that a module is missing', () => {
+  const repo = copy();
+  repo.rm('node_modules');
+  const report = new Report();
+  checkRepo(repo.root, report);
+  const build = report.problems.find((p) => p.code === 'SERVER_BUILD');
+  expect(build?.message).toContain("esbuild isn't installed");
+  expect(build?.message).toContain("Bun's bundler can't stand in");
+  expect(build?.fix).toMatch(/Add esbuild \d+\.\d+\.\d+ to devDependencies/);
+});
+
+describe('required checks', () => {
+  const solo = (repo: Repo, list: string) =>
+    repo.edit('solo-workflow.toml', (t) =>
+      t.replace(/^required_checks\s*=\s*\[[^\]]*\]/m, `required_checks = ${list}`),
+    );
+  const problems = (repo: Repo) => {
+    const report = new Report();
+    checkRepo(repo.root, report);
+    return report.problems.filter((p) => p.code === 'SOLO_REQUIRED').map((p) => p.message);
+  };
+
+  test('a required check no job reports is flagged, since the gate would wait forever', () => {
+    const repo = copy();
+    solo(repo, '["check", "secrets"]');
+    expect(problems(repo)).toEqual([
+      '`required_checks` lists "secrets", but no job in .github/workflows/ reports a check by that name, so the merge gate waits for one that never runs.',
+    ]);
+  });
+
+  test("a job's name, matrix entries and called workflows count; comments don't", () => {
+    const repo = copy();
+    repo.write(
+      '.github/workflows/extra.yml',
+      'name: Extra\non: [push]\njobs:\n  e2e:\n    name: Browser\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        os: [a]\n    steps:\n      - run: "true"\n  shared:\n    uses: ./.github/workflows/check.yml\n',
+    );
+    solo(repo, '[\n  "check", # the main job\n  "Browser (a)",\n  "shared / check",\n]');
+    expect(problems(repo)).toEqual([]);
+    // A job with a name reports that name, not its id.
+    solo(repo, '["check", "e2e"]');
+    expect(problems(repo)).toHaveLength(1);
+  });
+});
+
+describe('git in tests', () => {
+  const GIT_TEST =
+    "import { spawnSync } from 'node:child_process';\nimport { test } from 'vitest';\n\ntest('git', () => {\n  spawnSync('git', ['init', '-q']);\n});\n";
+  const withoutBlock = (repo: Repo) =>
+    repo.edit('tests/setup.ts', (t) =>
+      t.replace(/\/\/ sidecut:start git-env[\s\S]*\/\/ sidecut:end git-env\n/, ''),
+    );
+  const gitCodes = (repo: Repo) => {
+    const report = new Report();
+    checkRepo(repo.root, report);
+    return report.problems
+      .filter((p) => p.code === 'TEST_GIT_ENV')
+      .map((p) => `${p.file}:${p.line}`);
+  };
+
+  test("the template's preload covers a test that runs git", () => {
+    const repo = copy();
+    repo.write('tests/git.test.ts', GIT_TEST);
+    expect(gitCodes(repo)).toEqual([]);
+  });
+
+  test('a test that runs git with nothing dropping GIT_* is flagged at the git call', () => {
+    const repo = copy();
+    repo.write('tests/git.test.ts', GIT_TEST);
+    withoutBlock(repo);
+    expect(gitCodes(repo)).toEqual(['tests/git.test.ts:5']);
+  });
+
+  test('dropping GIT_* in the test, a helper it imports or a Bun preload counts', () => {
+    const drop =
+      "for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) delete process.env[k];\n";
+    const inFile = copy();
+    withoutBlock(inFile);
+    inFile.write('tests/git.test.ts', drop + GIT_TEST);
+    expect(gitCodes(inFile)).toEqual([]);
+
+    const helper = copy();
+    withoutBlock(helper);
+    helper.write('app/test/helpers.js', `export function clean() {\n  ${drop}}\n`);
+    helper.write(
+      'app/test/git.test.js',
+      "import { execFileSync } from 'node:child_process';\nimport { clean } from './helpers.js';\nclean();\nexecFileSync('git', ['status']);\n",
+    );
+    expect(gitCodes(helper)).toEqual([]);
+
+    const bun = copy();
+    withoutBlock(bun);
+    bun.write('tests/git.test.ts', GIT_TEST.replace("spawnSync('git'", "Bun.spawnSync(['git'"));
+    expect(gitCodes(bun)).toEqual(['tests/git.test.ts:5']);
+    bun.write('bunfig.toml', '[test]\npreload = ["./tests/bun-setup.ts"]\n');
+    bun.write('tests/bun-setup.ts', drop);
+    expect(gitCodes(bun)).toEqual([]);
+  });
 });
 
 test('a docs folder is part of the layout', () => {
@@ -803,7 +946,9 @@ test('a repo that kept an older name still gets the repo checks when its package
   // Both CLAUDE.md and the security advisory link, which now names the repo.
   expect(codes(repo.root)).toEqual(['REPO_SYNC', 'REPO_SYNC']);
   repo.json('package.json', (v) => Object.assign(v, { name: 'demo-tools' }));
-  expect(codes(repo.root)).not.toContain('REPO_SYNC');
+  const report = new Report();
+  checkRepo(repo.root, report);
+  expect(report.scope).toContain('Checked the plugin only');
 });
 
 /** Makes the copy an app repo: the package names the plugin, but the repo is named after the app. */
@@ -815,6 +960,8 @@ function appRepo(): Repo {
     );
   repo.write('src/main.ts', 'export {};\n');
   repo.rm('CLAUDE.md');
+  // An app's security advisories are filed on the app's repo.
+  repo.edit('SECURITY.md', (t) => t.replace(`SidecutStudio/${ID}`, `SidecutStudio/${ID}-app`));
   return agree(repo);
 }
 
@@ -825,7 +972,7 @@ test('an app repo whose package names the plugin gets the plugin checks only', (
   expect(report.scope).toBe(
     `Checked the plugin only: its manifest points at ${ID}-app, not a repo that exists only for ${ID}.`,
   );
-  expect(report.problems.map((p) => p.code)).toEqual([]);
+  expect(report.problems.map((p) => `${p.code} ${p.file}`)).toEqual([]);
 });
 
 test('sidecut.keep is honoured in plugin-only scope, and a stale key still fails', () => {

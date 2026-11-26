@@ -37,6 +37,11 @@ export function pluginSyncFiles(id: string): string[] {
 
 /** Files where sidecut-agentskills owns only the marked blocks; the rest belongs to the repo. */
 export const BLOCK_FILES = ['.gitignore', 'AGENTS.md', 'SECURITY.md'];
+/**
+ * The test preload, whose git-env block drops the GIT_* variables a git hook exports. Sync fills in
+ * the block only where the file exists, since a new one wouldn't be loaded until a config names it.
+ */
+export const SETUP_FILE = 'tests/setup.ts';
 /** devDependencies sync raises to the template's version, never lowers. */
 const SHARED_TOOLS = [
   '@biomejs/biome',
@@ -62,9 +67,15 @@ export type Change = {
   code?: string;
 };
 
-export type SyncVars = { id: string; repo: string; version: string };
+/**
+ * `whole` when the repo exists to ship the plugin, so sync owns its repo files too. `beside` when the
+ * plugin sits next to other work: sync keeps the plugin's hook, Antigravity files and packaged guide,
+ * scripts/eval.mjs once the repo has evals/, the blocks in files that already carry the markers and
+ * the checker pin, and leaves the rest of the repo to it.
+ */
+export type SyncVars = { id: string; repo: string; version: string; scope?: 'whole' | 'beside' };
 
-const MARK = /^(?:<!--|#) sidecut:(start|end) ([\w-]+)(?: -->)?$/;
+const MARK = /^(?:<!--|#|\/\/) sidecut:(start|end) ([\w-]+)(?: -->)?$/;
 
 type Block = { name: string; start: number; end: number };
 
@@ -181,7 +192,8 @@ export function newer(a: string, b: string): boolean {
   return false;
 }
 
-function planPackage(root: string, vars: SyncVars): Change | null {
+/** The package.json raise. Beside other work the tools are the app's, so only the checker pin moves. */
+function planPackage(root: string, vars: SyncVars, pinOnly: boolean): Change | null {
   const path = join(root, 'package.json');
   if (!existsSync(path)) return null;
   const text = readFileSync(path, 'utf8');
@@ -196,12 +208,12 @@ function planPackage(root: string, vars: SyncVars): Change | null {
   ) as { packageManager: string; devDependencies: Record<string, string> };
   const raised: string[] = [];
   const npm = (s: unknown) => String(s ?? '').replace(/^npm@/, '');
-  if (newer(npm(template.packageManager), npm(pkg.packageManager))) {
+  if (!pinOnly && newer(npm(template.packageManager), npm(pkg.packageManager))) {
     pkg.packageManager = template.packageManager;
     raised.push(template.packageManager);
   }
   const dev = (pkg.devDependencies ?? {}) as Record<string, string>;
-  for (const name of SHARED_TOOLS) {
+  for (const name of pinOnly ? [] : SHARED_TOOLS) {
     const want = template.devDependencies[name];
     if (want && dev[name] && newer(want, dev[name])) {
       dev[name] = want;
@@ -241,7 +253,14 @@ export function planSync(
       displayName: displayNameOf(vars.id),
     });
   const guide = pluginOwnedFile(vars.id);
-  for (const file of [...OWNED_FILES, guide]) {
+  const beside = vars.scope === 'beside';
+  // Beside other work, the repo's own CLAUDE.md, VOICE.md and build scripts are its to fork; only
+  // the eval script, which runs the plugin's evals, and the packaged guide stay the template's.
+  const applies = (file: string) =>
+    !beside ||
+    (file === guide && existsSync(join(root, file))) ||
+    (file === 'scripts/eval.mjs' && existsSync(join(root, 'evals')));
+  for (const file of [...OWNED_FILES, guide].filter(applies)) {
     if (kept(file)) continue;
     const want = file === guide ? userInput() : render(file);
     const path = join(root, file);
@@ -310,9 +329,16 @@ export function planSync(
       next: have.replaceAll(OLD_USER_INPUT_PATH, USER_INPUT_PATH),
     });
   }
-  for (const file of BLOCK_FILES) {
+  for (const file of [...BLOCK_FILES, SETUP_FILE]) {
     if (kept(file)) continue;
     const path = join(root, file);
+    if (file === SETUP_FILE && !existsSync(path)) continue;
+    if (
+      beside &&
+      file !== SETUP_FILE &&
+      !(existsSync(path) && /sidecut:start /.test(readFileSync(path, 'utf8')))
+    )
+      continue;
     const template = render(file);
     if (!existsSync(path)) {
       changes.push({ file, what: `${file} is missing.`, next: template });
@@ -330,7 +356,7 @@ export function planSync(
       });
   }
   if (!kept('package.json')) {
-    const pkg = planPackage(root, vars);
+    const pkg = planPackage(root, vars, beside);
     if (pkg) changes.push(pkg);
   }
   return changes;
