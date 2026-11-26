@@ -44,6 +44,7 @@ const REQUIRED_ENTRIES = [
 ];
 const OPTIONAL_ENTRIES = [
   SOLO_FILE,
+  'evals-source.json',
   '.git',
   'node_modules',
   'vitest.config.ts',

@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { antigravityFiles } from '../plugins/sidecut-agentskills/server/src/antigravity.ts';
+import { treeHash } from '../plugins/sidecut-agentskills/server/src/check/plugin.ts';
 import {
   bunlessToolSteps,
   checkRepo,
@@ -416,6 +417,14 @@ const cases: [string, (repo: Repo) => void][] = [
   ['EVAL_GRADERS', (r) => r.rm(`evals/demo-check-status-trigger/graders`)],
   ['PLUGIN_ENTRY_UNEXPECTED', (r) => r.write(`${P}/evals/unwanted/prompt.md`, '---\n')],
   ['EVAL_MISSING', (r) => r.rm('evals')],
+  [
+    'EVAL_SOURCE',
+    (r) =>
+      r.write(
+        'evals-source.json',
+        JSON.stringify({ copies: [{ path: 'evals', hash: 'sha256-0' }] }),
+      ),
+  ],
   ['SERVER_CWD', (r) => r.append(SERVER, 'console.error(process.cwd());\n')],
   ['SERVER_BUNDLE_STALE', (r) => r.append(SERVER, 'console.error("changed");\n')],
   ['SERVER_START', (r) => r.write(`${P}/server/index.mjs`, 'process.exit(1);\n')],
@@ -686,6 +695,22 @@ const cases: [string, (repo: Repo) => void][] = [
   ],
   ['REPO_COPY', (r) => r.append('README.md', '\nExtra line.\n')],
 ];
+
+test('evals copied from another repo pass while they match their recorded hash', () => {
+  const repo = copy();
+  const stamp = (hash: string) =>
+    repo.write('evals-source.json', JSON.stringify({ copies: [{ path: 'evals', hash }] }));
+  stamp(treeHash(join(repo.root, 'evals')));
+  expect(codes(repo.root)).not.toContain('EVAL_SOURCE');
+  expect(codes(repo.root)).not.toContain('REPO_ENTRY_UNEXPECTED');
+  repo.append('evals/demo-check-status-trigger/prompt.md', 'Edited here.\n');
+  expect(codes(repo.root)).toContain('EVAL_SOURCE');
+  stamp('sha256-0');
+  repo.json('evals-source.json', (v) =>
+    Object.assign(v, { copies: [{ path: '../outside', hash: 'x' }] }),
+  );
+  expect(codes(repo.root)).toContain('EVAL_SOURCE');
+});
 
 test('a docs folder is part of the layout', () => {
   const repo = copy();

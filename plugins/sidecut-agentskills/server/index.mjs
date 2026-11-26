@@ -7,7 +7,7 @@ var __export = (target, all) => {
 
 // plugins/sidecut-agentskills/server/src/index.ts
 import { readdirSync as readdirSync7, readFileSync as readFileSync10 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join10, resolve } from "node:path";
+import { isAbsolute as isAbsolute3, join as join10, resolve } from "node:path";
 
 // node_modules/@modelcontextprotocol/server/dist/chunk-vYduTEsO.mjs
 var __create = Object.create;
@@ -22528,8 +22528,9 @@ function paragraphAfter(doc, line) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/plugin.ts
+import { createHash } from "node:crypto";
 import { existsSync as existsSync7, readdirSync as readdirSync4, readFileSync as readFileSync7, statSync as statSync3 } from "node:fs";
-import { join as join7, relative as relative6 } from "node:path";
+import { isAbsolute as isAbsolute2, join as join7, relative as relative6, sep as sep2 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/check/scan-text.ts
 import { readFileSync as readFileSync4 } from "node:fs";
@@ -23948,6 +23949,63 @@ function checkHooks(pluginDir, root, report) {
       );
   }
 }
+function treeFiles(dir) {
+  const out = [];
+  const walk = (d) => {
+    for (const name of readdirSync4(d)) {
+      if (name === ".DS_Store") continue;
+      const p = join7(d, name);
+      if (statSync3(p).isDirectory()) walk(p);
+      else out.push(relative6(dir, p).split(sep2).join("/"));
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
+function treeHash(dir) {
+  const h = createHash("sha256");
+  for (const f of treeFiles(dir)) {
+    const body = createHash("sha256").update(readFileSync7(join7(dir, f))).digest("hex");
+    h.update(`${f}
+${body}
+`);
+  }
+  return `sha256-${h.digest("hex")}`;
+}
+function checkEvalsSource(root, report) {
+  const file = join7(root, "evals-source.json");
+  if (!existsSync7(file)) return;
+  const fix = "Edit the evals at their source and sync again, or delete evals-source.json to own them here.";
+  let copies;
+  try {
+    copies = JSON.parse(readFileSync7(file, "utf8")).copies;
+  } catch {
+    copies = void 0;
+  }
+  if (!Array.isArray(copies) || copies.length === 0) {
+    report.add(
+      "EVAL_SOURCE",
+      "evals-source.json",
+      void 0,
+      "evals-source.json has no copies list.",
+      fix
+    );
+    return;
+  }
+  for (const copy of copies) {
+    const path = String(copy?.path ?? "");
+    const dir = join7(root, path);
+    const inside = path !== "" && !isAbsolute2(path) && !relative6(root, dir).startsWith("..");
+    if (!inside || !existsSync7(dir) || !statSync3(dir).isDirectory() || treeHash(dir) !== copy.hash)
+      report.add(
+        "EVAL_SOURCE",
+        path || "evals-source.json",
+        void 0,
+        `${path || "A copy"} doesn't match the hash in evals-source.json.`,
+        fix
+      );
+  }
+}
 function checkEvals(skills, root, report) {
   const dir = join7(root, "evals");
   const cases = existsSync7(dir) ? readdirSync4(dir).filter((n) => statSync3(join7(dir, n)).isDirectory()) : [];
@@ -24175,12 +24233,14 @@ function checkPlugin(pluginDir, root, report, repoName) {
   const skills = checkSkills(pluginDir, root, report, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report);
   checkAntigravity(pluginDir, root, report);
-  if (repoName)
+  if (repoName) {
     checkEvals(
       skills.map((s) => s.name),
       root,
       report
     );
+    checkEvalsSource(root, report);
+  }
   const version2 = typeof manifest2?.version === "string" ? manifest2.version : null;
   checkReadme(pluginDir, String(manifest2?.description ?? ""), skills, root, report);
   if (version2) checkChangelog(pluginDir, version2, root, report);
@@ -24485,6 +24545,7 @@ var REQUIRED_ENTRIES = [
 ];
 var OPTIONAL_ENTRIES = [
   SOLO_FILE,
+  "evals-source.json",
   ".git",
   "node_modules",
   "vitest.config.ts",
@@ -25161,7 +25222,7 @@ function headings(file) {
   );
 }
 function absolute(path) {
-  return isAbsolute2(path) ? resolve(path) : null;
+  return isAbsolute3(path) ? resolve(path) : null;
 }
 var readOnly = {
   readOnlyHint: true,
