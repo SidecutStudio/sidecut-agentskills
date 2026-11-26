@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.11.1] - 2026-11-26
+
+### Fixed
+
+- The CI templates pinned `actions/setup-node` at v6 while repos that don't sync from them had moved to v7.1.0, so every plugin repo synced from Agentskills fell back to v6. They now pin v7.1.0. Dependabot can't see the templates, so a test fails when a template pins an action at a different commit than this repo's own workflows, and this repo now has a Dependabot config that moves those.
+
 ## [2.11.0] - 2026-11-26
 
 ### Added

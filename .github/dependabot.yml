@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Moves this repo's action pins. tests/action-pins.test.ts fails until the CI templates follow.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
