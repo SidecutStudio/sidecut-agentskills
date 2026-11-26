@@ -724,7 +724,7 @@ export function requiredChecks(toml: string): string[] {
 /**
  * Whether a check name is one some workflow job reports: its `name:`, or its id when it has none,
  * which GitHub extends with ` (<matrix values>)` and, for a called workflow, ` / <its job>`. Null
- * when the repo has no workflows to read. A job named with an expression could report anything, so it matches.
+ * when the repo has no workflows to read.
  */
 function workflowChecks(root: string): ((name: string) => boolean) | null {
   const dir = join(root, '.github', 'workflows');
@@ -733,11 +733,17 @@ function workflowChecks(root: string): ((name: string) => boolean) | null {
     .filter((file) => /\.ya?ml$/.test(file))
     .flatMap((file) => jobsOf(readFileSync(join(dir, file), 'utf8')))
     .map((job) => job.title ?? job.name);
-  if (names.some((name) => name.includes('${{'))) return () => true;
-  return (check) =>
-    names.some(
-      (name) => check === name || check.startsWith(`${name} (`) || check.startsWith(`${name} / `),
-    );
+  // An expression in a name can become anything, so it matches any text in its place.
+  const patterns = names.map(
+    (name) =>
+      new RegExp(
+        `^${name
+          .split(/\$\{\{[^}]*\}\}/)
+          .map(escapeRegExp)
+          .join('.*')}(?: \\(.*\\)| / .*)?$`,
+      ),
+  );
+  return (check) => patterns.some((pattern) => pattern.test(check));
 }
 
 /** The repo's own facts sync and the checker share. */

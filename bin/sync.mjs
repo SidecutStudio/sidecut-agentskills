@@ -505,6 +505,10 @@ function blocksOf(lines) {
   }
   return open ? `block "${open.name}" is never ended` : blocks;
 }
+function hasBlocks(text) {
+  const found = blocksOf(text.replaceAll("\r\n", "\n").split("\n"));
+  return typeof found === "string" || found.length > 0;
+}
 function fenced(lines) {
   let inside = false;
   return lines.map((line) => {
@@ -692,7 +696,7 @@ function planSync(root2, vars, kept = () => false) {
     if (kept(file)) continue;
     const path = join5(root2, file);
     if (file === SETUP_FILE && !existsSync5(path)) continue;
-    if (beside && file !== SETUP_FILE && !(existsSync5(path) && /sidecut:start /.test(readFileSync5(path, "utf8"))))
+    if (beside && file !== SETUP_FILE && !(existsSync5(path) && hasBlocks(readFileSync5(path, "utf8"))))
       continue;
     const template = render2(file);
     if (!existsSync5(path)) {

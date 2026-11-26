@@ -18,11 +18,34 @@ const SKIP = new Set([
   '.next',
 ]);
 const CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
-/** A git command started from Node or Bun. */
+/**
+ * A git command started from Node or Bun: `git` as the command, or inside a shell command string
+ * (`cd x && git init`). A command held in a variable or behind an alias isn't seen.
+ */
 const RUNS_GIT =
-  /\b(?:spawn|spawnSync|execFile|execFileSync|exec|execSync|execa|execaSync)\(\s*['"`]git[\s'"`]|\bBun\.spawn(?:Sync)?\(\s*(?:\{\s*cmd:\s*)?\[\s*['"`]git['"`]|\$`git\s/;
-/** Code that drops the GIT_* variables. */
-const DROPS_GIT_ENV = /startsWith\(\s*['"`]GIT_['"`]\s*\)|\/\^GIT_/;
+  /\b(?:spawn|spawnSync|execFile|execFileSync|execa|execaSync)\(\s*['"`](?:[^'"`]*\/)?git['"`]|\b(?:exec|execSync)\(\s*['"`](?:[^'"`]*(?:&&|;|\|)\s*)?(?:[^'"`\s]*\/)?git\s|\bBun\.spawn(?:Sync)?\(\s*(?:\{\s*cmd:\s*)?\[\s*['"`](?:[^'"`]*\/)?git['"`]|\$`(?:[^`]*(?:&&|;)\s*)?git\s/;
+/**
+ * Code that drops the GIT_* variables: deleting each one that starts with GIT_, building an env that
+ * leaves them out, or deleting GIT_DIR by name. Reading them, as a filter that keeps them does, doesn't
+ * count.
+ */
+const DROPS_GIT_ENV =
+  /startsWith\(\s*['"`]GIT_['"`]\s*\)\s*\)?\s*(?:\{\s*)?delete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(|\/\^GIT_\/\.test\([^)]*\)\s*\)?\s*(?:\{\s*)?delete\b|\bdelete\s+process\.env(?:\.GIT_DIR\b|\[\s*['"`]GIT_DIR['"`]\s*\])/;
+/**
+ * Whether the call starting at `at` passes an env object literal that doesn't start from
+ * process.env, so the git it runs can't inherit the variables.
+ */
+function ownEnv(text: string, at: number): boolean {
+  const call = text.slice(at, at + 400);
+  const env = /\benv\s*:\s*\{([^}]*)\}/.exec(call);
+  return env !== null && !/process\.env|\.\.\./.test(env[1] ?? '');
+}
+/** Comments say what code does; only the code counts. */
+function stripComments(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ''))
+    .replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
+}
 
 function isTest(path: string): boolean {
   const parts = path.split('/');
@@ -52,32 +75,53 @@ function importsOf(root: string, file: string, text: string): string[] {
   ].map((m) => m[1] ?? '');
   return specs.flatMap((spec) => {
     const base = join(dirname(file), spec).split(sep).join('/');
-    const hit = ['', '.ts', '.js', '.mjs', '.cjs', '/index.ts', '/index.js'].find((ext) => {
-      const p = join(root, base + ext);
-      return existsSync(p) && statSync(p).isFile();
-    });
-    return hit === undefined ? [] : [base + hit];
+    // TypeScript imports name the .js file the .ts one compiles to.
+    const stem = base.replace(/\.[cm]?js$/, '');
+    const tries = [
+      base,
+      ...['.ts', '.mts', '.cts', '.tsx', '.js', '.mjs', '.cjs', '/index.ts', '/index.js'].map(
+        (ext) => stem + ext,
+      ),
+    ];
+    const hit = tries.find((p) => existsSync(join(root, p)) && statSync(join(root, p)).isFile());
+    return hit === undefined ? [] : [hit];
   });
 }
 
 /** The preload files the repo's test runner loads before every test. */
 function setupFiles(root: string): string[] {
   const named: string[] = [];
+  const quoted = (list: string) => [...list.matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1] ?? '');
+  // Vitest, Vite and Jest configs name them in setupFiles (Jest also in setupFilesAfterEach).
   for (const config of readdirSync(root).filter((n) =>
-    /^vite(?:st)?\.config\.[cm]?[jt]s$/.test(n),
+    /^(?:vite(?:st)?\.(?:config|workspace)|jest\.config)\.[cm]?[jt]s$/.test(n),
   )) {
     const text = readFileSync(join(root, config), 'utf8');
-    const list = /setupFiles\s*:\s*(\[[^\]]*\]|['"][^'"]+['"])/.exec(text)?.[1] ?? '';
-    named.push(...[...list.matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1] ?? ''));
+    for (const m of text.matchAll(/setupFiles(?:AfterEnv)?\s*:\s*(\[[^\]]*\]|['"][^'"]+['"])/g))
+      named.push(...quoted(m[1] ?? ''));
   }
   if (existsSync(join(root, 'bunfig.toml'))) {
     const text = readFileSync(join(root, 'bunfig.toml'), 'utf8');
-    const list = /preload\s*=\s*(\[[^\]]*\]|"[^"]+")/.exec(text)?.[1] ?? '';
-    named.push(...[...list.matchAll(/"([^"]+)"/g)].map((m) => m[1] ?? ''));
+    named.push(...quoted(/preload\s*=\s*(\[[^\]]*\]|"[^"]+")/.exec(text)?.[1] ?? ''));
+  }
+  // package.json: Jest's own key, and a preload named on a test script's command line.
+  try {
+    const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    for (const key of ['setupFiles', 'setupFilesAfterEnv'])
+      if (Array.isArray(pkg.jest?.[key])) named.push(...pkg.jest[key].map(String));
+    for (const script of Object.values(pkg.scripts ?? {}))
+      for (const m of String(script).matchAll(/--(?:preload|import|require|setupFiles)[ =](\S+)/g))
+        named.push(m[1] ?? '');
+  } catch {
+    // A missing or broken package.json names no preload.
   }
   return named
-    .map((p) => relative(root, join(root, p)).split(sep).join('/'))
-    .filter((p) => existsSync(join(root, p)));
+    .map((p) =>
+      relative(root, join(root, p.replace(/^<rootDir>\//, '')))
+        .split(sep)
+        .join('/'),
+    )
+    .filter((p) => existsSync(join(root, p)) && statSync(join(root, p)).isFile());
 }
 
 /** Reports test code that runs git without dropping the GIT_* variables a hook exports. */
@@ -86,7 +130,7 @@ export function checkTestGitEnv(root: string, report: Report): void {
   const read = (file: string) => {
     let text = texts.get(file);
     if (text === undefined) {
-      text = readFileSync(join(root, file), 'utf8');
+      text = stripComments(readFileSync(join(root, file), 'utf8'));
       texts.set(file, text);
     }
     return text;
@@ -95,14 +139,19 @@ export function checkTestGitEnv(root: string, report: Report): void {
   const drops = (file: string, depth = 0): boolean =>
     DROPS_GIT_ENV.test(read(file)) ||
     (depth < 3 && importsOf(root, file, read(file)).some((f) => drops(f, depth + 1)));
+  // The first git call that inherits this process's environment, as an index into the text.
+  const inheritedGit = (file: string): number => {
+    const text = read(file);
+    const runs = new RegExp(RUNS_GIT.source, 'g');
+    for (const m of text.matchAll(runs)) if (!ownEnv(text, m.index)) return m.index;
+    return -1;
+  };
   const files = codeFiles(root).filter(isTest);
-  const offenders = files.filter((file) => RUNS_GIT.test(read(file)));
+  const offenders = files.filter((file) => inheritedGit(file) >= 0);
   if (offenders.length === 0) return;
   if (setupFiles(root).some((file) => drops(file))) return;
   for (const file of offenders.filter((f) => !drops(f))) {
-    const line = read(file)
-      .split('\n')
-      .findIndex((l) => RUNS_GIT.test(l));
+    const line = read(file).slice(0, inheritedGit(file)).split('\n').length - 1;
     report.add(
       'TEST_GIT_ENV',
       file,

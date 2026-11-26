@@ -517,3 +517,11 @@ test('the git-env block drops what a git hook exports before any test runs', () 
   expect(run.stderr).toBe('');
   expect(run.stdout.trim()).toBe('');
 });
+
+test('a file that only mentions the markers gets no block beside other work', () => {
+  const root = besideRepo();
+  const text = '# demo-ops\n\nSync fills blocks marked `sidecut:start house-style`.\n';
+  write(root, 'AGENTS.md', text);
+  applySync(root, planSync(root, { ...vars, repo: 'demo-ops', scope: 'beside' }));
+  expect(read(root, 'AGENTS.md')).toBe(text);
+});

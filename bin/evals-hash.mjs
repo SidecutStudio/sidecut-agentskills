@@ -50,8 +50,12 @@ function stampProblems(root) {
     let hash = null;
     try {
       if (inside && existsSync(dir) && statSync(dir).isDirectory()) hash = treeHash(dir);
-    } catch {
-      hash = null;
+    } catch (error) {
+      problems.push({
+        file: path,
+        message: `${path} can't be hashed: ${error instanceof Error ? error.message : String(error)}`
+      });
+      continue;
     }
     if (hash === null || hash !== copy.hash)
       problems.push({

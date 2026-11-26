@@ -749,11 +749,28 @@ test('the evals stamp has one hash, and sidecut-evals-stamp checks it in any rep
   expect(edited.stderr).toContain("evals doesn't match the hash in evals-source.json.");
 });
 
-test('a symlink loop in a copied evals folder is a finding, not a hang', () => {
+test('a symlink loop in a copied evals folder is a finding that says so, not a hang', () => {
   const repo = copy();
   symlinkSync('..', join(repo.root, 'evals', 'loop'), 'dir');
   repo.write('evals-source.json', JSON.stringify({ copies: [{ path: 'evals', hash: 'x' }] }));
-  expect(codes(repo.root)).toContain('EVAL_SOURCE');
+  const report = new Report();
+  checkRepo(repo.root, report);
+  expect(report.problems.find((p) => p.code === 'EVAL_SOURCE')?.message).toContain(
+    "evals can't be hashed: loop/evals links back into the copy.",
+  );
+});
+
+test('the stamp hash is the one every stamped repo already records', () => {
+  // Stamped repos hold hashes made by this exact algorithm, so any change to it fails them all.
+  const dir = mkdtempSync(join(tmpdir(), 'evals-hash-'));
+  scratch.push(dir);
+  mkdirSync(join(dir, 'sub'));
+  writeFileSync(join(dir, 'a.txt'), 'a\n');
+  writeFileSync(join(dir, 'sub', 'b.txt'), 'b\n');
+  writeFileSync(join(dir, '.DS_Store'), 'ignored');
+  expect(treeHash(dir)).toBe(
+    'sha256-40f9175e859ebb5a87aea6c792dbac208c711f98da2e22f10370d4778355a00e',
+  );
 });
 
 test('a repo without esbuild is told the checker needs it, not just that a module is missing', () => {
@@ -797,6 +814,16 @@ describe('required checks', () => {
     // A job with a name reports that name, not its id.
     solo(repo, '["check", "e2e"]');
     expect(problems(repo)).toHaveLength(1);
+  });
+
+  test('a job named with an expression matches what it can become, and nothing else', () => {
+    const repo = copy();
+    repo.write(
+      '.github/workflows/extra.yml',
+      'name: Extra\non: [push]\njobs:\n  build:\n    name: Build (${{ matrix.os }})\n    runs-on: ubuntu-24.04\n    steps:\n      - run: "true"\n',
+    );
+    solo(repo, '["check", "Build (linux)", "secrets"]');
+    expect(problems(repo)).toEqual([expect.stringContaining('lists "secrets"')]);
   });
 });
 
@@ -852,6 +879,67 @@ describe('git in tests', () => {
     bun.write('bunfig.toml', '[test]\npreload = ["./tests/bun-setup.ts"]\n');
     bun.write('tests/bun-setup.ts', drop);
     expect(gitCodes(bun)).toEqual([]);
+  });
+
+  test('other ways of keeping git off the hook environment count', () => {
+    const passes = (setup: (repo: Repo) => void) => {
+      const repo = copy();
+      withoutBlock(repo);
+      setup(repo);
+      return gitCodes(repo);
+    };
+    const drop =
+      "for (const k of Object.keys(process.env)) if (k.startsWith('GIT_')) delete process.env[k];\n";
+    // A TypeScript helper imported by the .js name it compiles to.
+    expect(
+      passes((r) => {
+        r.write('tests/h.ts', drop);
+        r.write('tests/git.test.ts', `import './h.js';\n${GIT_TEST}`);
+      }),
+    ).toEqual([]);
+    // Deleting GIT_DIR by name.
+    expect(
+      passes((r) => r.write('tests/git.test.ts', `delete process.env.GIT_DIR;\n${GIT_TEST}`)),
+    ).toEqual([]);
+    // An env of its own.
+    expect(
+      passes((r) =>
+        r.write(
+          'tests/git.test.ts',
+          GIT_TEST.replace("['init', '-q']", "['init', '-q'], { env: { PATH: '/usr/bin' } }"),
+        ),
+      ),
+    ).toEqual([]);
+    // A Jest preload.
+    expect(
+      passes((r) => {
+        r.write('jest.config.js', "module.exports = { setupFiles: ['./tests/jest-setup.js'] };\n");
+        r.write('tests/jest-setup.js', drop);
+        r.write('tests/git.test.ts', GIT_TEST);
+      }),
+    ).toEqual([]);
+  });
+
+  test('reading GIT_* or mentioning it in a comment is not dropping it, and shell git counts', () => {
+    const flagged = (text: string) => {
+      const repo = copy();
+      withoutBlock(repo);
+      repo.write('tests/git.test.ts', text);
+      return gitCodes(repo);
+    };
+    expect(
+      flagged(
+        `const seen = Object.keys(process.env).filter((k) => k.startsWith('GIT_'));\n${GIT_TEST}`,
+      ),
+    ).toEqual(['tests/git.test.ts:6']);
+    expect(flagged(`// k.startsWith('GIT_') would drop them\n${GIT_TEST}`)).toEqual([
+      'tests/git.test.ts:6',
+    ]);
+    expect(
+      flagged(
+        "import { execSync } from 'node:child_process';\nexecSync('cd /tmp/x && git init');\n",
+      ),
+    ).toEqual(['tests/git.test.ts:2']);
   });
 });
 

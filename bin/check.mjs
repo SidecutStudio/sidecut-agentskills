@@ -750,8 +750,12 @@ function stampProblems(root) {
     let hash = null;
     try {
       if (inside && existsSync5(dir) && statSync2(dir).isDirectory()) hash = treeHash(dir);
-    } catch {
-      hash = null;
+    } catch (error) {
+      problems.push({
+        file: path,
+        message: `${path} can't be hashed: ${error instanceof Error ? error.message : String(error)}`
+      });
+      continue;
     }
     if (hash === null || hash !== copy.hash)
       problems.push({
@@ -2498,6 +2502,10 @@ function blocksOf(lines) {
   }
   return open ? `block "${open.name}" is never ended` : blocks;
 }
+function hasBlocks(text) {
+  const found = blocksOf(text.replaceAll("\r\n", "\n").split("\n"));
+  return typeof found === "string" || found.length > 0;
+}
 function fenced(lines) {
   let inside = false;
   return lines.map((line) => {
@@ -2685,7 +2693,7 @@ function planSync(root, vars, kept = () => false) {
     if (kept(file)) continue;
     const path = join9(root, file);
     if (file === SETUP_FILE && !existsSync9(path)) continue;
-    if (beside && file !== SETUP_FILE && !(existsSync9(path) && /sidecut:start /.test(readFileSync9(path, "utf8"))))
+    if (beside && file !== SETUP_FILE && !(existsSync9(path) && hasBlocks(readFileSync9(path, "utf8"))))
       continue;
     const template = render2(file);
     if (!existsSync9(path)) {
@@ -2742,8 +2750,16 @@ var SKIP = /* @__PURE__ */ new Set([
   ".next"
 ]);
 var CODE = /\.(?:[cm]?[jt]s|[jt]sx)$/;
-var RUNS_GIT = /\b(?:spawn|spawnSync|execFile|execFileSync|exec|execSync|execa|execaSync)\(\s*['"`]git[\s'"`]|\bBun\.spawn(?:Sync)?\(\s*(?:\{\s*cmd:\s*)?\[\s*['"`]git['"`]|\$`git\s/;
-var DROPS_GIT_ENV = /startsWith\(\s*['"`]GIT_['"`]\s*\)|\/\^GIT_/;
+var RUNS_GIT = /\b(?:spawn|spawnSync|execFile|execFileSync|execa|execaSync)\(\s*['"`](?:[^'"`]*\/)?git['"`]|\b(?:exec|execSync)\(\s*['"`](?:[^'"`]*(?:&&|;|\|)\s*)?(?:[^'"`\s]*\/)?git\s|\bBun\.spawn(?:Sync)?\(\s*(?:\{\s*cmd:\s*)?\[\s*['"`](?:[^'"`]*\/)?git['"`]|\$`(?:[^`]*(?:&&|;)\s*)?git\s/;
+var DROPS_GIT_ENV = /startsWith\(\s*['"`]GIT_['"`]\s*\)\s*\)?\s*(?:\{\s*)?delete\b|!\s*[\w.[\]]+\.startsWith\(\s*['"`]GIT_['"`]\s*\)|!\s*\/\^GIT_\/\.test\(|\/\^GIT_\/\.test\([^)]*\)\s*\)?\s*(?:\{\s*)?delete\b|\bdelete\s+process\.env(?:\.GIT_DIR\b|\[\s*['"`]GIT_DIR['"`]\s*\])/;
+function ownEnv(text, at) {
+  const call = text.slice(at, at + 400);
+  const env = /\benv\s*:\s*\{([^}]*)\}/.exec(call);
+  return env !== null && !/process\.env|\.\.\./.test(env[1] ?? "");
+}
+function stripComments(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, "")).replace(/(^|[^:'"`\\])\/\/.*$/gm, "$1");
+}
 function isTest(path) {
   const parts = path.split("/");
   return parts.slice(0, -1).some((p) => p === "test" || p === "tests" || p === "__tests__") || /\.(?:test|spec)\.[^/]+$/.test(path);
@@ -2766,46 +2782,67 @@ function importsOf(root, file, text) {
   ].map((m) => m[1] ?? "");
   return specs.flatMap((spec) => {
     const base = join10(dirname5(file), spec).split(sep3).join("/");
-    const hit = ["", ".ts", ".js", ".mjs", ".cjs", "/index.ts", "/index.js"].find((ext) => {
-      const p = join10(root, base + ext);
-      return existsSync10(p) && statSync5(p).isFile();
-    });
-    return hit === void 0 ? [] : [base + hit];
+    const stem = base.replace(/\.[cm]?js$/, "");
+    const tries = [
+      base,
+      ...[".ts", ".mts", ".cts", ".tsx", ".js", ".mjs", ".cjs", "/index.ts", "/index.js"].map(
+        (ext) => stem + ext
+      )
+    ];
+    const hit = tries.find((p) => existsSync10(join10(root, p)) && statSync5(join10(root, p)).isFile());
+    return hit === void 0 ? [] : [hit];
   });
 }
 function setupFiles(root) {
   const named = [];
+  const quoted = (list) => [...list.matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1] ?? "");
   for (const config of readdirSync7(root).filter(
-    (n) => /^vite(?:st)?\.config\.[cm]?[jt]s$/.test(n)
+    (n) => /^(?:vite(?:st)?\.(?:config|workspace)|jest\.config)\.[cm]?[jt]s$/.test(n)
   )) {
     const text = readFileSync10(join10(root, config), "utf8");
-    const list = /setupFiles\s*:\s*(\[[^\]]*\]|['"][^'"]+['"])/.exec(text)?.[1] ?? "";
-    named.push(...[...list.matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1] ?? ""));
+    for (const m of text.matchAll(/setupFiles(?:AfterEnv)?\s*:\s*(\[[^\]]*\]|['"][^'"]+['"])/g))
+      named.push(...quoted(m[1] ?? ""));
   }
   if (existsSync10(join10(root, "bunfig.toml"))) {
     const text = readFileSync10(join10(root, "bunfig.toml"), "utf8");
-    const list = /preload\s*=\s*(\[[^\]]*\]|"[^"]+")/.exec(text)?.[1] ?? "";
-    named.push(...[...list.matchAll(/"([^"]+)"/g)].map((m) => m[1] ?? ""));
+    named.push(...quoted(/preload\s*=\s*(\[[^\]]*\]|"[^"]+")/.exec(text)?.[1] ?? ""));
   }
-  return named.map((p) => relative8(root, join10(root, p)).split(sep3).join("/")).filter((p) => existsSync10(join10(root, p)));
+  try {
+    const pkg = JSON.parse(readFileSync10(join10(root, "package.json"), "utf8"));
+    for (const key of ["setupFiles", "setupFilesAfterEnv"])
+      if (Array.isArray(pkg.jest?.[key])) named.push(...pkg.jest[key].map(String));
+    for (const script of Object.values(pkg.scripts ?? {}))
+      for (const m of String(script).matchAll(/--(?:preload|import|require|setupFiles)[ =](\S+)/g))
+        named.push(m[1] ?? "");
+  } catch {
+  }
+  return named.map(
+    (p) => relative8(root, join10(root, p.replace(/^<rootDir>\//, ""))).split(sep3).join("/")
+  ).filter((p) => existsSync10(join10(root, p)) && statSync5(join10(root, p)).isFile());
 }
 function checkTestGitEnv(root, report2) {
   const texts = /* @__PURE__ */ new Map();
   const read = (file) => {
     let text = texts.get(file);
     if (text === void 0) {
-      text = readFileSync10(join10(root, file), "utf8");
+      text = stripComments(readFileSync10(join10(root, file), "utf8"));
       texts.set(file, text);
     }
     return text;
   };
   const drops = (file, depth = 0) => DROPS_GIT_ENV.test(read(file)) || depth < 3 && importsOf(root, file, read(file)).some((f) => drops(f, depth + 1));
+  const inheritedGit = (file) => {
+    const text = read(file);
+    const runs = new RegExp(RUNS_GIT.source, "g");
+    for (const m of text.matchAll(runs)) if (!ownEnv(text, m.index)) return m.index;
+    return -1;
+  };
   const files = codeFiles(root).filter(isTest);
-  const offenders = files.filter((file) => RUNS_GIT.test(read(file)));
+  const offenders = files.filter((file) => inheritedGit(file) >= 0);
   if (offenders.length === 0) return;
   if (setupFiles(root).some((file) => drops(file))) return;
   for (const file of offenders.filter((f) => !drops(f))) {
-    const line = read(file).split("\n").findIndex((l) => RUNS_GIT.test(l));
+    const line = read(file).slice(0, inheritedGit(file)).split("\n").length - 1;
     report2.add(
       "TEST_GIT_ENV",
       file,
@@ -3414,10 +3451,12 @@ function workflowChecks(root) {
   const dir = join11(root, ".github", "workflows");
   if (!existsSync11(dir)) return null;
   const names = readdirSync8(dir).filter((file) => /\.ya?ml$/.test(file)).flatMap((file) => jobsOf(readFileSync11(join11(dir, file), "utf8"))).map((job) => job.title ?? job.name);
-  if (names.some((name) => name.includes("${{"))) return () => true;
-  return (check) => names.some(
-    (name) => check === name || check.startsWith(`${name} (`) || check.startsWith(`${name} / `)
+  const patterns = names.map(
+    (name) => new RegExp(
+      `^${name.split(/\$\{\{[^}]*\}\}/).map(escapeRegExp).join(".*")}(?: \\(.*\\)| / .*)?$`
+    )
   );
+  return (check) => patterns.some((pattern) => pattern.test(check));
 }
 function readJson2(path) {
   try {

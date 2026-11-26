@@ -101,6 +101,12 @@ function blocksOf(lines: string[]): Block[] | string {
   return open ? `block "${open.name}" is never ended` : blocks;
 }
 
+/** Whether a file carries real block markers, not just prose that mentions them. */
+function hasBlocks(text: string): boolean {
+  const found = blocksOf(text.replaceAll('\r\n', '\n').split('\n'));
+  return typeof found === 'string' || found.length > 0;
+}
+
 /** Lines inside ``` fences, which adoption never touches. */
 function fenced(lines: string[]): boolean[] {
   let inside = false;
@@ -336,7 +342,7 @@ export function planSync(
     if (
       beside &&
       file !== SETUP_FILE &&
-      !(existsSync(path) && /sidecut:start /.test(readFileSync(path, 'utf8')))
+      !(existsSync(path) && hasBlocks(readFileSync(path, 'utf8')))
     )
       continue;
     const template = render(file);
