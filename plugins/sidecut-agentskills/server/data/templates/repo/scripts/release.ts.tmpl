@@ -47,6 +47,11 @@ export function newerVersion(left: string, right: string) {
   return false;
 }
 
+/** Whether a commit is on main, from GitHub's compare status of commit...main. */
+export function onMain(status: string) {
+  return status === 'identical' || status === 'ahead';
+}
+
 /** A version needs publishing unless its GitHub Release exists and is no longer a draft. */
 export function releaseNeeded(existing: { found: boolean; isDraft?: boolean }) {
   return !existing.found || existing.isDraft !== false;
@@ -150,16 +155,14 @@ async function main() {
   const repo = githubRepo();
   const head = run('git', ['rev-parse', 'HEAD']).trim();
   if (head !== expected) throw new Error('Checkout differs from the commit Check passed on.');
+  // A commit that merged just before another still gets its own version: it only has to be on main.
+  // Main moving on doesn't skip it, so two quick merges each publish the version they bumped to.
   const assertMain = async () => {
-    const remote = json(['api', 'repos/' + repo + '/git/ref/heads/main']);
-    if (remote.object.sha !== head) throw new Error('Main moved on; the next Check run releases.');
+    if (!onMain(json(['api', `repos/${repo}/compare/${head}...main`]).status))
+      throw new Error('This commit is no longer on main; refusing to release it.');
   };
-  // A newer push has its own Check and Release run, which publishes this version if it's still due.
-  const tip = json(['api', 'repos/' + repo + '/git/ref/heads/main']).object.sha;
-  if (tip !== head) {
-    console.log(`Main moved on to ${tip}; its own Release run publishes ${plan.tag}.`);
-    return;
-  }
+  await assertMain();
+
   // The merge gate: required_checks from the repo's solo-workflow.toml when it keeps one, otherwise
   // the template's check.yml jobs.
   const gate = join(root, 'solo-workflow.toml');
@@ -197,11 +200,11 @@ async function main() {
   const notes = join(root, 'dist/release-notes.md');
   writeFileSync(notes, plan.notes);
   const { refs, commit } = await tagCommit(repo, plan.tag);
-  for (const ref of refs) {
+  // Publish an older version that a quicker run overtook, but never move Latest backwards.
+  const latest = !refs.some((ref) => {
     const tagged = ref.ref.slice('refs/tags/v'.length);
-    if (semver.test(tagged) && newerVersion(tagged, version))
-      throw new Error('A newer version tag exists; refusing to move Latest backwards.');
-  }
+    return semver.test(tagged) && newerVersion(tagged, version);
+  });
   if (commit !== undefined) {
     if (commit !== head) throw new Error('The version tag already points to a different commit.');
   } else {
@@ -243,7 +246,7 @@ async function main() {
     '--repo',
     repo,
     '--draft=false',
-    '--latest',
+    `--latest=${latest}`,
     '--notes-file',
     notes,
   ]);

@@ -25354,7 +25354,11 @@ server.registerTool(
     const target = absolute(out);
     if (!target) return failure2("Give the folder as an absolute path.");
     try {
-      return text({ files: scaffoldPlugin(input, target) });
+      return text({
+        files: scaffoldPlugin(input, target),
+        templatesVersion: manifest.version,
+        note: `Written from sidecut-agentskills ${manifest.version}. When copying these files into a repo that pins another version, take them from that version instead: run npm exec --no -- sidecut-sync there.`
+      });
     } catch (error2) {
       if (error2 instanceof SettingsNeeded)
         return text({

@@ -6,6 +6,13 @@
 
 - The Sidecut CI template ran a pull request in two jobs instead of three: the TruffleHog secret scan moved to the last steps of `check`, which now clones full history, and the `secrets` job is gone, so a PR takes one fewer runner slot. The runner picker job skipped itself in `air` mode instead of taking a light runner to answer, and pinned the picker's newest release, which counts only private-repo hosted minutes. A new Sidecut-CI repo's Solo settings and release script required only `check`; hosted CI keeps its `secrets` job. An existing Sidecut-CI repo that takes the new `check.yml` drops `"secrets"` from `required_checks` first.
 
+## [2.8.1] - 2026-11-26
+
+### Fixed
+
+- Two quick merges each publish their own version. The release script used to quit when main had moved past its commit, so the earlier version was never tagged (sidecut-home 0.3.0 and 0.4.0). It now publishes any checked commit still on main, and marks it Latest only when no newer version is tagged. The template's Release workflow keeps every waiting run (`queue: max`), so a third quick merge no longer cancels the second one's release. This applies to the template's `scripts/release.ts`, so repos pick it up with `sidecut-sync`, and to this repo's own release script.
+- `scaffold_plugin` says which Agentskills version its templates came from (`templatesVersion`). A session's server can be older than the release a repo pins, and copying its files into that repo brought back old versions of `scripts/eval.mjs` and the usage-log hook. The rebuild skill now checks the version before copying.
+
 ## [2.8.0] - 2026-11-26
 
 ### Added

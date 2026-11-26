@@ -120,6 +120,11 @@ export function missingAssets(release: Release, expected: Map<string, string>) {
     .map(([name]) => name);
 }
 
+/** Whether a commit is on main, from GitHub's compare status of commit...main. */
+export function onMain(status: string) {
+  return status === 'identical' || status === 'ahead';
+}
+
 export function releaseCommit(
   head: string,
   tagged: string | undefined,
@@ -160,12 +165,10 @@ async function main() {
     !/^[\w.-]+\/[\w.-]+$/.test(repo)
   )
     throw new Error('Publish through the Release workflow at its checked commit.');
-  const remoteHead = (): string =>
-    JSON.parse(gh('api', `repos/${repo}/git/ref/heads/main`)).object.sha;
-  if (remoteHead() !== head) {
-    console.log('Main moved. Use the Release run for the latest checked main commit.');
-    return;
-  }
+  // A commit that merged just before another still gets its own version: it only has to be on main.
+  const isOnMain = () =>
+    onMain(JSON.parse(gh('api', `repos/${repo}/compare/${head}...main`)).status);
+  if (!isOnMain()) throw new Error('This commit is no longer on main; refusing to release it.');
 
   const refs: Ref[] = JSON.parse(gh('api', `repos/${repo}/git/matching-refs/tags/v`));
   const tag = refs.find((entry) => entry.ref === `refs/tags/${plan.tag}`);
@@ -174,6 +177,20 @@ async function main() {
   const tagged = tag ? git('rev-parse', `refs/tags/${plan.tag}^{commit}`) : undefined;
   if (tag && tag.object.sha !== git('rev-parse', `refs/tags/${plan.tag}`))
     throw new Error('The remote tag changed since checkout. Rerun Release.');
+  // A later commit at the same version may have been released first; then this one has nothing to do.
+  const laterTag =
+    tagged !== undefined &&
+    !ancestor(tagged) &&
+    spawnSync('git', ['merge-base', '--is-ancestor', head, tagged], { cwd: root }).status === 0;
+  if (laterTag) {
+    const published = findRelease(repo, plan.tag);
+    if (published && !published.draft) {
+      console.log(
+        `Already published ${plan.tag} at a later commit ${tagged}: ${published.html_url}`,
+      );
+      return;
+    }
+  }
   const commit = releaseCommit(head, tagged, ancestor);
   const plugin = `plugins/${id}`;
   if (tagged && git('rev-parse', `${head}:${plugin}`) !== git('rev-parse', `${commit}:${plugin}`))
@@ -194,13 +211,11 @@ async function main() {
     console.log(`Already published ${plan.tag} at ${commit}: ${existing.html_url}`);
     return;
   }
-  if (
-    refs.some((ref) => {
-      const version = ref.ref.slice('refs/tags/v'.length);
-      return semver.test(version) && newerVersion(version, plan.version);
-    })
-  )
-    throw new Error('A newer version tag exists. Run Release for the latest checked version.');
+  // Publish an older version that a quicker run overtook, but never move Latest backwards.
+  const latest = !refs.some((ref) => {
+    const version = ref.ref.slice('refs/tags/v'.length);
+    return semver.test(version) && newerVersion(version, plan.version);
+  });
   if (existing?.prerelease) throw new Error('A prerelease already uses this stable tag.');
   for (const sha of new Set([head, commit])) {
     const policy = parse(git('show', `${sha}:solo-workflow.toml`)) as { required_checks: string[] };
@@ -219,8 +234,7 @@ async function main() {
   }
 
   const assertMain = () => {
-    if (remoteHead() !== head)
-      throw new Error('Main moved. The latest checked main run can resume this version.');
+    if (!isOnMain()) throw new Error('This commit is no longer on main; refusing to release it.');
   };
   const stage = mkdtempSync(join(tmpdir(), 'sidecut-release-'));
   try {
@@ -291,7 +305,7 @@ async function main() {
     if (!uploaded)
       throw new Error('Release assets are not ready. Rerun Release to reconcile them.');
     assertMain();
-    gh('release', 'edit', plan.tag, '--repo', repo, '--draft=false', '--latest');
+    gh('release', 'edit', plan.tag, '--repo', repo, '--draft=false', `--latest=${latest}`);
     const published = await waitForRelease(
       lookup,
       (release) => !release.draft && missingAssets(release, expected).length === 0,

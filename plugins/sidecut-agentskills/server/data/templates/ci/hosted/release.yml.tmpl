@@ -15,7 +15,8 @@ jobs:
     timeout-minutes: 15
     concurrency:
       group: release
-      cancel-in-progress: false
+      # Keep every waiting run: the default keeps one, so a third quick merge would cancel the second's release.
+      queue: max
     permissions:
       contents: write
       checks: read
