@@ -550,6 +550,7 @@ function settingsVars(id, s = current()) {
     ciLayout: s.ci === "sidecut" ? CI_LAYOUT : "CI on GitHub-hosted runners",
     // The sidecut CI template scans for secrets inside check; the hosted one keeps a secrets job.
     requiredChecks: s.ci === "sidecut" ? '"check"' : '"check", "secrets"',
+    releaseChecks: s.ci === "sidecut" ? "['check']" : "['check', 'secrets']",
     installBlock,
     workflowMarkers: s.workflow === "solo" ? `
 

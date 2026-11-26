@@ -342,6 +342,7 @@ export function settingsVars(id: string, s: Settings = current()): Record<string
     ciLayout: s.ci === 'sidecut' ? CI_LAYOUT : 'CI on GitHub-hosted runners',
     // The sidecut CI template scans for secrets inside check; the hosted one keeps a secrets job.
     requiredChecks: s.ci === 'sidecut' ? '"check"' : '"check", "secrets"',
+    releaseChecks: s.ci === 'sidecut' ? "['check']" : "['check', 'secrets']",
     installBlock,
     workflowMarkers: s.workflow === 'solo' ? `\n\n${SOLO_START}\n${SOLO_END}` : '',
     workflowIgnore: s.workflow === 'solo' ? `\n${SOLO_LOCAL_FILE}` : '',

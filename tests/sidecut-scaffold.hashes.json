@@ -36,7 +36,7 @@
   "plugins/sidecut-demo/skills/demo-check-status/agents/openai.yaml": "614d32f73ab289a1ddad5e7da74ebfe9cda3e099b2cb60726c7fd884136c4d36",
   "scripts/build-server.ts": "a1bdb7b2835c46537cdc635a78b2923b8dac9adcacbd2bf8acae50697830cd10",
   "scripts/eval.mjs": "54a192103b2a482e5b3decdf06a6d240c4422e7ad28adb6383b45d8fe44b715e",
-  "scripts/release.ts": "a238acbef545dd26feda0264930c4da4f93830f57faf1f8ff589991d87029919",
+  "scripts/release.ts": "48a5f8844d007ae57d7cd7ef5bc9a05bf1301d57a829fa580b2ee6f7c59710f1",
   "solo-workflow.toml": "4d115447acf8f8843655229e321ef08a6e8596dcbaf1ff1dbc8478a23f680e6f",
   "tests/plugin.test.ts": "36857ef4165a29826b96b251c6f6d13b977a142acf69083e23aa3e30fb4ed8e7",
   "tests/setup.ts": "e5e68081aaf6a33cfe4c123efa2316151e7288bd5096b008f3a900d247a00693",
