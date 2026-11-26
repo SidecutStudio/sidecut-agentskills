@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative, sep } from 'node:path';
 import { antigravityFiles } from '../antigravity.ts';
 import {
   brandColorOf,
@@ -737,6 +738,70 @@ function checkHooks(pluginDir: string, root: string, report: Report): void {
   }
 }
 
+/** Every file under dir except .DS_Store, as sorted paths relative to it with `/` separators. */
+function treeFiles(dir: string): string[] {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    for (const name of readdirSync(d)) {
+      if (name === '.DS_Store') continue;
+      const p = join(d, name);
+      if (statSync(p).isDirectory()) walk(p);
+      else out.push(relative(dir, p).split(sep).join('/'));
+    }
+  };
+  walk(dir);
+  return out.sort();
+}
+
+/** sha256 over "<path>\n<sha256 of the file>\n" for each file in path order, as `sha256-<hex>`. */
+export function treeHash(dir: string): string {
+  const h = createHash('sha256');
+  for (const f of treeFiles(dir)) {
+    const body = createHash('sha256')
+      .update(readFileSync(join(dir, f)))
+      .digest('hex');
+    h.update(`${f}\n${body}\n`);
+  }
+  return `sha256-${h.digest('hex')}`;
+}
+
+/** When evals are generated from another repo, each copied folder must still match its hash. */
+function checkEvalsSource(root: string, report: Report): void {
+  const file = join(root, 'evals-source.json');
+  if (!existsSync(file)) return;
+  const fix =
+    'Edit the evals at their source and sync again, or delete evals-source.json to own them here.';
+  let copies: unknown;
+  try {
+    copies = JSON.parse(readFileSync(file, 'utf8')).copies;
+  } catch {
+    copies = undefined;
+  }
+  if (!Array.isArray(copies) || copies.length === 0) {
+    report.add(
+      'EVAL_SOURCE',
+      'evals-source.json',
+      undefined,
+      'evals-source.json has no copies list.',
+      fix,
+    );
+    return;
+  }
+  for (const copy of copies as { path?: unknown; hash?: unknown }[]) {
+    const path = String(copy?.path ?? '');
+    const dir = join(root, path);
+    const inside = path !== '' && !isAbsolute(path) && !relative(root, dir).startsWith('..');
+    if (!inside || !existsSync(dir) || !statSync(dir).isDirectory() || treeHash(dir) !== copy.hash)
+      report.add(
+        'EVAL_SOURCE',
+        path || 'evals-source.json',
+        undefined,
+        `${path || 'A copy'} doesn't match the hash in evals-source.json.`,
+        fix,
+      );
+  }
+}
+
 function checkEvals(skills: string[], root: string, report: Report): void {
   const dir = join(root, 'evals');
   const cases = existsSync(dir)
@@ -987,12 +1052,14 @@ export function checkPlugin(
   const skills = checkSkills(pluginDir, root, report, tools, id, brandColorOf(pluginDir));
   checkHooks(pluginDir, root, report);
   checkAntigravity(pluginDir, root, report);
-  if (repoName)
+  if (repoName) {
     checkEvals(
       skills.map((s) => s.name),
       root,
       report,
     );
+    checkEvalsSource(root, report);
+  }
   const version = typeof manifest?.version === 'string' ? manifest.version : null;
   checkReadme(pluginDir, String(manifest?.description ?? ''), skills, root, report);
   if (version) checkChangelog(pluginDir, version, root, report);

@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.8.0] - 2026-11-26
+
+### Added
+
+- `sidecut-check` reported `EVAL_SOURCE` when a repo's `evals-source.json` lists a copied evals folder whose files no longer match its recorded hash, so evals generated from another repo can't be edited in place unnoticed. A repo without the file is unchanged, and the file is part of the repo layout.
+
 ## [2.7.0] - 2026-11-26
 
 ### Added

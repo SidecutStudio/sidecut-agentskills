@@ -1,0 +1,11 @@
+{
+  "note": "These folders are generated. Edit them at their source and sync, or delete this file to own them here.",
+  "commit": "fcad0164ab79779c028efc31a4583ffc81c25df1",
+  "copies": [
+    {
+      "path": "evals",
+      "from": "triggers/sidecut-agentskills",
+      "hash": "sha256-0c3c57539e759d28a9518ffc881b36079d3771fb83fa72536fc7276cc71811dd"
+    }
+  ]
+}

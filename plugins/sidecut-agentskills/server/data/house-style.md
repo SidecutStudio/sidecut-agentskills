@@ -298,6 +298,7 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 | Location | Repository-root `evals/`, one folder per case; never in the installed plugin. Run `npm run eval` to stage a temporary plugin for Claude Code | yes |
 | Case names | `<skill>-<what>` for a skill's cases, `negative-<what>` for requests no skill in the plugin should answer | yes |
 | Case files | `prompt.md` with frontmatter, then `graders/` with at least one grader | yes |
+| Generated cases | When `evals/` is copied from another repo, `evals-source.json` at the root lists each copied folder and its hash (`sha256-` over each file's path and sha256, in path order). Edit the cases at their source and sync; delete the file to own them here | yes |
 | Coverage | Every skill in a development repo has at least one trigger case; the repo has at least one `negative-` case | yes |
 | Graders | `tool_used` graders on the `Skill` tool; an `llm` grader only for what a tool grader can't see | review |
 
