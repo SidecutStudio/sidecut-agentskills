@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.11.0] - 2026-11-26
+
+### Changed
+
+- `agentskills-build-mcp-server` no longer packages the user's own hosted MCP server as a bare address when they want it as an app. Codex and ChatGPT show a bundled address as a plain MCP server with an Authenticate button; an app, listed under Apps like Firecrawl, needs a registration only the owner can make, so the skill now asks for it before packaging and bundles the connector id it gives. Its host check now finishes the host's own sign-in through to a working tool call in each host, since a 401 and readable sign-in metadata only prove discovery. A new trigger case covers the request.
+
 ## [2.9.0] - 2026-11-26
 
 ### Changed
