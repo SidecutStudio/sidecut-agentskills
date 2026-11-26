@@ -290,6 +290,7 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 | Codex | Codex loads subagents only from a project's `.codex/agents/`, not from a plugin (openai/codex#18988). `npm run build` writes each one as `codex/agents/<prefix>-<role>.toml`, named `<prefix>_<role>` with the prefix's hyphens as underscores, and the skill that uses it copies the profile into the project before the first use. It never overwrites a file there and never writes to `~/.codex/` | yes |
 | Naming one in a skill | `<plugin id>:<role>` for Claude Code and `<prefix>_<role>` for Codex, both in backticks: `sidecut-agentskills:reviewer` (`agentskills_reviewer` in Codex). A `<plugin id>:<name>` pointer must name one of the plugin's skills or subagents | yes |
 | Limits | A subagent's tool limits are enforced in Claude Code only; in Codex it runs with the parent session's permissions, and its profile says so | yes |
+| Host config | A subagent that tries a plugin in a host runs `codex` and `claude` only with `CODEX_HOME` or `CLAUDE_CONFIG_DIR` set to an empty folder in the same command, and never reads the user's own host config. Agentskills' own subagents are held to it by its `pre-tool-use-host-home.mjs` hook, which both hosts run with the subagent's name | review |
 
 ## Evals
 
@@ -310,7 +311,7 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 | Command | `"command": "node"` with `"args": ["${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"]` in hooks.json, so it starts on Windows too; one line, `node "${CLAUDE_PLUGIN_ROOT}/hooks/<file>.mjs"`, in codex-hooks.json, where Codex fills in the same variable | yes |
 | Timeout | Every hook sets `"timeout"` of at most 5 | yes |
 | Scripts | Node ESM, built-in modules only, no network, exit 0 even when they fail themselves | yes |
-| Output | Nothing on stdout unless the hook's job is to add context | review |
+| Output | Nothing on stdout unless the hook's job is to add context or refuse a call | review |
 | Usage log hook | `post-tool-use-skill-log.mjs` is byte-identical to the template's copy, which `sidecut-sync` restores. It also counts Antigravity's skill reads, through the root `hooks.json` | yes |
 | Registration | Every script in `hooks/` is registered in both files and every registered file exists; a test pins the list | yes |
 
