@@ -143,7 +143,7 @@ function checkAntigravity(pluginDir: string, root: string, report: Report): void
           'ANTIGRAVITY_UNEXPECTED',
           file,
           undefined,
-          `${path} has nothing to describe: the plugin has no ${path === 'mcp_config.json' ? '.mcp.json' : 'usage log hook'}.`,
+          `${path} has nothing to describe: the plugin has no ${path === 'mcp_config.json' ? '.mcp.json' : 'hook Antigravity runs'}.`,
           'Delete it.',
         );
       continue;

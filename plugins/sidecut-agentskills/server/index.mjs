@@ -21641,23 +21641,76 @@ function antigravityMcp(claudeMcp) {
   }
   return { mcpServers: out };
 }
-function antigravityHooks() {
-  return {
-    "skill-log": {
+var EVENTS = {
+  PreToolUse: { flat: false },
+  PostToolUse: { flat: false },
+  Stop: { flat: true },
+  SessionStart: { flat: true }
+};
+var TOOLS = {
+  Bash: ["run_command"],
+  Skill: ["read_file", "view_file", "run_command"],
+  Read: ["read_file", "view_file"],
+  Edit: ["replace_file_content", "multi_replace_file_content"],
+  Write: ["write_to_file"],
+  Grep: ["grep_search"],
+  Glob: ["find_by_name"]
+};
+var PREFIX = /^(?:pre-tool-use|post-tool-use|stop|session-start)-/;
+var SCRIPT = /hooks\/([\w.-]+\.mjs)/g;
+function antigravityMatcher(matcher) {
+  if (matcher === void 0 || matcher === "" || matcher === "*") return "*";
+  if (typeof matcher !== "string") return null;
+  const tools = [];
+  for (const part of matcher.split("|")) {
+    const mapped = TOOLS[part];
+    if (!mapped) return null;
+    for (const tool of mapped) if (!tools.includes(tool)) tools.push(tool);
+  }
+  return tools.join("|");
+}
+function scriptOf(handler) {
+  if (!isRecord(handler) || typeof handler.command !== "string") return null;
+  const args = Array.isArray(handler.args) ? handler.args : [];
+  const path = args.length === 0 ? /^node\s+"?([^\s"]+)"?$/.exec(handler.command)?.[1] : handler.command === "node" && args.length === 1 && typeof args[0] === "string" ? args[0] : void 0;
+  return path ? /(?:^|\/)hooks\/([\w.-]+\.mjs)$/.exec(path)?.[1] ?? null : null;
+}
+function antigravityHooks(claudeHooks, current2, skillLog = true) {
+  const out = {};
+  if (skillLog)
+    out["skill-log"] = {
       PostToolUse: [
         {
           matcher: "read_file|view_file|run_command",
-          hooks: [
-            {
-              type: "command",
-              command: `node ./hooks/${SKILL_LOG_HOOK}`,
-              timeout: 5
-            }
-          ]
+          hooks: [{ type: "command", command: `node ./hooks/${SKILL_LOG_HOOK}`, timeout: 5 }]
         }
       ]
+    };
+  const chosen = new Set([...(current2 ?? "").matchAll(SCRIPT)].map((m) => m[1]));
+  chosen.delete(SKILL_LOG_HOOK);
+  const events = claudeHooks && isRecord(claudeHooks.hooks) ? claudeHooks.hooks : {};
+  for (const [event, groups] of Object.entries(events)) {
+    const shape = EVENTS[event];
+    if (!shape || !Array.isArray(groups)) continue;
+    for (const group of groups) {
+      if (!isRecord(group) || !Array.isArray(group.hooks)) continue;
+      const matcher = antigravityMatcher(group.matcher);
+      if (matcher === null || shape.flat && matcher !== "*") continue;
+      for (const handler of group.hooks) {
+        const script = scriptOf(handler);
+        if (!script || !chosen.has(script) || !isRecord(handler)) continue;
+        const name = script.replace(/\.mjs$/, "").replace(PREFIX, "");
+        if (name === "skill-log") continue;
+        const entry = { type: "command", command: `node ./hooks/${script}` };
+        if (typeof handler.timeout === "number") entry.timeout = handler.timeout;
+        if (!isRecord(out[name])) out[name] = {};
+        const group2 = out[name];
+        if (!Array.isArray(group2[event])) group2[event] = [];
+        group2[event].push(shape.flat ? entry : { matcher, hooks: [entry] });
+      }
     }
-  };
+  }
+  return out;
 }
 function formatJson(value, width = 100) {
   const out = (v, indent, lead, comma) => {
@@ -21706,10 +21759,14 @@ function antigravityFilesFrom(read) {
   const mcp = parse2(".mcp.json");
   if (!mcp && read(".mcp.json") !== null) return null;
   const hasSkillLog = read(`hooks/${SKILL_LOG_HOOK}`) !== null;
+  const hooks = antigravityHooks(parse2("hooks/hooks.json"), read(ANTIGRAVITY_HOOKS), hasSkillLog);
   return [
     { path: ANTIGRAVITY_MANIFEST, text: formatJson(antigravityManifest(claude, codex)) },
     { path: ANTIGRAVITY_MCP, text: mcp ? formatJson(antigravityMcp(mcp)) : null },
-    { path: ANTIGRAVITY_HOOKS, text: hasSkillLog ? formatJson(antigravityHooks()) : null }
+    {
+      path: ANTIGRAVITY_HOOKS,
+      text: Object.keys(hooks).length ? formatJson(hooks) : null
+    }
   ];
 }
 function antigravityFiles(pluginDir) {
@@ -23501,7 +23558,7 @@ function checkAntigravity(pluginDir, root, report) {
           "ANTIGRAVITY_UNEXPECTED",
           file,
           void 0,
-          `${path} has nothing to describe: the plugin has no ${path === "mcp_config.json" ? ".mcp.json" : "usage log hook"}.`,
+          `${path} has nothing to describe: the plugin has no ${path === "mcp_config.json" ? ".mcp.json" : "hook Antigravity runs"}.`,
           "Delete it."
         );
       continue;

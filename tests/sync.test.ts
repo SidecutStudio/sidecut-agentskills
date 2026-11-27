@@ -351,6 +351,75 @@ test("Antigravity's MCP config follows .mcp.json, and goes when it goes", () => 
   expect(existsSync(join(root, `${P}/mcp_config.json`))).toBe(false);
 });
 
+test('Antigravity runs the hooks its hooks.json names, written from the Claude Code ones', () => {
+  const root = copy();
+  const handler = (script: string, timeout = 5) => ({
+    type: 'command',
+    command: 'node',
+    args: [`\${CLAUDE_PLUGIN_ROOT}/hooks/${script}`],
+    timeout,
+  });
+  const claude = JSON.parse(read(root, `${P}/hooks/hooks.json`));
+  Object.assign(claude.hooks, {
+    PreToolUse: [
+      { matcher: 'Bash', hooks: [handler('pre-tool-use-guard.mjs')] },
+      { matcher: 'Edit|Write', hooks: [handler('pre-tool-use-edits.mjs')] },
+      { matcher: 'mcp__demo__run', hooks: [handler('pre-tool-use-mcp.mjs')] },
+      { matcher: 'Bash', hooks: [handler('pre-tool-use-unpicked.mjs')] },
+      {
+        matcher: 'Bash',
+        hooks: [{ ...handler('pre-tool-use-flagged.mjs'), args: ['--strict', 'hooks/x.mjs'] }],
+      },
+      { matcher: 'Bash', hooks: [handler('pre-tool-use-skill-log.mjs')] },
+    ],
+    SessionStart: [{ matcher: 'startup', hooks: [handler('session-start-narrow.mjs')] }],
+    UserPromptSubmit: [{ hooks: [handler('user-prompt-submit-note.mjs')] }],
+    Stop: [{ hooks: [handler('stop-hold.mjs', 10)] }],
+  });
+  write(root, `${P}/hooks/hooks.json`, JSON.stringify(claude));
+  // Naming a script in Antigravity's file, in any shape, opts it in. Sync writes its entries from the
+  // Claude Code ones and leaves out events, tools and handlers it can't carry over exactly.
+  const current = JSON.parse(read(root, `${P}/hooks.json`));
+  current.picked = {
+    Stop: ['guard', 'edits', 'mcp'].map((n) => ({ command: `node ./hooks/pre-tool-use-${n}.mjs` })),
+    notes: [
+      'hooks/user-prompt-submit-note.mjs',
+      'hooks/stop-hold.mjs',
+      'hooks/pre-tool-use-flagged.mjs',
+      'hooks/pre-tool-use-skill-log.mjs',
+      'hooks/session-start-narrow.mjs',
+    ],
+  };
+  write(root, `${P}/hooks.json`, JSON.stringify(current));
+  applySync(root, planSync(root, vars));
+  const hooks = JSON.parse(read(root, `${P}/hooks.json`));
+  expect(Object.keys(hooks)).toEqual(['skill-log', 'guard', 'edits', 'hold']);
+  expect(hooks.guard).toEqual({
+    PreToolUse: [
+      {
+        matcher: 'run_command',
+        hooks: [{ type: 'command', command: 'node ./hooks/pre-tool-use-guard.mjs', timeout: 5 }],
+      },
+    ],
+  });
+  expect(hooks.edits.PreToolUse[0].matcher).toBe(
+    'replace_file_content|multi_replace_file_content|write_to_file',
+  );
+  expect(hooks.hold).toEqual({
+    Stop: [{ type: 'command', command: 'node ./hooks/stop-hold.mjs', timeout: 10 }],
+  });
+  expect(planSync(root, vars)).toEqual([]);
+  // A script the Claude Code hooks stop registering leaves Antigravity's file on the next sync.
+  claude.hooks.Stop = [];
+  write(root, `${P}/hooks/hooks.json`, JSON.stringify(claude));
+  applySync(root, planSync(root, vars));
+  expect(Object.keys(JSON.parse(read(root, `${P}/hooks.json`)))).toEqual([
+    'skill-log',
+    'guard',
+    'edits',
+  ]);
+});
+
 test('the usage log hook records skill reads from Claude Code, Codex and Antigravity', () => {
   const root = copy();
   const home = mkdtempSync(join(tmpdir(), 'sidecut-hook-home-'));
