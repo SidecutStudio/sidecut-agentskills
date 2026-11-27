@@ -45,10 +45,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      # The pinned build and checksum from sidecut-ops' tools.json. Its setup-ci-tools action needs
-      # Bun, which plugin repos don't install.
-      - name: Install trufflehog 3.99.2
-        run: |
-          {{secretScanInstall}}
-      # {{ciOwnLaneTitle}} runners keep old remote branches between jobs, so scan only what this commit reaches.
-      - run: trufflehog git "file://$PWD" --branch HEAD --results=verified,unknown --fail --no-update
+      # TruffleHog at the pin in sidecut-ops' tools.json, with no Bun, failing on any secret this commit reaches.
+      - uses: SidecutStudio/sidecut-ops/.github/actions/scan-secrets@9faa06eb176c33347f4ecd70bb47eaec079bb256 # v3.10.0

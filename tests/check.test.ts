@@ -677,7 +677,7 @@ const cases: [string, (repo: Repo) => void][] = [
     (r) =>
       r.edit('.github/workflows/check.yml', (t) =>
         t.replace(
-          / {6}- name: Install trufflehog[^\n]*\n(?: {8}[^\n]*\n)+/,
+          / {6}- uses: SidecutStudio\/sidecut-ops\/\.github\/actions\/scan-secrets@[^\n]*\n/,
           '      - uses: SidecutStudio/sidecut-ops/.github/actions/setup-ci-tools@c44d8f19a2c58d2b26004fe81b208fb2a3b554ab\n        with:\n          tools: trufflehog\n',
         ),
       ),

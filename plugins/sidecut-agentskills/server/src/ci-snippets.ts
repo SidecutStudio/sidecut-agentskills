@@ -11,7 +11,6 @@ const INDENT = '          ';
 /** The few CI lines the templates leave as placeholders. */
 export const CI_SNIPPETS: Record<string, string> = {
   ciOwnLane: 'self-hosted',
-  ciOwnLaneTitle: 'Self-hosted',
   ...SIDECUT_CI_SNIPPETS,
   // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
   ghTokenEnv: 'GH_TOKEN: ${{ github.token }}',
