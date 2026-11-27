@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "recap-uncertain-claims",
+  "input": {
+    "prompt": "Write a short call recap I can review before sending. Use the attached notes.",
+    "files": {
+      "notes.txt": "Prospect: I will start the pricing review. My deputy may also need to sign off.\nRep: I assume you use a corporate identity provider.\nThe prospect moved on without confirming the provider. No due date was set.\n"
+    }
+  },
+  "expectedBehavior": "Keep unconfirmed statements tentative and leave undated work undated.",
+  "grading": [
+    {
+      "kind": "rubric",
+      "notes": "The recap says the prospect will start a pricing review and that a second approver may be needed. The identity provider is an open question, and the review has no asserted due date. Fail if the recap records an approved deal, a confirmed identity provider or an invented date."
+    }
+  ]
+}

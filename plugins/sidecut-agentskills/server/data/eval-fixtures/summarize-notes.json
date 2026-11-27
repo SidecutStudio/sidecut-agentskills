@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "summarize-notes",
+  "input": {
+    "prompt": "Summarize notes.md in one sentence for visitors.",
+    "files": {
+      "notes.md": "The library will open at 9 a.m. on Saturday. The book drop will remain available overnight. The Sunday schedule is unchanged.\n"
+    }
+  },
+  "expectedBehavior": "Use the summarization skill, then produce a concise sentence covering the Saturday opening and book drop.",
+  "grading": [
+    {
+      "kind": "skill-used",
+      "skill": "summarize",
+      "notes": "Require a recorded invocation of the bound summarization skill in the skill-enabled arm."
+    },
+    {
+      "kind": "rubric",
+      "notes": "The sentence states that the library opens at 9 a.m. on Saturday and the book drop stays available overnight. Mentioning the unchanged Sunday schedule is optional. Fail for a new fact or an invented closure."
+    }
+  ]
+}

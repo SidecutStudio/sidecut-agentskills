@@ -6,12 +6,20 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
-import { existsSync as existsSync6, lstatSync, readdirSync as readdirSync4, readFileSync as readFileSync6, realpathSync } from "node:fs";
+import { existsSync as existsSync6, lstatSync as lstatSync3, readdirSync as readdirSync4, readFileSync as readFileSync6, realpathSync } from "node:fs";
 import { join as join6 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
-import { existsSync as existsSync3, mkdirSync as mkdirSync2, readdirSync as readdirSync2, readFileSync as readFileSync3, statSync, writeFileSync as writeFileSync2 } from "node:fs";
-import { basename, dirname as dirname2, join as join3 } from "node:path";
+import {
+  existsSync as existsSync3,
+  lstatSync,
+  mkdirSync as mkdirSync2,
+  readdirSync as readdirSync2,
+  readFileSync as readFileSync3,
+  statSync,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import { basename, dirname as dirname2, join as join3, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // plugins/sidecut-agentskills/server/src/antigravity.ts
@@ -192,6 +200,9 @@ function antigravityFiles(pluginDir) {
   });
 }
 
+// plugins/sidecut-agentskills/server/src/check/evals-stamp.ts
+var STAMP_FILE = "evals-source.json";
+
 // plugins/sidecut-agentskills/server/src/check/report.ts
 function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
@@ -244,6 +255,46 @@ ${INDENT}`),
     'echo "$RUNNER_TEMP" >> "$GITHUB_PATH"'
   ].join(`
 ${INDENT}`)
+};
+
+// plugins/sidecut-agentskills/server/data/eval-fixtures/other-plugin-status.json
+var other_plugin_status_default = {
+  schemaVersion: 1,
+  id: "other-plugin-status",
+  input: {
+    prompt: "The calendar plugin\u2019s scheduling tools disappeared. Can you check whether that plugin is connected?",
+    context: "The plugin under test is presented as the export plugin. The user is asking about a separate calendar plugin."
+  },
+  expectedBehavior: "Keep the export plugin\u2019s status skill quiet when another plugin is the named subject.",
+  grading: [
+    {
+      kind: "skill-quiet",
+      skill: "check-status",
+      notes: "Fail if the runtime records any invocation of the export plugin\u2019s bound status skill. A calendar status action or an honest statement that calendar status is unavailable is acceptable."
+    }
+  ]
+};
+
+// plugins/sidecut-agentskills/server/data/eval-fixtures/plugin-status.json
+var plugin_status_default = {
+  schemaVersion: 1,
+  id: "plugin-status",
+  input: {
+    prompt: "I just updated the export plugin and its tools disappeared. Can you check whether it is connected and what version is running?",
+    context: "The installed plugin is presented as the export plugin. A simulated status operation reports a reachable server at version 1.2.3."
+  },
+  expectedBehavior: "Use the target plugin\u2019s status skill and report only the connection and version that the session can verify.",
+  grading: [
+    {
+      kind: "skill-used",
+      skill: "check-status",
+      notes: "Look for a recorded invocation of the export plugin\u2019s bound status skill. A status-like reply alone does not establish invocation."
+    },
+    {
+      kind: "rubric",
+      notes: "With the supplied status stub, the reply identifies a reachable server at version 1.2.3. Fail if it treats a successful status call as evidence that the export tool works."
+    }
+  ]
 };
 
 // plugins/sidecut-agentskills/server/src/settings.ts
@@ -389,6 +440,87 @@ function marketplaceName(id2, s = active) {
   return s.marketplace ? s.marketplace.split("/")[1] ?? s.marketplace : id2;
 }
 
+// plugins/sidecut-agentskills/server/src/eval-fixtures.ts
+function shellString(text) {
+  return "'" + text.replaceAll("'", "'\\''") + "'";
+}
+function triggerCase(name, fixture, operand) {
+  const routing = fixture.grading.find(
+    ({ kind }) => kind === "skill-used" || kind === "skill-quiet"
+  );
+  if (!routing) throw new Error(`Fixture for ${name} has no routing check.`);
+  const positive = routing.kind === "skill-used";
+  const match = `"skill"\\s*:\\s*"${escapeRegExp(operand)}"`;
+  const files = /* @__PURE__ */ new Map([
+    [
+      "prompt.md",
+      `---
+tags: [${positive ? "trigger" : "negative"}]
+runs: 1
+max_turns: 6
+allowed_tools: [Read, Glob, Grep, Skill]
+---
+${fixture.input.prompt}
+`
+    ],
+    [
+      `graders/${positive ? "skill-fired" : "no-skill"}.md`,
+      `---
+type: tool_used
+tool: Skill
+input_match: '${match}'
+${positive ? "min: 1\narm: with-only" : "min: 0\nmax: 0\narm: both"}
+---
+`
+    ]
+  ]);
+  if (fixture.input.files) {
+    files.set(
+      "case.yaml",
+      `schema_version: "1.0"
+name: ${name}
+context:
+  scaffold_script: ./setup.sh
+`
+    );
+    files.set(
+      "setup.sh",
+      Object.entries(fixture.input.files).map(([file, contents]) => `printf '%s' ${shellString(contents)} > ${shellString(file)}
+`).join("")
+    );
+  }
+  return files;
+}
+function pluginStarterEvals(id2, key, displayName) {
+  const skill = `${key}-check-status`;
+  const operand = `${id2}:${skill}`;
+  const alternatePrompt = /calendar/i.test(displayName) ? other_plugin_status_default.input.prompt.replace(
+    "calendar plugin\u2019s scheduling",
+    "mail plugin\u2019s messaging"
+  ) : other_plugin_status_default.input.prompt;
+  return /* @__PURE__ */ new Map([
+    [
+      `${skill}-trigger`,
+      triggerCase(
+        `${skill}-trigger`,
+        {
+          ...plugin_status_default,
+          input: { prompt: plugin_status_default.input.prompt.replace("the export plugin", displayName) }
+        },
+        operand
+      )
+    ],
+    [
+      "negative-unrelated",
+      triggerCase(
+        "negative-unrelated",
+        { ...other_plugin_status_default, input: { prompt: alternatePrompt } },
+        operand
+      )
+    ]
+  ]);
+}
+
 // plugins/sidecut-agentskills/server/src/scaffold.ts
 var here = dirname2(fileURLToPath(import.meta.url));
 var dataRoot = existsSync3(join3(here, "data")) ? join3(here, "data") : existsSync3(join3(here, "..", "data")) ? join3(here, "..", "data") : join3(here, "..", "plugins", "sidecut-agentskills", "server", "data");
@@ -399,6 +531,9 @@ function userInput() {
   return readFileSync3(join3(dataRoot, "user-input.md"), "utf8");
 }
 var ownVersion = JSON.parse(readFileSync3(join3(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
+function skillPrefixOf(pluginId, s = current()) {
+  return pluginId.replace(new RegExp(`^${escapeRegExp(s.prefix)}`), "");
+}
 var BRAND_COLOR = PROFILES.sidecut?.brandColor ?? "#FF6B00";
 var ACRONYMS = /* @__PURE__ */ new Set([
   "ai",
@@ -505,13 +640,21 @@ ${SOLO_LOCAL_FILE}` : ""
 
 // plugins/sidecut-agentskills/server/src/check/server.ts
 import { existsSync as existsSync4, mkdtempSync, readFileSync as readFileSync4, rmSync } from "node:fs";
-import { join as join4, relative } from "node:path";
+import { join as join4, relative as relative2 } from "node:path";
 var ESBUILD = /"esbuild": "([^"]+)"/.exec(
   readFileSync4(join4(templatesRoot, "repo", "package.json.tmpl"), "utf8")
 )?.[1] ?? "";
 
 // plugins/sidecut-agentskills/server/src/check/sync.ts
-import { existsSync as existsSync5, mkdirSync as mkdirSync3, readdirSync as readdirSync3, readFileSync as readFileSync5, rmSync as rmSync2, writeFileSync as writeFileSync3 } from "node:fs";
+import {
+  existsSync as existsSync5,
+  lstatSync as lstatSync2,
+  mkdirSync as mkdirSync3,
+  readdirSync as readdirSync3,
+  readFileSync as readFileSync5,
+  rmSync as rmSync2,
+  writeFileSync as writeFileSync3
+} from "node:fs";
 import { dirname as dirname3, join as join5 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
@@ -683,9 +826,64 @@ function planPackage(root2, vars, pinOnly) {
 `
   };
 }
+function planStarterEvals(root2, id2, key, kept) {
+  const evals = join5(root2, "evals");
+  if (existsSync5(join5(root2, STAMP_FILE)) || !lstatSync2(evals, { throwIfNoEntry: false })?.isDirectory())
+    return [];
+  const title = displayNameOf(id2);
+  const skill = `${key}-check-status`;
+  return [...pluginStarterEvals(id2, key, title)].flatMap(([name, next]) => {
+    const dir = join5(evals, name);
+    const graders = join5(dir, "graders");
+    const positive = name === `${skill}-trigger`;
+    const grader = `graders/${positive ? "skill-fired" : "no-skill"}.md`;
+    const old = /* @__PURE__ */ new Map([
+      [
+        "prompt.md",
+        `---
+tags: [${positive ? "trigger" : "negative"}]
+runs: 1
+max_turns: 6
+allowed_tools: [Read, Glob, Grep, Skill]
+---
+${positive ? `Is ${title} working? Check its server.` : "What is a good name for a pet goldfish?"}
+`
+      ],
+      [
+        grader,
+        `---
+type: tool_used
+tool: Skill
+input_match: "${positive ? `${id2}:${skill}` : id2}"
+${positive ? "min: 1\narm: with-only" : "min: 0\nmax: 0\narm: both"}
+---
+`
+      ]
+    ]);
+    if (!lstatSync2(dir, { throwIfNoEntry: false })?.isDirectory() || !lstatSync2(graders, { throwIfNoEntry: false })?.isDirectory() || readdirSync3(dir).length !== 2 || readdirSync3(graders).length !== 1)
+      return [];
+    const changes2 = [];
+    for (const [path, previous] of old) {
+      const target = join5(dir, path);
+      if (!lstatSync2(target, { throwIfNoEntry: false })?.isFile()) return [];
+      const have = readFileSync5(target, "utf8");
+      const want = next.get(path);
+      if (!want || have !== previous && have !== want) return [];
+      const file = `evals/${name}/${path}`;
+      if (have !== want && !kept(file))
+        changes2.push({
+          file,
+          what: `The starter eval ${name} has a portable fixture update.`,
+          next: want
+        });
+    }
+    return changes2;
+  });
+}
 function planSync(root2, vars, kept = () => false) {
   const changes2 = [];
-  const settings = settingsVars(vars.id, repoSettings(root2));
+  const answers = repoSettings(root2);
+  const settings = settingsVars(vars.id, answers);
   const render2 = (file) => renderFile(`repo/${file}.tmpl`, {
     ...settings,
     id: vars.id,
@@ -694,6 +892,8 @@ function planSync(root2, vars, kept = () => false) {
   });
   const guide = pluginOwnedFile(vars.id);
   const beside = vars.scope === "beside";
+  if (!beside)
+    changes2.push(...planStarterEvals(root2, vars.id, skillPrefixOf(vars.id, answers), kept));
   const applies = (file) => !beside || file === guide && existsSync5(join5(root2, file)) || file === "scripts/eval.mjs" && existsSync5(join5(root2, "evals"));
   for (const file of [...OWNED_FILES, guide].filter(applies)) {
     if (kept(file)) continue;
@@ -896,6 +1096,14 @@ if (scope === "beside")
   console.log(
     `Syncing ${id} and the repo files that already follow the template: the repo ships it beside other work.`
   );
+var keys = Object.keys(who.keep);
+var changes = planSync(
+  root,
+  { id, repo: who.repo, version: ownVersion, scope },
+  (file, code) => keys.some(
+    (key) => keepCovers(key, "REPO_SYNC", file) || code !== void 0 && keepCovers(key, code, file)
+  )
+);
 if (!values.check && !values.force) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_"))
@@ -907,6 +1115,7 @@ if (!values.check && !values.force) {
     pluginOwnedFile(id),
     ...pluginSyncFiles(id),
     ...guideMoveFiles(root, id),
+    ...changes.filter(({ file }) => file.startsWith("evals/")).map(({ file }) => file),
     "package.json",
     "package-lock.json"
   ];
@@ -929,14 +1138,6 @@ ${dirty.stdout}Commit or stash them first, or pass --force.`
     process.exit(1);
   }
 }
-var keys = Object.keys(who.keep);
-var changes = planSync(
-  root,
-  { id, repo: who.repo, version: ownVersion, scope },
-  (file, code) => keys.some(
-    (key) => keepCovers(key, "REPO_SYNC", file) || code !== void 0 && keepCovers(key, code, file)
-  )
-);
 if (changes.length === 0) {
   console.log(`Up to date with sidecut-agentskills v${ownVersion}.`);
   process.exit(0);

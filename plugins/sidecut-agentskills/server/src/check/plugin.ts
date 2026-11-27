@@ -755,10 +755,25 @@ function checkEvals(skills: string[], root: string, report: Report): void {
   const cases = existsSync(dir)
     ? readdirSync(dir).filter((n) => statSync(join(dir, n)).isDirectory())
     : [];
+  // A router's name prefixes its specialist skills. A specialist's case covers that skill only.
+  const bySpecificity = [...skills].sort((a, b) => b.length - a.length);
+  const covered = new Set<string>();
+  let hasNegative = false;
   for (const name of cases) {
     const where = relative(root, join(dir, name));
-    const owner = skills.find((s) => name.startsWith(`${s}-`));
-    if (!owner && !/^negative-[a-z0-9-]+$/.test(name)) {
+    const owner = bySpecificity.find((s) => name.startsWith(`${s}-`));
+    const prompt = join(dir, name, 'prompt.md');
+    const text =
+      existsSync(prompt) && statSync(prompt).isFile() ? readFileSync(prompt, 'utf8') : '';
+    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text)?.[1] ?? '';
+    // When the plugin's own prefix starts with "negative", the tag disambiguates its near misses.
+    if (
+      /^negative-[a-z0-9-]+$/.test(name) &&
+      (!owner || /^tags:\s*\[negative\]/m.test(frontmatter))
+    )
+      hasNegative = true;
+    else if (owner) covered.add(owner);
+    else {
       report.add(
         'EVAL_NAME',
         where,
@@ -767,8 +782,7 @@ function checkEvals(skills: string[], root: string, report: Report): void {
         'Rename it after the skill it tests.',
       );
     }
-    const prompt = join(dir, name, 'prompt.md');
-    if (!existsSync(prompt) || !readFileSync(prompt, 'utf8').startsWith('---\n')) {
+    if (!text.startsWith('---\n')) {
       report.add(
         'EVAL_PROMPT',
         where,
@@ -788,17 +802,17 @@ function checkEvals(skills: string[], root: string, report: Report): void {
       );
     }
   }
-  if (cases.length > 0 && !cases.some((c) => c.startsWith('negative-'))) {
+  if (cases.length > 0 && !hasNegative) {
     report.add(
       'EVAL_MISSING',
       relative(root, dir),
       undefined,
       'There is no negative- eval case.',
-      'Add evals/negative-<what>/ for a request no skill should answer.',
+      'Add evals/negative-<what>/ for a request the skill under test should leave to another route.',
     );
   }
   for (const skill of skills) {
-    if (!cases.some((c) => c.startsWith(`${skill}-`))) {
+    if (!covered.has(skill)) {
       report.add(
         'EVAL_MISSING',
         relative(root, dir),

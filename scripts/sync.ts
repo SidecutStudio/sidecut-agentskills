@@ -52,6 +52,15 @@ if (scope === 'beside')
     `Syncing ${id} and the repo files that already follow the template: the repo ships it beside other work.`,
   );
 
+const keys = Object.keys(who.keep);
+// A file is kept by its path, by `REPO_SYNC <file>`, or by the plugin rule that reports it.
+const changes = planSync(root, { id, repo: who.repo, version: ownVersion, scope }, (file, code) =>
+  keys.some(
+    (key) =>
+      keepCovers(key, 'REPO_SYNC', file) || (code !== undefined && keepCovers(key, code, file)),
+  ),
+);
+
 // Never overwrite work that isn't committed yet: git couldn't bring it back. This runs once, before
 // anything changes, so the move to a newer release below doesn't count as someone's edit.
 if (!values.check && !values.force) {
@@ -66,6 +75,7 @@ if (!values.check && !values.force) {
     pluginOwnedFile(id),
     ...pluginSyncFiles(id),
     ...guideMoveFiles(root, id),
+    ...changes.filter(({ file }) => file.startsWith('evals/')).map(({ file }) => file),
     'package.json',
     'package-lock.json',
   ];
@@ -88,14 +98,6 @@ if (!values.check && !values.force) {
   }
 }
 
-const keys = Object.keys(who.keep);
-// A file is kept by its path, by `REPO_SYNC <file>`, or by the plugin rule that reports it.
-const changes = planSync(root, { id, repo: who.repo, version: ownVersion, scope }, (file, code) =>
-  keys.some(
-    (key) =>
-      keepCovers(key, 'REPO_SYNC', file) || (code !== undefined && keepCovers(key, code, file)),
-  ),
-);
 if (changes.length === 0) {
   console.log(`Up to date with sidecut-agentskills v${ownVersion}.`);
   process.exit(0);

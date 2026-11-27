@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "plugin-status",
+  "input": {
+    "prompt": "I just updated the export plugin and its tools disappeared. Can you check whether it is connected and what version is running?",
+    "context": "The installed plugin is presented as the export plugin. A simulated status operation reports a reachable server at version 1.2.3."
+  },
+  "expectedBehavior": "Use the target plugin’s status skill and report only the connection and version that the session can verify.",
+  "grading": [
+    {
+      "kind": "skill-used",
+      "skill": "check-status",
+      "notes": "Look for a recorded invocation of the export plugin’s bound status skill. A status-like reply alone does not establish invocation."
+    },
+    {
+      "kind": "rubric",
+      "notes": "With the supplied status stub, the reply identifies a reachable server at version 1.2.3. Fail if it treats a successful status call as evidence that the export tool works."
+    }
+  ]
+}

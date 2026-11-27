@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.14.0] - 2026-11-27
+
+### Added
+
+- Plugin scaffolds now write a status trigger and an adjacent-plugin near miss from the portable eval fixtures. Skill scaffolds seed a trigger from the skill description, and a `<prefix>-summarize-notes` skill gets both notes cases with their shared workspace file. `agentskills-write-skill` points to the bundled cases and shows how to adapt them.
+
+### Changed
+
+- On the next `sidecut-sync` after updating to this release, a dedicated plugin repo gets the new status prompts and routing graders in place of any untouched older starter cases. Edited cases and suites tracked by `evals-source.json` keep their current contents.
+- `sidecut-check` now requires a router's own trigger case when its name also prefixes a specialist's case.
+
 ## [2.13.0] - 2026-11-27
 
 ### Added

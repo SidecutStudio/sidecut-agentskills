@@ -297,10 +297,10 @@ Use ordinary Markdown. Keep examples realistic and references easy to find. Supp
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Location | Repository-root `evals/`, one folder per case; never in the installed plugin. Run `npm run eval` to stage a temporary plugin for Claude Code | yes |
-| Case names | `<skill>-<what>` for a skill's cases, `negative-<what>` for requests no skill in the plugin should answer | yes |
-| Case files | `prompt.md` with frontmatter, then `graders/` with at least one grader | yes |
+| Case names | `<skill>-<what>` for a skill's cases, `negative-<what>` for requests the skill or plugin under test should leave to another route | yes |
+| Case files | `prompt.md` with frontmatter, then `graders/` with at least one grader. A case can add a `case.yaml` overlay for workspace setup | yes |
 | Generated cases | When `evals/` is copied from another repo, `evals-source.json` at the root lists each copied folder and its hash (`sha256-` over each file's path and sha256, in path order). Edit the cases at their source and sync; delete the file to own them here | yes |
-| Coverage | Every skill in a development repo has at least one trigger case; the repo has at least one `negative-` case | yes |
+| Coverage | Every skill in a development repo has at least one trigger case, including the router. When skill names overlap, the longest match owns the case. The repo has at least one `negative-` case | yes |
 | Graders | `tool_used` graders on the `Skill` tool; an `llm` grader only for what a tool grader can't see | review |
 
 ## Hooks
@@ -390,6 +390,7 @@ sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecu
 | What | Owned by sidecut-agentskills | Belongs to the repo |
 | --- | --- | --- |
 | `CLAUDE.md`, `scripts/build-server.ts`, `scripts/release.ts` | The whole file | Nothing |
+| Starter status evals | Sync refreshes an exact copy of an older starter in a dedicated plugin repo | Edited, missing and stamped cases |
 | `.gitignore`, `AGENTS.md`, `SECURITY.md` | The block between `sidecut:start house-style` and `sidecut:end house-style` | Everything outside it |
 | `package.json` | `packageManager` and the versions of Biome, TypeScript, Lefthook, `@types/node` and `sidecut-agentskills`, which sync only ever raises | Everything else |
 | `hooks/post-tool-use-skill-log.mjs`, `.antigravity-plugin/plugin.json`, `mcp_config.json`, `hooks.json` in the plugin | The whole file: the hook is the template's copy, and Antigravity's files are written from the Claude Code and Codex ones. They're reported under their own rules (`HOOK_SKILL_LOG`, `ANTIGRAVITY_*`), and a keep under that rule or the file's path stops sync rewriting them | Nothing |
