@@ -385,7 +385,8 @@ var SIDECUT_SETTINGS = {
   brand: "Sidecut",
   workflow: "solo",
   houseStyle: "",
-  voice: ""
+  voice: "",
+  namespace: ""
 };
 var SIDECUT_OWNER = SIDECUT_SETTINGS.org;
 var SIDECUT_CI_SNIPPETS = {
@@ -497,7 +498,8 @@ var DEFAULTS = {
   brand: "",
   workflow: "",
   houseStyle: "",
-  voice: ""
+  voice: "",
+  namespace: ""
 };
 var PROFILES = {
   sidecut: SIDECUT_SETTINGS
@@ -540,6 +542,8 @@ function mergeSettings(...layers) {
   }
   if (out.ci !== "hosted" && out.ci !== "sidecut")
     throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (!["", "sidecut", "agentskills"].includes(out.namespace))
+    throw new Error(`Namespace "${out.namespace}" must be empty, sidecut or agentskills.`);
   if (out.workflow !== "" && out.workflow !== "solo")
     throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
   if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
@@ -600,7 +604,9 @@ function inferRepoSettings(root2) {
   return {};
 }
 function repoSettings(root2) {
-  return mergeSettings(readRepoSettings(root2) ?? inferRepoSettings(root2));
+  const settings = mergeSettings(readRepoSettings(root2) ?? inferRepoSettings(root2));
+  if (!settings.namespace) settings.namespace = namespaceInRepo(root2);
+  return settings;
 }
 var active = mergeSettings();
 function current() {
@@ -635,7 +641,7 @@ var QUESTIONS = [
   },
   {
     key: "license",
-    ask: "Which licence? The template ships MIT; for another, scaffold with MIT and swap it in after.",
+    ask: "The template ships the MIT licence. Keep it? For another, keep MIT now and swap the LICENSE file in after scaffolding.",
     default: DEFAULTS.license
   },
   {
@@ -661,7 +667,33 @@ function brandSpace(s = active) {
   return s.brand ? `${s.brand} ` : "";
 }
 function namespaceOf(s = active) {
+  if (s.namespace === "sidecut" || s.namespace === "agentskills") return s.namespace;
   return s.profile === "sidecut" ? "sidecut" : "agentskills";
+}
+var NAMESPACE_FILES = [".gitignore", "AGENTS.md", "SECURITY.md", "tests/setup.ts"];
+function namespaceInRepo(root2) {
+  const plugins = join3(root2, "plugins");
+  const hooks = existsSync3(plugins) ? readdirSync2(plugins).map((id2) => join3("plugins", id2, "hooks", "post-tool-use-skill-log.mjs")) : [];
+  let older = false;
+  for (const file of [...NAMESPACE_FILES, ...hooks]) {
+    const path = join3(root2, file);
+    if (!existsSync3(path)) continue;
+    let text = "";
+    try {
+      text = readFileSync3(path, "utf8");
+    } catch {
+      continue;
+    }
+    if (/^(?:<!--|#|\/\/) agentskills:start |\benv\.AGENTSKILLS_SKILL_LOG\b|process\.env\.AGENTSKILLS_SKILL_LOG\b/m.test(
+      text
+    ))
+      return "agentskills";
+    if (/^(?:<!--|#|\/\/) sidecut:start |\benv\.SIDECUT_SKILL_LOG\b|process\.env\.SIDECUT_SKILL_LOG\b/m.test(
+      text
+    ))
+      older = true;
+  }
+  return older ? "sidecut" : "";
 }
 function packageConfig(pkg) {
   const read2 = (key) => {
@@ -4839,5 +4871,5 @@ ${left.map((c) => c.what).join("\n")}`);
 }
 console.log(
   `
-Synced with sidecut-agentskills v${ownVersion}. Review the diff: where this repo was ahead, change the template instead and keep the repo's version under sidecut.keep until it lands.`
+Synced with sidecut-agentskills v${ownVersion}. Review the diff: where this repo was ahead, change the template instead and keep the repo's version under the keep list in package.json until it lands.`
 );

@@ -245,13 +245,19 @@ server.registerTool(
   {
     title: 'Save settings',
     description:
-      "Saves the user's answers to the setup questions as their settings and returns where they live. Use it once the user has answered get_settings' questions, with their answers only; later calls change single values.",
+      "Saves the user's answers to the setup questions as their settings and returns where they live. Use it once the user has answered get_settings' questions, with their answers only; later calls change single values, and an empty profile leaves a saved one.",
     inputSchema: z.object({ settings: settingsSchema }),
     annotations: { ...writes, idempotentHint: true },
   },
   async ({ settings }) => {
     try {
-      const previous = readUserSettings() ?? {};
+      if (settings.license !== undefined && settings.license !== 'MIT')
+        return failure(
+          "Only the MIT licence template ships. Save MIT, then swap in the LICENSE file and the manifests' license field after scaffolding.",
+        );
+      const previous = { ...(readUserSettings() ?? {}) };
+      // An empty profile leaves the saved one, keeping only the values the user gave themselves.
+      if (settings.profile === '') delete previous.profile;
       const merged = validateSettings(mergeSettings(previous, settings));
       const path = writeUserSettings(answersOf(merged));
       return text({

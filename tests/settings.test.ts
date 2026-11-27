@@ -319,3 +319,29 @@ test('a repo that kept the older sidecut markers and keys still reads, and sync 
     text: '# Notes\n\n<!-- agentskills:start house-style -->\n- new\n<!-- agentskills:end house-style -->\n',
   });
 });
+
+test('a repo made for someone else before the agentskills namespace keeps passing unchanged', () => {
+  const out = temp('older');
+  scaffoldPlugin({ ...NOTES, settings: { ...ACME, namespace: 'sidecut' } }, out, envWith());
+  // A repo from 2.16 or earlier records no namespace; its files alone say which one it uses.
+  writeFileSync(join(out, REPO_FILE), `${JSON.stringify(ACME, null, 2)}\n`);
+  expect(readFileSync(join(out, 'AGENTS.md'), 'utf8')).toContain(
+    '<!-- sidecut:start house-style -->',
+  );
+  expect(repoSettings(out).namespace).toBe('sidecut');
+  expect(checkScaffold(out)).toEqual([]);
+});
+
+test("the user's own guides stay out of the repo's answers file", () => {
+  const out = temp('guides');
+  scaffoldPlugin(
+    {
+      ...NOTES,
+      settings: { ...ACME, houseStyle: '/private/style.md', voice: 'https://x.example/v' },
+    },
+    out,
+    envWith(),
+  );
+  expect(JSON.parse(readFileSync(join(out, REPO_FILE), 'utf8'))).toEqual(ACME);
+  expect(repoSettings(out).namespace).toBe('agentskills');
+});

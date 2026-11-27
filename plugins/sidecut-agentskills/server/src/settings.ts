@@ -31,6 +31,11 @@ export type Settings = {
   houseStyle: string;
   /** The user's own voice guide, as a path or URL, or empty for the template's VOICE.md. */
   voice: string;
+  /**
+   * The namespace of Agentskills' markers, package.json key and usage log: empty to follow the
+   * profile, or `sidecut` or `agentskills`. A repo keeps the one it already uses.
+   */
+  namespace: string;
 };
 
 /** What a settings file or a tool call gives: any fields, and optionally a profile to start from. */
@@ -51,6 +56,7 @@ export const DEFAULTS: Settings = {
   workflow: '',
   houseStyle: '',
   voice: '',
+  namespace: '',
 };
 
 /** Sidecut Studio's own values, kept as one profile. */
@@ -116,6 +122,8 @@ export function mergeSettings(...layers: (SettingsInput | null | undefined)[]): 
   }
   if (out.ci !== 'hosted' && out.ci !== 'sidecut')
     throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (!['', 'sidecut', 'agentskills'].includes(out.namespace))
+    throw new Error(`Namespace "${out.namespace}" must be empty, sidecut or agentskills.`);
   if (out.workflow !== '' && out.workflow !== 'solo')
     throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
   if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
@@ -285,7 +293,9 @@ export function resolveSettings(
 
 /** The settings a repo is checked and synced with: its answers file, or what its manifests say. */
 export function repoSettings(root: string): Settings {
-  return mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
+  const settings = mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
+  if (!settings.namespace) settings.namespace = namespaceInRepo(root);
+  return settings;
 }
 
 let active: Settings = mergeSettings();
@@ -328,7 +338,7 @@ export const QUESTIONS: Question[] = [
   },
   {
     key: 'license',
-    ask: 'Which licence? The template ships MIT; for another, scaffold with MIT and swap it in after.',
+    ask: 'The template ships the MIT licence. Keep it? For another, keep MIT now and swap the LICENSE file in after scaffolding.',
     default: DEFAULTS.license,
   },
   {
@@ -371,7 +381,48 @@ export function brandSpace(s: Settings = active): string {
  * checker reads both, so a repo made before this keeps passing until sync moves it over.
  */
 export function namespaceOf(s: Settings = active): 'sidecut' | 'agentskills' {
+  if (s.namespace === 'sidecut' || s.namespace === 'agentskills') return s.namespace;
   return s.profile === 'sidecut' ? 'sidecut' : 'agentskills';
+}
+
+/** The files whose markers or usage log say which namespace a repo was made with. */
+const NAMESPACE_FILES = ['.gitignore', 'AGENTS.md', 'SECURITY.md', 'tests/setup.ts'];
+
+/**
+ * The namespace a repo already uses, so a repo made before `agentskills` existed keeps `sidecut`
+ * and its own tests keep working: `sidecut` when its files carry only the older markers or switch,
+ * `agentskills` when they carry the new ones, and empty when neither shows.
+ */
+export function namespaceInRepo(root: string): '' | 'sidecut' | 'agentskills' {
+  const plugins = join(root, 'plugins');
+  const hooks = existsSync(plugins)
+    ? readdirSync(plugins).map((id) => join('plugins', id, 'hooks', 'post-tool-use-skill-log.mjs'))
+    : [];
+  let older = false;
+  for (const file of [...NAMESPACE_FILES, ...hooks]) {
+    const path = join(root, file);
+    if (!existsSync(path)) continue;
+    let text = '';
+    try {
+      text = readFileSync(path, 'utf8');
+    } catch {
+      continue;
+    }
+    // Only a real marker line or the switch in code counts, never prose that mentions them.
+    if (
+      /^(?:<!--|#|\/\/) agentskills:start |\benv\.AGENTSKILLS_SKILL_LOG\b|process\.env\.AGENTSKILLS_SKILL_LOG\b/m.test(
+        text,
+      )
+    )
+      return 'agentskills';
+    if (
+      /^(?:<!--|#|\/\/) sidecut:start |\benv\.SIDECUT_SKILL_LOG\b|process\.env\.SIDECUT_SKILL_LOG\b/m.test(
+        text,
+      )
+    )
+      older = true;
+  }
+  return older ? 'sidecut' : '';
 }
 
 /** Every namespace the checker reads. */

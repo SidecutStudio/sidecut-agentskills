@@ -170,5 +170,5 @@ if (left.length > 0) {
   process.exit(1);
 }
 console.log(
-  `\nSynced with sidecut-agentskills v${ownVersion}. Review the diff: where this repo was ahead, change the template instead and keep the repo's version under sidecut.keep until it lands.`,
+  `\nSynced with sidecut-agentskills v${ownVersion}. Review the diff: where this repo was ahead, change the template instead and keep the repo's version under the keep list in package.json until it lands.`,
 );

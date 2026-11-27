@@ -42,6 +42,7 @@ export const SIDECUT_SETTINGS = {
   workflow: 'solo',
   houseStyle: '',
   voice: '',
+  namespace: '',
 };
 
 /** The GitHub owner whose repos, with no answers file, are checked with this profile. */

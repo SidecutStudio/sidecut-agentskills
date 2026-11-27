@@ -112,3 +112,25 @@ test('the answers are saved where it says, and later calls apply them', async ()
   expect(now.apply).toMatch(/no prefix/);
   expect(now.apply).toMatch(/docs\/voice\.md/);
 });
+
+test('a licence the template lacks is refused, and an empty profile leaves a saved one', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'agentskills-first-run-'));
+  scratch.push(home);
+  const file = join(home, '.config', 'agentskills', 'settings.json');
+  const [refused] = await callTools(home, [
+    [
+      'save_settings',
+      { settings: { org: 'jane-doe', authorName: 'Jane Doe', license: 'Apache-2.0' } },
+    ],
+  ]);
+  expect(refused).toMatch(/Only the MIT licence template ships/);
+  expect(existsSync(file)).toBe(false);
+  await callTools(home, [
+    ['save_settings', { settings: { profile: 'sidecut' } }],
+    ['save_settings', { settings: { profile: '', org: 'jane-doe', authorName: 'Jane Doe' } }],
+  ]);
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
+    org: 'jane-doe',
+    authorName: 'Jane Doe',
+  });
+});

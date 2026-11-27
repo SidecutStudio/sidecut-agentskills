@@ -293,9 +293,12 @@ export function scaffoldSettings(
   return settings;
 }
 
-/** The answers a new repo records in its answers file: the profile and whatever differs from it. */
+/** The answers a new repo records in its answers file: the profile and whatever differs from it, but the user's own guides. */
 export function answersFile(settings: Settings): string {
-  return `${JSON.stringify(answersOf(settings), null, 2)}\n`;
+  // The user's own guides are often private paths or URLs, and nothing in a repo reads them, so
+  // they stay in the user's settings file and out of a repo that may be public.
+  const { houseStyle: _style, voice: _voice, ...answers } = answersOf(settings);
+  return `${JSON.stringify(answers, null, 2)}\n`;
 }
 
 /** What the templates fill in from the settings, beside each file's own variables. */

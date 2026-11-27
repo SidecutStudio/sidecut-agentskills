@@ -32,7 +32,8 @@ var SIDECUT_SETTINGS = {
   brand: "Sidecut",
   workflow: "solo",
   houseStyle: "",
-  voice: ""
+  voice: "",
+  namespace: ""
 };
 var SIDECUT_OWNER = SIDECUT_SETTINGS.org;
 
@@ -51,7 +52,8 @@ var DEFAULTS = {
   brand: "",
   workflow: "",
   houseStyle: "",
-  voice: ""
+  voice: "",
+  namespace: ""
 };
 var PROFILES = {
   sidecut: SIDECUT_SETTINGS
@@ -94,6 +96,8 @@ function mergeSettings(...layers) {
   }
   if (out.ci !== "hosted" && out.ci !== "sidecut")
     throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (!["", "sidecut", "agentskills"].includes(out.namespace))
+    throw new Error(`Namespace "${out.namespace}" must be empty, sidecut or agentskills.`);
   if (out.workflow !== "" && out.workflow !== "solo")
     throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
   if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
@@ -144,7 +148,9 @@ function inferRepoSettings(root) {
   return {};
 }
 function repoSettings(root) {
-  return mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
+  const settings = mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
+  if (!settings.namespace) settings.namespace = namespaceInRepo(root);
+  return settings;
 }
 var active = mergeSettings();
 var QUESTIONS = [
@@ -172,7 +178,7 @@ var QUESTIONS = [
   },
   {
     key: "license",
-    ask: "Which licence? The template ships MIT; for another, scaffold with MIT and swap it in after.",
+    ask: "The template ships the MIT licence. Keep it? For another, keep MIT now and swap the LICENSE file in after scaffolding.",
     default: DEFAULTS.license
   },
   {
@@ -191,6 +197,31 @@ var QUESTIONS = [
     default: DEFAULTS.voice
   }
 ];
+var NAMESPACE_FILES = [".gitignore", "AGENTS.md", "SECURITY.md", "tests/setup.ts"];
+function namespaceInRepo(root) {
+  const plugins = join(root, "plugins");
+  const hooks = existsSync(plugins) ? readdirSync(plugins).map((id) => join("plugins", id, "hooks", "post-tool-use-skill-log.mjs")) : [];
+  let older = false;
+  for (const file of [...NAMESPACE_FILES, ...hooks]) {
+    const path = join(root, file);
+    if (!existsSync(path)) continue;
+    let text = "";
+    try {
+      text = readFileSync(path, "utf8");
+    } catch {
+      continue;
+    }
+    if (/^(?:<!--|#|\/\/) agentskills:start |\benv\.AGENTSKILLS_SKILL_LOG\b|process\.env\.AGENTSKILLS_SKILL_LOG\b/m.test(
+      text
+    ))
+      return "agentskills";
+    if (/^(?:<!--|#|\/\/) sidecut:start |\benv\.SIDECUT_SKILL_LOG\b|process\.env\.SIDECUT_SKILL_LOG\b/m.test(
+      text
+    ))
+      older = true;
+  }
+  return older ? "sidecut" : "";
+}
 
 // scripts/icon.ts
 var TILE = "#0a0a0a";
