@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.15.0] - 2026-11-27
+## [2.16.0] - 2026-11-27
 
 ### Added
 
@@ -14,6 +14,12 @@
 
 - A repo that ships a plugin beside other work, or holds several plugins, gets the plugin checks and its kind's checks, instead of the plugin checks only. With no `sidecut.kind` and no repo index the kind is guessed, usually app or marketplace, so such a repo now needs its kind's AGENTS.md sections and CLAUDE.md import: declare `sidecut.kind`, or list a deliberate difference under `sidecut.keep`.
 - `sidecut-sync` keeps `server/data/visual-reports.md` and `visual-report.css` identical in every plugin that carries them. The guide's agent-tooling table moved into the house style's Visual reports section, and the guide now covers Gemini/Antigravity.
+
+## [2.15.0] - 2026-11-27
+
+### Added
+
+- `publish-plugin.yml` takes an optional `plugin` input, so a repo whose `package.json` names an app can release its plugin. The plugin's manifests then carry the version. Callers that leave it out behave as before.
 
 ## [2.14.0] - 2026-11-27
 

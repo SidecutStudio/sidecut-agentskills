@@ -7,14 +7,30 @@ import { setTimeout } from 'node:timers/promises';
 import { parse } from 'smol-toml';
 
 const root = process.cwd();
-const id = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).name as string;
 const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+
+/**
+ * Which plugin a release describes, and its version. By default the package is the plugin. An app
+ * repo whose package names the app sets `plugin`, and the plugin's manifests carry the version.
+ */
+export function releaseSource(
+  pkg: { name: string; version?: string },
+  codex: { name: string; version: string },
+  claude: { name: string; version: string },
+  plugin = '',
+) {
+  const id = plugin || pkg.name;
+  if (codex.name !== id || claude.name !== id || (!plugin && pkg.name !== id))
+    throw new Error('The package and both manifests must describe the same plugin.');
+  return { id, version: plugin ? codex.version : (pkg.version ?? '') };
+}
 
 export function releasePlan(
   version: string,
   codex: { version: string },
   claude: { version: string },
   changelog: string,
+  id: string,
 ) {
   if (!semver.test(version)) throw new Error('Use a stable version such as 0.7.0, without v.');
   if (codex.version !== version || claude.version !== version)
@@ -135,14 +151,17 @@ export function releaseCommit(
   return tagged;
 }
 
+const plugin = process.env.RELEASE_PLUGIN ?? '';
+if (plugin && !/^[a-z][a-z0-9-]*$/.test(plugin)) throw new Error('Invalid plugin name.');
+const id = plugin || (JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).name as string);
+
 function planAt(commit: string) {
   const file = (path: string) => git('show', `${commit}:${path}`);
   const pkg = JSON.parse(file('package.json'));
   const codex = JSON.parse(file(`plugins/${id}/.codex-plugin/plugin.json`));
   const claude = JSON.parse(file(`plugins/${id}/.claude-plugin/plugin.json`));
-  if (pkg.name !== id || codex.name !== id || claude.name !== id)
-    throw new Error('The package and both manifests must describe the same plugin.');
-  const plan = releasePlan(pkg.version, codex, claude, file(`plugins/${id}/CHANGELOG.md`));
+  const { version } = releaseSource(pkg, codex, claude, plugin);
+  const plan = releasePlan(version, codex, claude, file(`plugins/${id}/CHANGELOG.md`), id);
   return { ...plan, title: `${codex.interface?.displayName ?? id} ${plan.version}` };
 }
 
