@@ -13,7 +13,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { antigravityFiles } from '../plugins/sidecut-agentskills/server/src/antigravity.ts';
+import { checkExternalLinks } from '../plugins/sidecut-agentskills/server/src/check/docs.ts';
 import { treeHash } from '../plugins/sidecut-agentskills/server/src/check/evals-stamp.ts';
+import { kindTemplate, repoKind } from '../plugins/sidecut-agentskills/server/src/check/kinds.ts';
 import {
   bunlessToolSteps,
   checkRepo,
@@ -28,6 +30,8 @@ import {
   ownVersion,
   scaffoldPlugin,
 } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
+import { mergeSettings, useSettings } from '../plugins/sidecut-agentskills/server/src/settings.ts';
+import { SOLO_BLOCK } from '../plugins/sidecut-agentskills/server/src/sidecut-profile.ts';
 import { formatRepo } from './format.ts';
 
 const ID = 'sidecut-demo';
@@ -1133,7 +1137,7 @@ test('a repo that kept an older name still gets the repo checks when its package
   repo.json('package.json', (v) => Object.assign(v, { name: 'demo-tools' }));
   const report = new Report();
   checkRepo(repo.root, report);
-  expect(report.scope).toContain('Checked the plugin only');
+  expect(report.scope).toContain('Checked the whole repo as an app repo');
 });
 
 /** Makes the copy an app repo: the package names the plugin, but the repo is named after the app. */
@@ -1150,27 +1154,33 @@ function appRepo(): Repo {
   return agree(repo);
 }
 
-test('an app repo whose package names the plugin gets the plugin checks only', () => {
+test('an app repo with a plugin gets the plugin checks and the app shape', () => {
   const repo = appRepo();
   const report = new Report();
   checkRepo(repo.root, report);
   expect(report.scope).toBe(
-    `Checked the plugin only: its manifest points at ${ID}-app, not a repo that exists only for ${ID}.`,
+    `Checked the whole repo as an app repo (guessed from its files), with ${ID}.`,
   );
-  expect(report.problems.map((p) => `${p.code} ${p.file}`)).toEqual([]);
+  expect(report.problems.map((p) => `${p.code} ${p.file}`)).toEqual([
+    'SHAPE_SECTIONS AGENTS.md',
+    'SHAPE_SOLO AGENTS.md',
+    'SHAPE_CLAUDE CLAUDE.md',
+  ]);
 });
 
-test('sidecut.keep is honoured in plugin-only scope, and a stale key still fails', () => {
+test('sidecut.keep is honoured in an app repo, and a stale key still fails', () => {
   const repo = appRepo();
   repo.write(`${P}/NOTES.md`, '# Notes\n');
   repo.json('package.json', (v) =>
-    Object.assign(v, { sidecut: { keep: { [`${P}/NOTES.md`]: 'Mine.', 'CLAUDE.md': 'Old.' } } }),
+    Object.assign(v, { sidecut: { keep: { [`${P}/NOTES.md`]: 'Mine.', 'README.md': 'Old.' } } }),
   );
   const report = new Report();
   checkRepo(repo.root, report);
-  expect(report.kept.map((p) => `${p.file} ${p.reason}`)).toEqual([`${P}/NOTES.md Mine.`]);
-  expect(report.problems.map((p) => `${p.code} ${p.message}`)).toEqual([
-    'KEEP_UNUSED sidecut.keep lists "CLAUDE.md", which no longer differs.',
+  expect([...new Set(report.kept.map((p) => `${p.file} ${p.reason}`))]).toEqual([
+    `${P}/NOTES.md Mine.`,
+  ]);
+  expect(report.problems.filter((p) => p.code.startsWith('KEEP_')).map((p) => p.message)).toEqual([
+    'sidecut.keep lists "README.md", which no longer differs.',
   ]);
 });
 
@@ -1659,4 +1669,364 @@ test('a pointer to the plugin root or a shared file may repeat across skills', (
   const report = new Report();
   checkRepo(repo.root, report);
   expect(report.advisories.filter((p) => p.code === 'SKILL_REPEATED_TEXT')).toEqual([]);
+});
+
+// Whole-repo rules: kinds, shape, copies, owned facts, stale and dead text, bloat and weak copy.
+
+/** A clean app repo of the sidecut profile, with whatever files `extra` adds or replaces. */
+function appFolder(extra: Record<string, string | null> = {}): Repo {
+  const root = mkdtempSync(join(tmpdir(), 'sidecut-app-'));
+  scratch.push(root);
+  useSettings(mergeSettings({ profile: 'sidecut' }));
+  const files: Record<string, string | null> = {
+    '.agentskills.json': '{ "profile": "sidecut" }\n',
+    'package.json': `${JSON.stringify({ name: 'demo-app', private: true, sidecut: { kind: 'app' } })}\n`,
+    'AGENTS.md': `${kindTemplate('app')}\n`,
+    'CLAUDE.md': '@AGENTS.md\n',
+    'solo-workflow.toml': 'required_checks = ["gate", "check"]\n',
+    'README.md': '# Demo app\n\nPlans a week of meals from what is in the fridge.\n',
+    'docs/architecture.md': '# Architecture\n\nThe app is one page and a small API.\n',
+    'docs/shipping.md': '# Shipping\n\nMerge when the checks pass.\n',
+    ...extra,
+  };
+  const repo: Repo = {
+    root,
+    read: (path) => readFileSync(join(root, path), 'utf8'),
+    write: (path, text) => {
+      mkdirSync(join(root, path, '..'), { recursive: true });
+      writeFileSync(join(root, path), text);
+    },
+    edit: (path, change) => repo.write(path, change(repo.read(path))),
+    json: (path, change) => {
+      const value = JSON.parse(repo.read(path));
+      change(value);
+      repo.write(path, `${JSON.stringify(value, null, 2)}\n`);
+    },
+    append: (path, text) => appendFileSync(join(root, path), text),
+    rm: (path) => rmSync(join(root, path), { recursive: true, force: true }),
+    rebuild: () => build(root),
+  };
+  for (const [path, text] of Object.entries(files)) if (text !== null) repo.write(path, text);
+  return repo;
+}
+
+function run(root: string, options: { fast?: boolean } = {}): Report {
+  const report = new Report();
+  checkRepo(root, report, options);
+  return report;
+}
+const found = (report: Report) => report.problems.map((p) => `${p.code} ${p.file}`);
+const advised = (report: Report) => report.advisories.map((p) => `${p.code} ${p.file}`);
+
+describe('repo kinds and shape', () => {
+  test('a clean app repo passes and says what it checked', () => {
+    const report = run(appFolder().root);
+    expect(report.scope).toBe('Checked the whole repo as an app repo (declared in package.json).');
+    expect(found(report)).toEqual([]);
+    expect(report.notes.join(' ')).toContain('Owned facts and the repo index not checked');
+  });
+
+  test('a declared kind has to be one of the kinds', () => {
+    const repo = appFolder();
+    repo.json('package.json', (v) => Object.assign(v, { sidecut: { kind: 'website' } }));
+    expect(found(run(repo.root))).toContain('REPO_KIND package.json');
+  });
+
+  test('the kind is guessed from the files when nothing declares it', () => {
+    const kindOf = (extra: Record<string, string | null>) =>
+      repoKind(appFolder(extra).root, null, false, new Report()).kind;
+    const pkg = (deps: Record<string, string>) =>
+      `${JSON.stringify({ name: 'x', devDependencies: deps })}\n`;
+    expect(kindOf({ 'package.json': pkg({}) })).toBe('app');
+    expect(kindOf({ 'package.json': pkg({ astro: '5.0.0' }) })).toBe('site');
+    expect(kindOf({ 'package.json': pkg({}), '.github/actions/a/action.yml': 'name: a\n' })).toBe(
+      'ops',
+    );
+    expect(kindOf({ 'package.json': pkg({}), 'bundled/sources.json': '{}\n' })).toBe('marketplace');
+    expect(kindOf({ 'package.json': null })).toBe('data');
+  });
+
+  test('an app keeps AGENTS.md, and a data repo keeps a README', () => {
+    expect(found(run(appFolder({ 'AGENTS.md': null }).root))).toContain('SHAPE_AGENTS AGENTS.md');
+    const data = appFolder({ 'README.md': null, 'AGENTS.md': null });
+    data.json('package.json', (v) => Object.assign(v, { sidecut: { kind: 'data' } }));
+    expect(found(run(data.root))).toEqual(['SHAPE_AGENTS README.md']);
+  });
+
+  test("an app's AGENTS.md keeps the template's sections in order, with its own between", () => {
+    const repo = appFolder();
+    repo.edit('AGENTS.md', (t) => t.replace('## Gotchas', '## Our own notes\n\nHi.\n\n## Gotchas'));
+    expect(found(run(repo.root))).toEqual([]);
+    repo.edit('AGENTS.md', (t) => t.replace('## Keep docs true', '## Docs'));
+    const report = run(repo.root);
+    expect(found(report)).toEqual(['SHAPE_SECTIONS AGENTS.md']);
+    expect(report.problems[0]?.message).toContain('"Keep docs true"');
+    repo.edit('AGENTS.md', (t) =>
+      t.replace('## Docs', '## Keep docs true').replace('## Commands', '## Commandz'),
+    );
+    repo.edit('AGENTS.md', (t) => `${t.replace('## Commandz', '## Gotchaz')}\n## Commands\n`);
+    expect(found(run(repo.root))).toContain('SHAPE_SECTIONS AGENTS.md');
+  });
+
+  test('the Solo block has the current wording, and sync --fix writes it', () => {
+    const repo = appFolder();
+    repo.edit('AGENTS.md', (t) =>
+      t.replace(
+        /Follow `solo-workflow\.toml`\..*\n/,
+        'Follow `solo-workflow.toml` and use the relevant skill.\n',
+      ),
+    );
+    const report = run(repo.root);
+    expect(found(report)).toEqual(['SHAPE_SOLO AGENTS.md']);
+    expect(report.fixes.map((f) => f.code)).toEqual(['SHAPE_SOLO']);
+    const sync = spawnSync(process.execPath, ['scripts/sync.ts', repo.root, '--fix', '--force'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    expect(sync.stdout).toContain('Fixed AGENTS.md');
+    expect(repo.read('AGENTS.md')).toContain(SOLO_BLOCK);
+    expect(found(run(repo.root))).toEqual([]);
+  });
+
+  test('CLAUDE.md imports AGENTS.md', () => {
+    const repo = appFolder({ 'CLAUDE.md': '# Notes\n\nRead the agents file.\n' });
+    const report = run(repo.root);
+    expect(found(report)).toEqual(['SHAPE_CLAUDE CLAUDE.md']);
+    expect(report.fixes[0]?.apply('# Notes\n')).toBe('@AGENTS.md\n\n# Notes\n');
+  });
+
+  test('fast mode runs only the text and shape rules', () => {
+    const report = run(appFolder().root, { fast: true });
+    expect(report.scope).toContain('fast rules only');
+  });
+});
+
+describe('text across the repo', () => {
+  test('an internal link to a missing file blocks', () => {
+    const repo = appFolder();
+    repo.append('docs/shipping.md', '\nSee [the runbook](runbook.md).\n');
+    expect(found(run(repo.root))).toContain('MD_LINK_TARGET docs/shipping.md');
+  });
+
+  test('a retired studio name blocks outside history and tests, and --fix replaces it', () => {
+    const repo = appFolder({
+      'CHANGELOG.md': '# Changelog\n\n- Moved from Veyla Labs.\n',
+      'tests/name.test.ts': "// Veyla Labs\nexport const x = 'Veyla Labs';\n",
+    });
+    repo.append('docs/architecture.md', '\nBuilt by Veyla Labs.\n');
+    const report = run(repo.root);
+    expect(found(report)).toEqual(['STALE_NAME docs/architecture.md']);
+    expect(report.fixes[0]?.apply('Built by Veyla Labs.')).toBe('Built by Sidecut Studio.');
+    repo.append('docs/shipping.md', '\nWe moved off Ship Properly.\n');
+    const next = run(repo.root);
+    expect(found(next)).toContain('STALE_NAME docs/shipping.md');
+    // A retired tool name has no single right replacement, so it's left to a person.
+    expect(next.fixes.filter((f) => f.file === 'docs/shipping.md')).toEqual([]);
+  });
+
+  test('a dated "as of" note blocks', () => {
+    const repo = appFolder();
+    repo.append('docs/shipping.md', '\nAs of 12 Nov 2026, deploys take a minute.\n');
+    expect(found(run(repo.root))).toEqual(['STALE_DATED docs/shipping.md']);
+    repo.edit('docs/shipping.md', (t) => t.replace('As of 12 Nov 2026, d', 'D'));
+    repo.append('docs/shipping.md', '\nPrices read on 2026-11-02.\n');
+    expect(found(run(repo.root))).toEqual(['STALE_DATED docs/shipping.md']);
+  });
+
+  test('a file that only points somewhere else blocks', () => {
+    const repo = appFolder({ 'docs/old.md': '# Old\n\nMoved to [shipping](shipping.md).\n' });
+    repo.append('docs/architecture.md', '\nSee [old](old.md).\n');
+    expect(found(run(repo.root))).toEqual(['DEAD_POINTER docs/old.md']);
+  });
+
+  test('Markdown nothing names is an advisory', () => {
+    const repo = appFolder({ 'docs/lost.md': '# Lost\n\nNobody reads this page about caching.\n' });
+    const report = run(repo.root);
+    expect(found(report)).toEqual([]);
+    expect(advised(report)).toEqual(['DEAD_ORPHAN docs/lost.md']);
+    repo.append('docs/architecture.md', '\nCaching is in [lost.md](lost.md).\n');
+    expect(advised(run(repo.root))).toEqual([]);
+  });
+
+  test('AGENTS.md has a line budget that blocks; other docs get an advisory', () => {
+    const repo = appFolder();
+    repo.append('AGENTS.md', '\n- A rule.\n'.repeat(120));
+    expect(found(run(repo.root))).toEqual(['AGENTS_BUDGET AGENTS.md']);
+    const docs = appFolder();
+    docs.append('docs/architecture.md', 'A line.\n'.repeat(510));
+    expect(advised(run(docs.root))).toEqual(['BLOAT_LINES docs/architecture.md']);
+  });
+
+  test('a short reference only one skill reads is an advisory', () => {
+    const skill = 'plugins/demo/skills/demo-plan';
+    const repo = appFolder({
+      [`${skill}/SKILL.md`]: '---\nname: demo-plan\n---\n\nRead [tips](references/tips.md).\n',
+      [`${skill}/references/tips.md`]: '# Tips\n\nKeep it short.\n',
+    });
+    const report = run(repo.root, { fast: true });
+    expect(advised(report)).toEqual([`BLOAT_SMALL_REF ${skill}/references/tips.md`]);
+  });
+
+  test('two identical docs block unless one is generated', () => {
+    const page = `# Page\n\n${'A line.\n'.repeat(12)}`;
+    const repo = appFolder({ 'docs/a.md': page, 'docs/b.md': page });
+    repo.append('docs/architecture.md', '\n[a](a.md) [b](b.md)\n');
+    expect(found(run(repo.root))).toEqual(['COPY_DUPLICATE docs/a.md']);
+    repo.write(
+      'solo-workflow.toml',
+      'required_checks = ["gate", "check"]\nprotected_paths = [\n  "docs/b.md",  # scripts/docs.ts\n]\n',
+    );
+    expect(found(run(repo.root))).toEqual([]);
+  });
+
+  test('stock phrases are advisories; describing the owner in public copy blocks', () => {
+    const repo = appFolder();
+    repo.append('docs/architecture.md', '\nA robust, seamless layer.\nWe avoid "game changer".\n');
+    expect(advised(run(repo.root))).toEqual(['COPY_WEAK docs/architecture.md']);
+    repo.append('README.md', '\nMade by a solo maker.\n');
+    expect(found(run(repo.root))).toEqual(['COPY_OWNER README.md']);
+    // Agent docs may say who the owner is; public copy may not.
+    repo.edit('README.md', (t) => t.replace('Made by a solo maker.\n', ''));
+    repo.append('AGENTS.md', '\nThe owner is a solo maker.\n');
+    expect(found(run(repo.root))).toEqual([]);
+  });
+
+  test('external links are checked only when asked, and a dead one is a problem', async () => {
+    const repo = appFolder();
+    repo.append('docs/shipping.md', '\nSee [the host](https://example.com/gone).\n');
+    expect(found(run(repo.root))).toEqual([]);
+    const report = new Report();
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => new Response('', { status: 404 })) as typeof fetch;
+    try {
+      await checkExternalLinks(repo.root, report);
+    } finally {
+      globalThis.fetch = real;
+    }
+    expect(found(report)).toEqual(['LINK_EXTERNAL docs/shipping.md']);
+  });
+});
+
+describe('facts another repo owns', () => {
+  /** A folder of checkouts: the fleet's data repo, the owners of each fact, and the app. */
+  function fleetWith(): { app: Repo; folder: string } {
+    const folder = mkdtempSync(join(tmpdir(), 'sidecut-fleet-'));
+    scratch.push(folder);
+    const put = (path: string, text: string) => {
+      mkdirSync(join(folder, path, '..'), { recursive: true });
+      writeFileSync(join(folder, path), text);
+    };
+    for (const repo of ['sidecut-home', 'sidecut-ops', 'sidecut-cookbook', 'sidecut-plugins'])
+      mkdirSync(join(folder, repo, '.git'), { recursive: true });
+    const data = 'sidecut-home/plugins/sidecut-home/server/data';
+    put(
+      `${data}/repos.toml`,
+      '[repos.demo-app]\nkind = "app"\n\n[repos.other-app]\nkind = "app"\n',
+    );
+    put(
+      `${data}/owners.toml`,
+      [
+        '[facts.runners]\nrepo = "sidecut-ops"\npath = "pool.json"',
+        '[facts.ci-actions]\nrepo = "sidecut-ops"\npath = "package.json"',
+        '[facts.ports]\nrepo = "sidecut-cookbook"\npath = "ports.toml"',
+        '[facts.plugin-pins]\nrepo = "sidecut-plugins"\npath = "bundled/sources.json"',
+        '[facts.merge-gate]\nrepo = "*"\npath = "solo-workflow.toml"',
+      ].join('\n\n'),
+    );
+    put(
+      'sidecut-ops/pool.json',
+      JSON.stringify({ label: 'sidecut-ci', light_label: 'sidecut-light' }),
+    );
+    put('sidecut-ops/package.json', '{ "version": "3.12.2" }\n');
+    put('sidecut-cookbook/ports.toml', '[demo-app]\ndev = 3000\n\n[other-app]\ndev = 3100\n');
+    put(
+      'sidecut-plugins/bundled/sources.json',
+      JSON.stringify({ 'sidecut-eval-bench': { repo: 'SidecutStudio/sidecut-eval-bench' } }),
+    );
+    const app = appFolder();
+    const root = join(folder, 'demo-app');
+    cpSync(app.root, root, { recursive: true });
+    return { app: { ...app, root, read: (p) => readFileSync(join(root, p), 'utf8') }, folder };
+  }
+
+  function factsIn(line: string): string[] {
+    const { app, folder } = fleetWith();
+    appendFileSync(join(app.root, 'docs/shipping.md'), `\n${line}\n`);
+    const before = process.env.SIDECUT_REPOS;
+    process.env.SIDECUT_REPOS = folder;
+    try {
+      const report = run(app.root);
+      expect(report.notes).toEqual([]);
+      // A declared kind wins over the fleet's index.
+      expect(report.scope).toContain('declared in package.json');
+      return report.problems.filter((p) => p.code === 'OWNED_FACT').map((p) => p.message);
+    } finally {
+      if (before === undefined) delete process.env.SIDECUT_REPOS;
+      else process.env.SIDECUT_REPOS = before;
+    }
+  }
+
+  test("with no declared kind, the fleet's repo index says it", () => {
+    const { app, folder } = fleetWith();
+    const pkg = JSON.parse(app.read('package.json'));
+    delete pkg.sidecut;
+    writeFileSync(join(app.root, 'package.json'), `${JSON.stringify(pkg)}\n`);
+    process.env.SIDECUT_REPOS = folder;
+    try {
+      expect(run(app.root).scope).toContain("from the fleet's repo index");
+    } finally {
+      delete process.env.SIDECUT_REPOS;
+    }
+  });
+
+  test('a runner label written out blocks', () => {
+    expect(factsIn('Check runs on the `sidecut-light` runner.')[0]).toContain('sidecut-light');
+    expect(factsIn('The sidecut-light plugin is unrelated.')).toEqual([]);
+  });
+
+  test("another repo's port blocks; the repo's own doesn't", () => {
+    expect(factsIn('Open http://localhost:3100.')[0]).toContain('reserved for other-app');
+    expect(factsIn('Open http://localhost:3000.')).toEqual([]);
+  });
+
+  test('a version of another plugin or the CI actions blocks', () => {
+    expect(factsIn('Needs Eval Bench 0.2.0.')[0]).toContain('Eval Bench 0.2.0');
+    expect(factsIn('Pinned to sidecut-ops v3.12.2.')[0]).toContain('sidecut-ops 3.12.2');
+  });
+
+  test("listing the repo's own merge gate blocks; naming one check doesn't", () => {
+    expect(factsIn('The merge gate is `gate`, which needs `check`.')[0]).toContain('`gate`');
+    expect(factsIn('The merge gate includes `check`.')).toEqual([]);
+  });
+});
+
+test('a plugin keeps the shared visual-reports guide identical to the template', () => {
+  const repo = copy();
+  repo.write(`${P}/server/data/visual-reports.md`, '# Visual reports\n\nAn older copy.\n');
+  const report = run(repo.root);
+  expect(found(report)).toContain(`REPO_SYNC ${P}/server/data/visual-reports.md`);
+});
+
+test('in GitHub Actions, advisories show on changed lines only, each kind summarised once', () => {
+  const repo = appFolder();
+  const git = (...args: string[]) =>
+    spawnSync('git', args, { cwd: repo.root, encoding: 'utf8' }).stdout;
+  git('init', '-q', '-b', 'main');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '.');
+  repo.append('docs/architecture.md', '\nA robust layer.\n');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '.');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'one');
+  repo.append('docs/shipping.md', '\nA seamless deploy.\n');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qam', 'two');
+  const out = spawnSync(process.execPath, ['scripts/check.ts', repo.root], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    env: { ...process.env, GITHUB_ACTIONS: 'true', GITHUB_BASE_REF: '' },
+  }).stdout;
+  expect(out.match(/^::warning .*$/gm)).toEqual([
+    expect.stringContaining('file=docs/shipping.md,line='),
+  ]);
+  expect(out.match(/^::notice title=COPY_WEAK::2 in the repo, 1 on changed lines/gm)).toHaveLength(
+    1,
+  );
 });

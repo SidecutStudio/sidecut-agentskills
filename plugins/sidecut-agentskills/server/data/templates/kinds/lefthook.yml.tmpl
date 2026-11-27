@@ -1,0 +1,5 @@
+# The pre-push guard for a repo that isn't a plugin repo: the checker's fast exact rules.
+pre-push:
+  jobs:
+    - name: house-style
+      run: npm exec --no -- sidecut-check --fast

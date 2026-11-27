@@ -34,3 +34,14 @@ A repo with no answers file whose manifest points at a `SidecutStudio` repo is c
 ### Marketplace
 
 `sidecut-plugins` is private, so it bundles a copy of each plugin folder for Sidecut Studio's own installs: a release tag for a plugin in its own repo, or one merge commit of `main` for a plugin inside a product repo. Its own README and scripts say how to bundle, check and merge a new version; never edit a bundled copy by hand. A public repo still installs from its own marketplace files, and no public install step names `sidecut-plugins`. A rename is searched for in both of its marketplace files as well as the other repos.
+
+### Fleet
+
+The repo index and the map of who owns each shared fact live in Sidecut Home, in `plugins/sidecut-home/server/data/repos.toml` and `owners.toml`. The checker reads them from a `sidecut-home` checkout beside the checked repo, or from `SIDECUT_HOME`, and reads each owner's file from that owner's checkout in the same folder, or from `SIDECUT_REPOS`. Where the checkouts aren't there, as in CI, it says which checks it skipped; the pre-push guard and Home's fleet sweep run them on the owner's Mac.
+
+| Item | Rule | Checked |
+| --- | --- | --- |
+| Kind | A repo's kind is its `kind` in `repos.toml` unless `package.json` declares one | yes |
+| Owned facts | `runners`, `ports`, `plugin-pins`, `ci-actions` and `merge-gate` from `owners.toml` are spotted in Markdown; the others are documents, linked rather than copied | yes |
+| Retired names | The old studio name and the retired delivery tools, listed with what replaces each in `SIDECUT_RETIRED` in `sidecut-profile.ts`; runtime identifiers that still carry an old name stay until everything that uses them moves together | yes |
+| Solo block | The block in `sidecut-profile.ts`, which Solo's own agents-section reference writes word for word | yes |

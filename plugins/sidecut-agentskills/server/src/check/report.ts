@@ -18,6 +18,26 @@ export type Problem = {
   fix: string;
 };
 
+/** A change `sidecut-sync --fix` can make for a problem: the file's new text from its current text. */
+export type AutoFix = { what: string; apply: (text: string) => string };
+
+/**
+ * Heuristic rules: they can't tell intent, so they advise and never fail a check. CI shows them on
+ * changed lines only. A rule moves to blocking in a later checker version once the fleet shows none.
+ */
+export const ADVISORY_CODES = [
+  'SKILL_LENGTH',
+  'REF_LENGTH',
+  'SKILL_DESCRIPTION_LENGTH',
+  'SCAN_TEXT',
+  'SKILL_LONG_STEP',
+  'SKILL_REPEATED_TEXT',
+  'DEAD_ORPHAN',
+  'BLOAT_LINES',
+  'BLOAT_SMALL_REF',
+  'COPY_WEAK',
+];
+
 /** Whether a sidecut.keep key covers a problem: its code, its file, a folder holding it, or "CODE file". */
 export function keepCovers(key: string, code: string, file: string): boolean {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
@@ -30,6 +50,10 @@ export class Report {
   readonly kept: (Problem & { reason: string })[] = [];
   /** What was checked, for example the whole repo or only its plugins, and why. */
   scope = '';
+  /** Checks that couldn't run here, and why, so a pass never hides them. */
+  readonly notes: string[] = [];
+  /** What `sidecut-sync --fix` can change, keyed to the problem it fixes. */
+  readonly fixes: (AutoFix & { code: string; file: string })[] = [];
 
   /**
    * Moves the problems `keep` covers into `kept`. A key covers a problem when it is the problem's
@@ -57,21 +81,24 @@ export class Report {
         );
       for (const p of hit) this.kept.push({ ...p, reason: String(reason) });
       this.problems = this.problems.filter((p) => !hit.includes(p));
+      for (let i = this.fixes.length - 1; i >= 0; i--) {
+        const f = this.fixes[i];
+        if (f && keepCovers(key, f.code, f.file)) this.fixes.splice(i, 1);
+      }
     }
   }
 
-  add(code: string, file: string, line: number | undefined, message: string, fix: string): void {
-    const target = [
-      'SKILL_LENGTH',
-      'REF_LENGTH',
-      'SKILL_DESCRIPTION_LENGTH',
-      'SCAN_TEXT',
-      'SKILL_LONG_STEP',
-      'SKILL_REPEATED_TEXT',
-    ].includes(code)
-      ? this.advisories
-      : this.problems;
+  add(
+    code: string,
+    file: string,
+    line: number | undefined,
+    message: string,
+    fix: string,
+    autoFix?: AutoFix,
+  ): void {
+    const target = ADVISORY_CODES.includes(code) ? this.advisories : this.problems;
     target.push({ code, file: toPosix(file), line, message, fix });
+    if (autoFix) this.fixes.push({ ...autoFix, code, file: toPosix(file) });
   }
 
   format(): string {

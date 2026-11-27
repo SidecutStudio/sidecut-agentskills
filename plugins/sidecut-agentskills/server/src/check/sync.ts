@@ -17,6 +17,7 @@ import {
 } from '../antigravity.ts';
 import { pluginStarterEvals } from '../eval-fixtures.ts';
 import {
+  dataRoot,
   displayNameOf,
   OLD_USER_INPUT_PATH,
   renderFile,
@@ -36,6 +37,14 @@ export const OWNED_FILES = [
   'scripts/build-server.ts',
   'scripts/release.ts',
 ];
+/**
+ * Files in a plugin's server/data/ that every plugin carrying them keeps identical to this one's, so a
+ * fix to one reaches all. Only plugins that already have the file get it.
+ */
+export const SHARED_DATA = ['visual-reports.md', 'visual-report.css'];
+export function pluginSharedFiles(id: string): string[] {
+  return SHARED_DATA.map((name) => `plugins/${id}/server/data/${name}`);
+}
 export function pluginOwnedFile(id: string): string {
   return `plugins/${id}/${USER_INPUT_PATH}`;
 }
@@ -364,6 +373,14 @@ export function planSync(
         what: have === null ? `${file} is missing.` : `${file} differs from the template copy.`,
         next: want,
       });
+  }
+  for (const name of SHARED_DATA) {
+    const file = `plugins/${vars.id}/server/data/${name}`;
+    const path = join(root, file);
+    if (kept(file) || !existsSync(path)) continue;
+    const want = readFileSync(join(dataRoot, name), 'utf8');
+    if (readFileSync(path, 'utf8') !== want)
+      changes.push({ file, what: `${file} differs from the shared copy.`, next: want });
   }
   // The usage log hook is the template's copy, and Antigravity's files follow from the Claude Code
   // and Codex ones (2.6.0), so a plugin made before either gets them here.

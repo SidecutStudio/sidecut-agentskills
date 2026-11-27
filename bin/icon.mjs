@@ -7,10 +7,18 @@ import { dirname as dirname2, join as join2 } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
 
 // plugins/sidecut-agentskills/server/src/settings.ts
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/sidecut-profile.ts
+var SOLO_START = "<!-- solo-workflow:start -->";
+var SOLO_END = "<!-- solo-workflow:end -->";
+var SOLO_BLOCK = `${SOLO_START}
+## Sidecut Solo
+
+Follow \`solo-workflow.toml\`. Use the relevant Solo skill, or \`solo\` to route the request.
+${SOLO_END}`;
 var SIDECUT_SETTINGS = {
   org: "SidecutStudio",
   authorName: "Sidecut Studio",
@@ -105,15 +113,15 @@ function inferRepoSettings(root) {
       const manifest = JSON.parse(
         readFileSync(join(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
       );
-      const owner = /^https:\/\/github\.com\/([\w.-]+)\//.exec(
+      const owner2 = /^https:\/\/github\.com\/([\w.-]+)\//.exec(
         String(manifest.repository ?? "")
       )?.[1];
-      if (!owner) continue;
-      if (owner === SIDECUT_OWNER) return { profile: "sidecut" };
+      if (!owner2) continue;
+      if (owner2 === SIDECUT_OWNER) return { profile: "sidecut" };
       const check = join(root, ".github", "workflows", "check.yml");
       const picker = existsSync(check) && readFileSync(check, "utf8").includes("/pick-runner@");
       return cleanSettings({
-        org: owner,
+        org: owner2,
         authorName: manifest.author?.name,
         authorUrl: manifest.author?.url,
         homepage: manifest.homepage,
@@ -122,6 +130,13 @@ function inferRepoSettings(root) {
     } catch {
     }
   }
+  const remote = spawnSync("git", ["remote", "get-url", "origin"], {
+    cwd: root,
+    encoding: "utf8",
+    env: Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")))
+  });
+  const owner = /github\.com[/:]([\w.-]+)\//.exec(remote.stdout ?? "")?.[1];
+  if (remote.status === 0 && owner === SIDECUT_OWNER) return { profile: "sidecut" };
   return {};
 }
 function repoSettings(root) {

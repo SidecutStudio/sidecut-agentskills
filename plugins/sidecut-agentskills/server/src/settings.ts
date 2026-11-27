@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
@@ -243,6 +244,14 @@ export function inferRepoSettings(root: string): SettingsInput {
       // A missing or broken manifest is reported by the checks that read it.
     }
   }
+  // A repo with no plugin, such as an app, says who owns it through its git remote.
+  const remote = spawnSync('git', ['remote', 'get-url', 'origin'], {
+    cwd: root,
+    encoding: 'utf8',
+    env: Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))),
+  });
+  const owner = /github\.com[/:]([\w.-]+)\//.exec(remote.stdout ?? '')?.[1];
+  if (remote.status === 0 && owner === SIDECUT_OWNER) return { profile: 'sidecut' };
   return {};
 }
 

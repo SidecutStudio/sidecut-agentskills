@@ -18,6 +18,9 @@ import {
   SOLO_SETUP,
   SOLO_START,
 } from '../sidecut-profile.ts';
+import { checkDocs } from './docs.ts';
+import { readFleet } from './fleet.ts';
+import { checkShape, repoKind } from './kinds.ts';
 import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { checkPlugin } from './plugin.ts';
 import type { Report } from './report.ts';
@@ -833,9 +836,38 @@ function reportSync(
   }
 }
 
-/** Runs every house-style check that applies to the repo at `root`. */
-export function checkRepo(root: string, report: Report): void {
+export type CheckOptions = {
+  /** Only the fast exact rules over the repo's text and shape, for the pre-push guard. */
+  fast?: boolean;
+};
+
+/** Runs every house-style check that applies to the repo at `root`, whatever its kind. */
+export function checkRepo(root: string, report: Report, options: CheckOptions = {}): void {
+  useSettings(repoSettings(root));
   const pluginsDir = join(root, 'plugins');
+  const { plugins, id: only, plugin, repo: repoName, scope, keep } = identify(root);
+  const fleet = readFleet(root);
+  const { kind, how } = repoKind(root, fleet, Boolean(only), report);
+  const said = {
+    declared: 'declared in package.json',
+    listed: "from the fleet's repo index",
+    inferred: 'guessed from its files',
+  }[how];
+  if (kind !== 'plugin' || options.fast) {
+    report.scope = `Checked the whole repo as ${/^[aeiou]/.test(kind) ? 'an' : 'a'} ${kind} repo (${said})${
+      plugins.length && !options.fast ? `, with ${plugins.join(', ')}` : ''
+    }${options.fast ? ', fast rules only' : ''}.`;
+    if (!options.fast) {
+      for (const id of plugins) checkPlugin(join(pluginsDir, id), root, report, null);
+      if (plugin)
+        reportSync(root, { id: plugin, repo: repoName, scope: only ? 'whole' : 'beside' }, report);
+      checkTestGitEnv(root, report);
+    }
+    if (kind !== 'plugin') checkShape(root, kind, report);
+    checkDocs(root, kind, fleet, report);
+    report.applyKeep(keep);
+    return;
+  }
   if (!existsSync(pluginsDir)) {
     report.add(
       'REPO_NO_PLUGINS',
@@ -846,14 +878,13 @@ export function checkRepo(root: string, report: Report): void {
     );
     return;
   }
-  useSettings(repoSettings(root));
-  const { plugins, id: only, plugin, repo: repoName, scope, keep } = identify(root);
   report.scope = scope;
   if (!only) {
     for (const id of plugins) checkPlugin(join(pluginsDir, id), root, report, null);
     // A plugin beside other work still keeps the repo files it shares with the template current.
     if (plugin) reportSync(root, { id: plugin, repo: repoName, scope: 'beside' }, report);
     checkTestGitEnv(root, report);
+    checkDocs(root, kind, fleet, report);
     report.applyKeep(keep);
     return;
   }
@@ -896,5 +927,6 @@ export function checkRepo(root: string, report: Report): void {
     const text = readFileSync(security, 'utf8');
     checkMarkdown(parseMarkdown(security, text), text, root, report);
   }
+  checkDocs(root, kind, fleet, report);
   report.applyKeep(keep);
 }
