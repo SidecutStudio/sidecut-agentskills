@@ -1989,6 +1989,11 @@ describe('facts another repo owns', () => {
     expect(
       factsIn('The light lane, `[self-hosted, Linux, sidecut-light]`, runs check.'),
     ).toHaveLength(1);
+    // Link text naming the plugin isn't a label list.
+    expect(
+      factsIn('See [sidecut-ci](https://x/plugins/sidecut-ci) or the [sidecut-ci plugin](u).'),
+    ).toEqual([]);
+    expect(factsIn('Pick from [sidecut-light, ubuntu-24.04].')[0]).toContain('sidecut-light');
   });
 
   test("another repo's port is an advisory, since ports clash with defaults; the repo's own isn't", () => {
@@ -2071,7 +2076,10 @@ describe('what the review of the whole-repo rules found', () => {
 
   test('describing the audience is fine; describing the maker blocks', () => {
     const repo = appFolder();
-    repo.append('README.md', '\nA planner for a solo developer or a one-person team.\n');
+    repo.append(
+      'README.md',
+      '\nA planner for a solo developer or a one-person team. Sorted by person.\n',
+    );
     expect(found(run(repo.root))).toEqual([]);
     repo.append('README.md', '\nBuilt by a solo maker.\n');
     expect(found(run(repo.root))).toEqual(['COPY_OWNER README.md']);

@@ -82,7 +82,7 @@ export const WEAK_COPY =
 
 /** Lines that describe the person behind the work, which public copy never does. */
 export const OWNER_DESCRIBED =
-  /\b((?:by|from|I'm|I am|as) (?:a |an |one )?(?:solo (?:maker|founder|developer|dev|builder)|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker|person)|(?:I'm|I am|who is|who's) not a (?:trained |professional |real )?developer|built by one person|one[- ](?:person|man|woman) (?:studio|shop|company) behind)\b/i;
+  /\b((?:by|from|I'm|I am|as) (?:a |an |one )?(?:solo (?:maker|founder|developer|dev|builder)|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker)|(?:I'm|I am|who is|who's) not a (?:trained |professional |real )?developer|built by one person|one[- ](?:person|man|woman) (?:studio|shop|company) behind)\b/i;
 
 /** Files a host loads by name, which nothing else needs to link to. */
 function hostLoaded(file: string): boolean {
@@ -404,7 +404,12 @@ function detectors(root: string, fleet: Fleet, me: string, report: Report): Dete
     // A label is written as one: in code, in a label list or after runs-on. The same word in a
     // path or a product name is something else.
     const names = labels.map(escapeRegExp).join('|');
-    const inList = labels.length ? new RegExp(`\\[[^\\]\\n]*\\b(${names})\\b[^\\[\\n]*\\]`) : null;
+    // A label list has commas, like `[self-hosted, Linux, X64, my-label]`; link text doesn't.
+    const inList = labels.length
+      ? new RegExp(
+          `\\[[^\\]\\n]*,[^\\]\\n]*(?<![\\w.-])(${names})(?![\\w.-])[^\\[\\n]*\\](?!\\()|\\[[^\\]\\n]*(?<![\\w.-])(${names})(?![\\w.-])[^\\[\\n]*,[^\\[\\n]*\\](?!\\()`,
+        )
+      : null;
     const inCode = labels.length ? new RegExp(`\`(${names})\``) : null;
     const runsOn = labels.length ? new RegExp(`runs-on:\\s*(${names})\\b`) : null;
     found.push({
@@ -419,7 +424,7 @@ function detectors(root: string, fleet: Fleet, me: string, report: Report): Dete
           (/\brunners?\b|\blabels?\b|self-hosted|\blanes?\b/i.test(line)
             ? inCode?.exec(line)
             : null);
-        return m ? `the runner label "${m[1]}"` : null;
+        return m ? `the runner label "${m[1] ?? m[2]}"` : null;
       },
     });
   }

@@ -510,7 +510,7 @@ var DATED = new RegExp(
   "i"
 );
 var WEAK_COPY = /\b(seamless(?:ly)?|leverag(?:e|es|ing)|robust|cutting[- ]edge|game[- ]chang\w*|unlock(?:s|ing)? the|empower\w*|best[- ]in[- ]class|world[- ]class|effortless(?:ly)?|supercharg\w*|next[- ]level|harness(?:es|ing)? the power|in today's fast[- ]paced|delv(?:e|es|ing) into|revolutioni[sz]\w*|it(?:'s| is) worth noting|might potentially|arguably|please note that|needless to say|rest assured)\b/i;
-var OWNER_DESCRIBED = /\b((?:by|from|I'm|I am|as) (?:a |an |one )?(?:solo (?:maker|founder|developer|dev|builder)|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker|person)|(?:I'm|I am|who is|who's) not a (?:trained |professional |real )?developer|built by one person|one[- ](?:person|man|woman) (?:studio|shop|company) behind)\b/i;
+var OWNER_DESCRIBED = /\b((?:by|from|I'm|I am|as) (?:a |an |one )?(?:solo (?:maker|founder|developer|dev|builder)|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker)|(?:I'm|I am|who is|who's) not a (?:trained |professional |real )?developer|built by one person|one[- ](?:person|man|woman) (?:studio|shop|company) behind)\b/i;
 function hostLoaded(file) {
   const name = basename2(file);
   return !file.includes("/") || /^(SKILL|AGENTS|CLAUDE|GEMINI|README|CHANGELOG|LICENSE|SECURITY|CONTRIBUTING)(\.[\w-]+)?\.mdx?$/i.test(
@@ -763,7 +763,9 @@ function detectors(root2, fleet, me, report2) {
       unread.push("runners (its file is not JSON)");
     }
     const names = labels.map(escapeRegExp).join("|");
-    const inList = labels.length ? new RegExp(`\\[[^\\]\\n]*\\b(${names})\\b[^\\[\\n]*\\]`) : null;
+    const inList = labels.length ? new RegExp(
+      `\\[[^\\]\\n]*,[^\\]\\n]*(?<![\\w.-])(${names})(?![\\w.-])[^\\[\\n]*\\](?!\\()|\\[[^\\]\\n]*(?<![\\w.-])(${names})(?![\\w.-])[^\\[\\n]*,[^\\[\\n]*\\](?!\\()`
+    ) : null;
     const inCode = labels.length ? new RegExp(`\`(${names})\``) : null;
     const runsOn = labels.length ? new RegExp(`runs-on:\\s*(${names})\\b`) : null;
     found.push({
@@ -772,7 +774,7 @@ function detectors(root2, fleet, me, report2) {
       path: runners.path,
       find: (line) => {
         const m = inList?.exec(line) ?? runsOn?.exec(line) ?? (/\brunners?\b|\blabels?\b|self-hosted|\blanes?\b/i.test(line) ? inCode?.exec(line) : null);
-        return m ? `the runner label "${m[1]}"` : null;
+        return m ? `the runner label "${m[1] ?? m[2]}"` : null;
       }
     });
   }
