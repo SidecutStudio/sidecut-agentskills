@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.12.1] - 2026-11-27
+
+### Fixed
+
+- `agentskills-build-mcp-server` said `.app.json` takes the `plugin_asdk_app_…` id from the ChatGPT plugins page. It takes the same id without the `plugin_` prefix (`asdk_app_…`), the form Codex's own code and installed plugins use.
+
 ## [2.12.0] - 2026-11-26
 
 ### Changed
