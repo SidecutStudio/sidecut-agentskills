@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.12.0] - 2026-11-26
+
+### Changed
+
+- The Sidecut CI template scans for secrets with the studio's shared `scan-secrets` action, which installs the pinned TruffleHog without Bun and fails on any verified or unknown secret the commit reaches, in place of the curl, checksum and tar lines each repo carried. The hosted template keeps its pinned download, since a repo outside the studio can't use an action from a private repo.
+
 ## [2.11.1] - 2026-11-26
 
 ### Fixed

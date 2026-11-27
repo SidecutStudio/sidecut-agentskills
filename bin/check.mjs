@@ -237,7 +237,6 @@ var SIDECUT_CI_SNIPPETS = {
 var INDENT = "          ";
 var CI_SNIPPETS = {
   ciOwnLane: "self-hosted",
-  ciOwnLaneTitle: "Self-hosted",
   ...SIDECUT_CI_SNIPPETS,
   // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
   ghTokenEnv: "GH_TOKEN: ${{ github.token }}",
