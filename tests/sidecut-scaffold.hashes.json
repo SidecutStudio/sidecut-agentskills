@@ -30,7 +30,7 @@
   "plugins/sidecut-demo/hooks/post-tool-use-skill-log.mjs": "941b6ffa8f4d3747402dcb89530a3da279016fbe7248eea49f28e9a6ef20a6d9",
   "plugins/sidecut-demo/mcp.json": "ad4db91c33688026f5ec84885e64b9a55cf685ae6f1f5e33c2c96888a53e7345",
   "plugins/sidecut-demo/mcp_config.json": "6dae0909873f69e22c4b44bf1d41c2bf206586d66cca852c1cbeefedeaeab008",
-  "plugins/sidecut-demo/server/data/user-input.md": "896e4b06387303ef2d2901bc9af3ed0b8bce0f56e6ef56576a16bfea984d4b62",
+  "plugins/sidecut-demo/server/data/user-input.md": "677a54ab3cb058c4d16bb17ee70d788f404efab52fb9d3a5f863aedfc3b9912a",
   "plugins/sidecut-demo/server/src/index.ts": "a32304714cab94a94aef0fd65c92b18049e91c7c6c7dce28f339ed973535a8ee",
   "plugins/sidecut-demo/skills/demo-check-status/SKILL.md": "f3eb3dfec6c4f9c9e87c9ed3ebbbeb81455347b62b0161cca329ce06ea9bf100",
   "plugins/sidecut-demo/skills/demo-check-status/agents/openai.yaml": "614d32f73ab289a1ddad5e7da74ebfe9cda3e099b2cb60726c7fd884136c4d36",

@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.13.0] - 2026-11-27
+
+### Added
+
+- Antigravity can run more than the usage log hook. A script runs there once the plugin's root `hooks.json` names it, and `sidecut-sync` then writes its entries from its `PreToolUse`, `PostToolUse`, `Stop` and `SessionStart` ones in `hooks/hooks.json`, with Antigravity's tool names in the matcher, and drops it when the Claude Code hooks stop registering it. Solo had kept a hand-written `hooks.json` for its merge guard and turn guard; sync now writes the same file.
+
+### Changed
+
+- The user-input guide tells Gemini/Antigravity to show new options, drafts or results in a finished chat turn before calling `ask_question`, since the question prompt there covers what the same turn just wrote. Solo had carried this as a local difference.
+- The hooks guide covers Antigravity's hooks and adds three lessons from Solo's guards: keep a hook's work linear in its input, decide from words or recorded state instead of parsing shell commands, and act in a prompt hook only on what the user typed.
+- The `reviewer` agent can read current docs with WebFetch and WebSearch, and cites them or marks a finding unverified when it turns on how a host, library or service behaves.
+
 ## [2.12.1] - 2026-11-27
 
 ### Fixed

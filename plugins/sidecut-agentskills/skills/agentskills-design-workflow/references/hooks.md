@@ -1,6 +1,6 @@
 # Hooks
 
-Read this when adding or changing a hook in a plugin. A hook is a script the host runs at a fixed moment, such as after a tool call or when a session starts. Every hook runs in both Claude Code and Codex. Antigravity runs only the usage log hook, through the root `hooks.json` that `sidecut-sync` writes; its events and tool names differ, so other hooks don't run there yet.
+Read this when adding or changing a hook in a plugin. A hook is a script the host runs at a fixed moment, such as after a tool call or when a session starts. Every hook runs in both Claude Code and Codex. Antigravity runs the usage log hook and any other script its root `hooks.json` names; see [Antigravity](#antigravity).
 
 ## Registering a hook
 
@@ -50,6 +50,9 @@ A hook that reacts to a skill matches `Skill` in Claude Code and `Bash` in Codex
 - Print nothing unless the hook's job is to add context for the agent.
 - Make no network calls.
 - Treat the input as untrusted. A file path in it can contain `..` or point outside the project, so resolve it and check where it lands before reading or judging the file.
+- Keep the work linear in the size of the input. A prompt can be a pasted megabyte, and the hook has five seconds; a scan that backtracks or rescans per match can run out of time.
+- Don't parse shell commands to judge them. Quoting, `bash -lc`, wrappers and `$(...)` give endless forms, and each fix finds another. Refuse on words in the text, and decide anything subtler from state the plugin records or reads from the source, such as GitHub.
+- A prompt hook sees text the user didn't write: pasted content, quoted lines, code, other sessions' and agents' messages, notifications the host adds. Act only on what the user typed themselves, such as an exact slash command on its own line.
 
 ## Blocking or adding context
 
@@ -81,6 +84,12 @@ All hooks that match an event run at the same time, the user's own hooks include
 | `SessionEnd` | When the session ends |
 
 Both hosts have every event in this table. Prefer `PostToolUse` with a narrow matcher. A `SessionStart` or `UserPromptSubmit` hook runs in every session and every prompt, so it costs time even when the plugin isn't involved.
+
+## Antigravity
+
+Antigravity reads the `hooks.json` at the plugin root, not `hooks/`, and has its own events, tool names, input and output: read [its hooks docs](https://antigravity.google/docs/hooks/). A script runs there once that file names it, and the script has to tell Antigravity's input apart and answer in Antigravity's form, so opt one in only after it does. `sidecut-sync` then writes the script's entries from its `PreToolUse`, `PostToolUse`, `Stop` and `SessionStart` ones in `hooks/hooks.json`, as a group named for the script without its event prefix, with `Bash` as `run_command`, `Skill` and `Read` as file reads, and `Edit` and `Write` as file writes. It leaves out the rest: Antigravity has no `UserPromptSubmit` or `SessionEnd`, and a script that needs the user's latest prompt reads `lastUserInput` instead.
+
+A blocking answer differs by host. A `PreToolUse` deny is `{"decision": "deny", "reason": ...}` there, and a `Stop` hook keeps the turn going with `"decision": "continue"` where Claude Code and Codex take `"block"`.
 
 ## Trust in Codex
 

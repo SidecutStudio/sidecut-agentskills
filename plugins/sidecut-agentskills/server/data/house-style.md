@@ -193,7 +193,7 @@ Antigravity reads `.antigravity-plugin/plugin.json`, the manifest a plugin that 
 | --- | --- | --- |
 | Manifest, in order | `$schema` (`https://antigravity.google/schemas/v1/plugin.json`), `name`, `displayName` (the Codex `interface.displayName`), `version`, `description`, `logo` (`assets/icon.png`), `suggestedPrompts` (the Codex `defaultPrompt`), then `author`, `homepage`, `repository`, `license` and `keywords` as in the Claude Code manifest | yes |
 | `mcp_config.json` | With `.mcp.json` only: the same servers under the same keys. A local server is `"command": "node"` with `"args": ["${PLUGIN_ROOT}/server/index.mjs"]`, the root variable Antigravity fills in; a remote one is its `url` alone | yes |
-| `hooks.json` | With the usage log hook only: a `skill-log` group running `node ./hooks/post-tool-use-skill-log.mjs` after `read_file`, `view_file` and `run_command`, from the plugin's folder, as Antigravity runs plugin hooks. Other hooks have no Antigravity equivalent yet | yes |
+| `hooks.json` | A `skill-log` group running `node ./hooks/post-tool-use-skill-log.mjs` after `read_file`, `view_file` and `run_command`, from the plugin's folder, as Antigravity runs plugin hooks. Another script runs there once the file names it: sync then writes its group, named for the script without its event prefix, from its `PreToolUse`, `PostToolUse`, `Stop` and `SessionStart` entries in `hooks/hooks.json`, with Antigravity's tool names in the matcher. Events and tools Antigravity lacks are left out | yes |
 
 ## MCP servers
 
