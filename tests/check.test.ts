@@ -1055,6 +1055,69 @@ test('a freshly generated repo has no problems', () => {
   expect(codes(base)).toEqual([]);
 });
 
+test('a plugin starts with a status trigger and a near miss about a different plugin', () => {
+  const r = copy();
+  expect(r.read('evals/demo-check-status-trigger/prompt.md')).toContain(
+    'I just updated Sidecut Demo and its tools disappeared.',
+  );
+  expect(r.read('evals/negative-unrelated/prompt.md')).toContain(
+    'The calendar plugin’s scheduling tools disappeared.',
+  );
+  expect(r.read('evals/negative-unrelated/graders/no-skill.md')).toContain(
+    'min: 0\nmax: 0\narm: both',
+  );
+});
+
+test('a summarization skill starts with two intents over the same staged file', () => {
+  const r = copy();
+  const skill = 'demo-summarize-notes';
+  const added = addSkill(join(r.root, P), { name: skill, does: 'Summarizes notes.' });
+  const positive = `evals/${skill}-trigger`;
+  const negative = `evals/negative-${skill}-count-notes-words`;
+  const notes: string[] = [];
+  for (const dir of [positive, negative]) {
+    expect(added).toContain(`../../${dir}/prompt.md`);
+    expect(r.read(`${dir}/case.yaml`)).toContain('scaffold_script: ./setup.sh');
+    const work = mkdtempSync(join(tmpdir(), 'sidecut-eval-workspace-'));
+    scratch.push(work);
+    const setup = spawnSync('sh', [join(r.root, dir, 'setup.sh')], { cwd: work });
+    expect(setup.status).toBe(0);
+    notes.push(readFileSync(join(work, 'notes.md'), 'utf8'));
+  }
+  expect(notes[0]).toBe(notes[1]);
+  expect(notes[0]?.trim().split(/\s+/)).toHaveLength(21);
+  expect(r.read(`${positive}/prompt.md`)).toContain('Summarize notes.md in one sentence');
+  expect(r.read(`${negative}/prompt.md`)).toContain('How many words are in notes.md?');
+  expect(r.read(`${negative}/graders/no-skill.md`)).toContain(`"${ID}:${skill}"`);
+  expect(codes(r.root)).not.toContain('EVAL_NAME');
+  expect(codes(r.root)).not.toContain('EVAL_MISSING');
+});
+
+test('adding a skill leaves existing local cases and stamped evals alone', () => {
+  const r = copy();
+  r.write('evals/demo-write-note-trigger/prompt.md', 'An existing prompt.\n');
+  const local = addSkill(join(r.root, P), { name: 'demo-write-note', does: 'Writes a note.' });
+  expect(local.every((file) => !file.startsWith('../../evals/'))).toBe(true);
+  expect(r.read('evals/demo-write-note-trigger/prompt.md')).toBe('An existing prompt.\n');
+  const hash = treeHash(join(r.root, 'evals'));
+  r.write('evals-source.json', JSON.stringify({ copies: [{ path: 'evals', hash }] }));
+  addSkill(join(r.root, P), { name: 'demo-summarize-notes', does: 'Summarizes notes.' });
+  expect(treeHash(join(r.root, 'evals'))).toBe(hash);
+});
+
+test('a specialist eval does not cover the router', () => {
+  const r = copy();
+  addSkill(join(r.root, P), { name: 'demo', does: 'Routes demo requests.' });
+  expect(r.read('evals/demo-trigger/prompt.md')).toContain('Can you route demo requests?');
+  const grader = r.read('evals/demo-trigger/graders/skill-fired.md');
+  const pattern = new RegExp(grader.match(/^input_match: '(.*)'$/m)?.[1] ?? '');
+  expect(pattern.test(JSON.stringify({ skill: `${ID}:demo` }))).toBe(true);
+  expect(pattern.test(JSON.stringify({ skill: `${ID}:demo-check-status` }))).toBe(false);
+  expect(codes(r.root)).not.toContain('EVAL_MISSING');
+  r.rm('evals/demo-trigger');
+  expect(codes(r.root)).toContain('EVAL_MISSING');
+});
+
 test('a repo that kept an older name still gets the repo checks when its package names the plugin', () => {
   const repo = copy();
   repo.json(`${P}/.claude-plugin/plugin.json`, (v) =>

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "revise-one-price",
+  "input": {
+    "prompt": "In pricing.txt, change the Team plan from $15 to $18 a month. Leave everything else as it is.",
+    "files": {
+      "pricing.txt": "Solo: $6 per month\nTeam: $15 per month\nPrices are in USD.\n",
+      "README.txt": "Plan labels match the published page.\n"
+    }
+  },
+  "expectedBehavior": "Update just the Team price and preserve the other text and files.",
+  "grading": [
+    {
+      "kind": "rubric",
+      "notes": "Compare the workspace against the input snapshot. The only byte change is $15 becoming $18 on the Team line. The Solo line, footer, line endings and README.txt are preserved. Fail if any file is added or removed."
+    }
+  ]
+}

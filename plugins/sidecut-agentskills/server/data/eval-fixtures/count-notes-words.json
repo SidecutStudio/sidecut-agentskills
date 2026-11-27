@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "count-notes-words",
+  "input": {
+    "prompt": "How many words are in notes.md? Count whitespace-separated words and reply with just the number.",
+    "files": {
+      "notes.md": "The library will open at 9 a.m. on Saturday. The book drop will remain available overnight. The Sunday schedule is unchanged.\n"
+    }
+  },
+  "expectedBehavior": "Return the count without invoking the summarization skill.",
+  "grading": [
+    {
+      "kind": "skill-quiet",
+      "skill": "summarize",
+      "notes": "Fail on any invocation of the bound summarization skill, even if the numeric answer is correct."
+    },
+    {
+      "kind": "rubric",
+      "notes": "After trimming surrounding whitespace, the reply must equal 21."
+    }
+  ]
+}

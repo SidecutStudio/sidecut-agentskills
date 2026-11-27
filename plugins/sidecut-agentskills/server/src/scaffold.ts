@@ -1,9 +1,19 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { antigravityFilesFrom } from './antigravity.ts';
+import { STAMP_FILE } from './check/evals-stamp.ts';
 import { relativePosix, sentences, toPosix } from './check/report.ts';
 import { CI_SNIPPETS } from './ci-snippets.ts';
+import { pluginStarterEvals, skillStarterEvals } from './eval-fixtures.ts';
 import {
   answered,
   answersOf,
@@ -402,6 +412,12 @@ function writeRepo(input: PluginInput, out: string, settings: Settings): string[
 
   const files = new Map<string, string | Buffer>();
   for (const [path, text] of renderTree('repo', vars)) files.set(path, text);
+  for (const [name, evalFiles] of pluginStarterEvals(
+    input.id,
+    skillPrefixOf(input.id),
+    displayName,
+  ))
+    for (const [path, text] of evalFiles) files.set(`evals/${name}/${path}`, text);
   for (const [path, text] of renderTree(`ci/${settings.ci}`, vars))
     files.set(`.github/workflows/${path}`, text);
   if (settings.workflow === 'solo')
@@ -437,7 +453,7 @@ export function brandColorOf(pluginDir: string): string {
   }
 }
 
-/** Adds a skill skeleton to an existing plugin folder. Returns the files written, relative to the plugin. */
+/** Adds a skill skeleton and starter evals. Returns the files written, relative to the plugin. */
 export function addSkill(pluginDir: string, input: SkillInput): string[] {
   const previous = current();
   useSettings(repoSettings(join(pluginDir, '..', '..')));
@@ -465,6 +481,25 @@ function writeSkill(pluginDir: string, input: SkillInput): string[] {
   const files = new Map<string, string>();
   const template = input.name === prefix ? 'router' : 'skill';
   for (const [path, text] of renderTree(template, vars)) files.set(join(skillDir, path), text);
+  const repo = dirname(dirname(pluginDir));
+  const evalsDir = join(repo, 'evals');
+  if (
+    basename(dirname(pluginDir)) === 'plugins' &&
+    lstatSync(evalsDir, { throwIfNoEntry: false })?.isDirectory() &&
+    !existsSync(join(repo, STAMP_FILE))
+  ) {
+    for (const [name, evalFiles] of skillStarterEvals(
+      basename(pluginDir),
+      prefix,
+      input.name,
+      vars.skillPrompt,
+    )) {
+      const target = join(evalsDir, name);
+      if (lstatSync(target, { throwIfNoEntry: false })) continue;
+      for (const [path, text] of evalFiles)
+        files.set(relative(pluginDir, join(target, path)), text);
+    }
+  }
   if (!existsSync(join(pluginDir, USER_INPUT_PATH))) {
     files.set(USER_INPUT_PATH, userInput());
   }

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "other-plugin-status",
+  "input": {
+    "prompt": "The calendar plugin’s scheduling tools disappeared. Can you check whether that plugin is connected?",
+    "context": "The plugin under test is presented as the export plugin. The user is asking about a separate calendar plugin."
+  },
+  "expectedBehavior": "Keep the export plugin’s status skill quiet when another plugin is the named subject.",
+  "grading": [
+    {
+      "kind": "skill-quiet",
+      "skill": "check-status",
+      "notes": "Fail if the runtime records any invocation of the export plugin’s bound status skill. A calendar status action or an honest statement that calendar status is unavailable is acceptable."
+    }
+  ]
+}

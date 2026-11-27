@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Portable eval fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "input", "expectedBehavior", "grading"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "$ref": "#/definitions/id" },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt"],
+      "properties": {
+        "prompt": { "$ref": "#/definitions/text" },
+        "context": { "$ref": "#/definitions/text" },
+        "files": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[a-zA-Z0-9_-]+(?:[.][a-zA-Z0-9_-]+)*$" },
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "expectedBehavior": { "$ref": "#/definitions/text" },
+    "grading": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "notes"],
+        "properties": {
+          "kind": { "enum": ["skill-used", "skill-quiet", "rubric"] },
+          "skill": { "$ref": "#/definitions/id" },
+          "notes": { "$ref": "#/definitions/text" }
+        },
+        "if": { "properties": { "kind": { "const": "rubric" } } },
+        "then": { "not": { "required": ["skill"] } },
+        "else": { "required": ["skill"] }
+      }
+    }
+  },
+  "definitions": {
+    "id": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "text": { "type": "string", "pattern": "\\S" }
+  }
+}

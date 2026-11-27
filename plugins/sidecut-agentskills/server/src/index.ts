@@ -222,7 +222,7 @@ server.registerTool(
   {
     title: 'Add skill',
     description:
-      'Writes a skill skeleton with SKILL.md and agents/openai.yaml into a plugin folder and returns the files it wrote. Use it to start a new skill, then replace every TODO.',
+      'Returns plugin-relative paths to a new skill skeleton and starter cases when the repo owns evals/. Use it to start a skill before filling the TODOs and tailoring the evals.',
     inputSchema: z.object({
       plugin: z.string().describe('Absolute path to plugins/<plugin-id>'),
       name: z

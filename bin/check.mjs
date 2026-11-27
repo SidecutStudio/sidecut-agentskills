@@ -6,12 +6,20 @@ import { parseArgs } from "node:util";
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
-import { existsSync as existsSync11, lstatSync, readdirSync as readdirSync8, readFileSync as readFileSync11, realpathSync as realpathSync2 } from "node:fs";
+import { existsSync as existsSync11, lstatSync as lstatSync3, readdirSync as readdirSync8, readFileSync as readFileSync11, realpathSync as realpathSync2 } from "node:fs";
 import { join as join11 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
-import { existsSync as existsSync3, mkdirSync as mkdirSync2, readdirSync as readdirSync2, readFileSync as readFileSync3, statSync, writeFileSync as writeFileSync2 } from "node:fs";
-import { basename, dirname as dirname2, join as join3 } from "node:path";
+import {
+  existsSync as existsSync4,
+  lstatSync,
+  mkdirSync as mkdirSync2,
+  readdirSync as readdirSync3,
+  readFileSync as readFileSync4,
+  statSync as statSync2,
+  writeFileSync as writeFileSync2
+} from "node:fs";
+import { basename, dirname as dirname2, join as join4, relative as relative3 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // plugins/sidecut-agentskills/server/src/antigravity.ts
@@ -192,13 +200,81 @@ function antigravityFiles(pluginDir) {
   });
 }
 
+// plugins/sidecut-agentskills/server/src/check/evals-stamp.ts
+import { createHash } from "node:crypto";
+import { existsSync as existsSync2, readdirSync, readFileSync as readFileSync2, realpathSync, statSync } from "node:fs";
+import { isAbsolute, join as join2, relative, sep } from "node:path";
+var STAMP_FILE = "evals-source.json";
+function treeFiles(dir) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const walk = (d) => {
+    const real = realpathSync(d);
+    if (seen.has(real)) throw new Error(`${relative(dir, d) || "."} links back into the copy.`);
+    seen.add(real);
+    for (const name of readdirSync(d)) {
+      if (name === ".DS_Store") continue;
+      const p = join2(d, name);
+      if (statSync(p).isDirectory()) walk(p);
+      else out.push(relative(dir, p).split(sep).join("/"));
+    }
+    seen.delete(real);
+  };
+  walk(dir);
+  return out.sort();
+}
+function treeHash(dir, files = treeFiles(dir)) {
+  const h = createHash("sha256");
+  for (const f of files) {
+    const body = createHash("sha256").update(readFileSync2(join2(dir, f))).digest("hex");
+    h.update(`${f}
+${body}
+`);
+  }
+  return `sha256-${h.digest("hex")}`;
+}
+function stampProblems(root) {
+  const file = join2(root, STAMP_FILE);
+  if (!existsSync2(file)) return [];
+  let copies;
+  try {
+    copies = JSON.parse(readFileSync2(file, "utf8")).copies;
+  } catch {
+    copies = void 0;
+  }
+  if (!Array.isArray(copies) || copies.length === 0)
+    return [{ file: STAMP_FILE, message: `${STAMP_FILE} has no copies list.` }];
+  const problems = [];
+  for (const copy of copies) {
+    const path = String(copy?.path ?? "");
+    const dir = join2(root, path);
+    const inside = path !== "" && !isAbsolute(path) && !relative(root, dir).startsWith("..");
+    let hash = null;
+    try {
+      if (inside && existsSync2(dir) && statSync(dir).isDirectory()) hash = treeHash(dir);
+    } catch (error) {
+      problems.push({
+        file: path,
+        message: `${path} can't be hashed: ${error instanceof Error ? error.message : String(error)}`
+      });
+      continue;
+    }
+    if (hash === null || hash !== copy.hash)
+      problems.push({
+        file: path || STAMP_FILE,
+        message: `${path || "A copy"} doesn't match the hash in ${STAMP_FILE}.`
+      });
+  }
+  return problems;
+}
+
 // plugins/sidecut-agentskills/server/src/check/report.ts
-import { relative, sep } from "node:path";
+import { relative as relative2, sep as sep2 } from "node:path";
 function toPosix(path) {
-  return sep === "/" ? path : path.split(sep).join("/");
+  return sep2 === "/" ? path : path.split(sep2).join("/");
 }
 function relativePosix(from, path) {
-  return toPosix(relative(from, path));
+  return toPosix(relative2(from, path));
 }
 function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
@@ -313,9 +389,49 @@ ${INDENT}`),
 ${INDENT}`)
 };
 
+// plugins/sidecut-agentskills/server/data/eval-fixtures/other-plugin-status.json
+var other_plugin_status_default = {
+  schemaVersion: 1,
+  id: "other-plugin-status",
+  input: {
+    prompt: "The calendar plugin\u2019s scheduling tools disappeared. Can you check whether that plugin is connected?",
+    context: "The plugin under test is presented as the export plugin. The user is asking about a separate calendar plugin."
+  },
+  expectedBehavior: "Keep the export plugin\u2019s status skill quiet when another plugin is the named subject.",
+  grading: [
+    {
+      kind: "skill-quiet",
+      skill: "check-status",
+      notes: "Fail if the runtime records any invocation of the export plugin\u2019s bound status skill. A calendar status action or an honest statement that calendar status is unavailable is acceptable."
+    }
+  ]
+};
+
+// plugins/sidecut-agentskills/server/data/eval-fixtures/plugin-status.json
+var plugin_status_default = {
+  schemaVersion: 1,
+  id: "plugin-status",
+  input: {
+    prompt: "I just updated the export plugin and its tools disappeared. Can you check whether it is connected and what version is running?",
+    context: "The installed plugin is presented as the export plugin. A simulated status operation reports a reachable server at version 1.2.3."
+  },
+  expectedBehavior: "Use the target plugin\u2019s status skill and report only the connection and version that the session can verify.",
+  grading: [
+    {
+      kind: "skill-used",
+      skill: "check-status",
+      notes: "Look for a recorded invocation of the export plugin\u2019s bound status skill. A status-like reply alone does not establish invocation."
+    },
+    {
+      kind: "rubric",
+      notes: "With the supplied status stub, the reply identifies a reachable server at version 1.2.3. Fail if it treats a successful status call as evidence that the export tool works."
+    }
+  ]
+};
+
 // plugins/sidecut-agentskills/server/src/settings.ts
-import { existsSync as existsSync2, mkdirSync, readdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join as join2 } from "node:path";
+import { existsSync as existsSync3, mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync3, writeFileSync } from "node:fs";
+import { dirname, isAbsolute as isAbsolute2, join as join3 } from "node:path";
 var DEFAULTS = {
   profile: "",
   org: "",
@@ -345,9 +461,9 @@ function cleanSettings(value) {
   return out;
 }
 function readInput(path) {
-  if (!existsSync2(path)) return null;
+  if (!existsSync3(path)) return null;
   try {
-    return cleanSettings(JSON.parse(readFileSync2(path, "utf8")));
+    return cleanSettings(JSON.parse(readFileSync3(path, "utf8")));
   } catch {
     throw new Error(`${path} isn't valid JSON.`);
   }
@@ -384,33 +500,33 @@ function mergeSettings(...layers) {
   return out;
 }
 function readRepoSettings(root) {
-  return readInput(join2(root, REPO_FILE));
+  return readInput(join3(root, REPO_FILE));
 }
 function readScanTextAllow(root) {
-  const path = join2(root, REPO_FILE);
-  if (!existsSync2(path)) return [];
+  const path = join3(root, REPO_FILE);
+  if (!existsSync3(path)) return [];
   try {
-    const value = JSON.parse(readFileSync2(path, "utf8")).scanTextAllow;
+    const value = JSON.parse(readFileSync3(path, "utf8")).scanTextAllow;
     return Array.isArray(value) ? value.filter((g) => typeof g === "string") : [];
   } catch {
     return [];
   }
 }
 function inferRepoSettings(root) {
-  const plugins = join2(root, "plugins");
-  const ids = existsSync2(plugins) ? readdirSync(plugins).filter((n) => n !== ".DS_Store") : [];
+  const plugins = join3(root, "plugins");
+  const ids = existsSync3(plugins) ? readdirSync2(plugins).filter((n) => n !== ".DS_Store") : [];
   for (const id of ids) {
     try {
       const manifest = JSON.parse(
-        readFileSync2(join2(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
+        readFileSync3(join3(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
       );
       const owner = /^https:\/\/github\.com\/([\w.-]+)\//.exec(
         String(manifest.repository ?? "")
       )?.[1];
       if (!owner) continue;
       if (owner === SIDECUT_OWNER) return { profile: "sidecut" };
-      const check = join2(root, ".github", "workflows", "check.yml");
-      const picker = existsSync2(check) && readFileSync2(check, "utf8").includes("/pick-runner@");
+      const check = join3(root, ".github", "workflows", "check.yml");
+      const picker = existsSync3(check) && readFileSync3(check, "utf8").includes("/pick-runner@");
       return cleanSettings({
         org: owner,
         authorName: manifest.author?.name,
@@ -470,16 +586,97 @@ function marketplaceName(id, s = active) {
   return s.marketplace ? s.marketplace.split("/")[1] ?? s.marketplace : id;
 }
 
+// plugins/sidecut-agentskills/server/src/eval-fixtures.ts
+function shellString(text) {
+  return "'" + text.replaceAll("'", "'\\''") + "'";
+}
+function triggerCase(name, fixture, operand) {
+  const routing = fixture.grading.find(
+    ({ kind }) => kind === "skill-used" || kind === "skill-quiet"
+  );
+  if (!routing) throw new Error(`Fixture for ${name} has no routing check.`);
+  const positive = routing.kind === "skill-used";
+  const match = `"skill"\\s*:\\s*"${escapeRegExp(operand)}"`;
+  const files = /* @__PURE__ */ new Map([
+    [
+      "prompt.md",
+      `---
+tags: [${positive ? "trigger" : "negative"}]
+runs: 1
+max_turns: 6
+allowed_tools: [Read, Glob, Grep, Skill]
+---
+${fixture.input.prompt}
+`
+    ],
+    [
+      `graders/${positive ? "skill-fired" : "no-skill"}.md`,
+      `---
+type: tool_used
+tool: Skill
+input_match: '${match}'
+${positive ? "min: 1\narm: with-only" : "min: 0\nmax: 0\narm: both"}
+---
+`
+    ]
+  ]);
+  if (fixture.input.files) {
+    files.set(
+      "case.yaml",
+      `schema_version: "1.0"
+name: ${name}
+context:
+  scaffold_script: ./setup.sh
+`
+    );
+    files.set(
+      "setup.sh",
+      Object.entries(fixture.input.files).map(([file, contents]) => `printf '%s' ${shellString(contents)} > ${shellString(file)}
+`).join("")
+    );
+  }
+  return files;
+}
+function pluginStarterEvals(id, key, displayName) {
+  const skill = `${key}-check-status`;
+  const operand = `${id}:${skill}`;
+  const alternatePrompt = /calendar/i.test(displayName) ? other_plugin_status_default.input.prompt.replace(
+    "calendar plugin\u2019s scheduling",
+    "mail plugin\u2019s messaging"
+  ) : other_plugin_status_default.input.prompt;
+  return /* @__PURE__ */ new Map([
+    [
+      `${skill}-trigger`,
+      triggerCase(
+        `${skill}-trigger`,
+        {
+          ...plugin_status_default,
+          input: { prompt: plugin_status_default.input.prompt.replace("the export plugin", displayName) }
+        },
+        operand
+      )
+    ],
+    [
+      "negative-unrelated",
+      triggerCase(
+        "negative-unrelated",
+        { ...other_plugin_status_default, input: { prompt: alternatePrompt } },
+        operand
+      )
+    ]
+  ]);
+}
+
 // plugins/sidecut-agentskills/server/src/scaffold.ts
 var here = dirname2(fileURLToPath(import.meta.url));
-var dataRoot = existsSync3(join3(here, "data")) ? join3(here, "data") : existsSync3(join3(here, "..", "data")) ? join3(here, "..", "data") : join3(here, "..", "plugins", "sidecut-agentskills", "server", "data");
-var templatesRoot = join3(dataRoot, "templates");
+var dataRoot = existsSync4(join4(here, "data")) ? join4(here, "data") : existsSync4(join4(here, "..", "data")) ? join4(here, "..", "data") : join4(here, "..", "plugins", "sidecut-agentskills", "server", "data");
+var templatesRoot = join4(dataRoot, "templates");
 var USER_INPUT_PATH = "server/data/user-input.md";
 var OLD_USER_INPUT_PATH = "server/data/owner-input.md";
 function userInput() {
-  return readFileSync3(join3(dataRoot, "user-input.md"), "utf8");
+  return readFileSync4(join4(dataRoot, "user-input.md"), "utf8");
 }
-var ownVersion = JSON.parse(readFileSync3(join3(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
+var ownVersion = JSON.parse(readFileSync4(join4(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
 function pluginIdPattern(s = current()) {
   return new RegExp(`^${escapeRegExp(s.prefix)}[a-z0-9]+(-[a-z0-9]+)*$`);
 }
@@ -546,12 +743,12 @@ function render(text, vars) {
   });
 }
 function renderFile(path, vars) {
-  return render(readFileSync3(join3(templatesRoot, path), "utf8"), vars);
+  return render(readFileSync4(join4(templatesRoot, path), "utf8"), vars);
 }
 function listFiles(dir) {
-  return readdirSync2(dir).flatMap((name) => {
-    const path = join3(dir, name);
-    return statSync(path).isDirectory() ? listFiles(path) : [path];
+  return readdirSync3(dir).flatMap((name) => {
+    const path = join4(dir, name);
+    return statSync2(path).isDirectory() ? listFiles(path) : [path];
   });
 }
 function settingsVars(id, s = current()) {
@@ -618,7 +815,7 @@ ${SOLO_LOCAL_FILE}` : ""
 }
 function brandColorOf(pluginDir) {
   try {
-    const codex = JSON.parse(readFileSync3(join3(pluginDir, ".codex-plugin", "plugin.json"), "utf8"));
+    const codex = JSON.parse(readFileSync4(join4(pluginDir, ".codex-plugin", "plugin.json"), "utf8"));
     return String(codex.interface?.brandColor ?? "");
   } catch {
     return "";
@@ -626,8 +823,8 @@ function brandColorOf(pluginDir) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/markdown.ts
-import { existsSync as existsSync4 } from "node:fs";
-import { dirname as dirname3, join as join4, relative as relative2 } from "node:path";
+import { existsSync as existsSync5 } from "node:fs";
+import { dirname as dirname3, join as join5, relative as relative4 } from "node:path";
 var ALLOWED_HTML = /^<!-- sidecut:(start|end)( [\w-]+)? -->$/;
 var allowedHtml = (line) => ALLOWED_HTML.test(line) || line === SOLO_START || line === SOLO_END;
 function parseMarkdown(path, text) {
@@ -686,8 +883,8 @@ function checkLinks(doc, file, root, report2) {
     for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
       const target = match[1] ?? "";
       if (/^[a-z]+:/.test(target) || target.startsWith("#")) continue;
-      const path = join4(dirname3(doc.path), target.split("#")[0] ?? "");
-      if (!existsSync4(path)) {
+      const path = join5(dirname3(doc.path), target.split("#")[0] ?? "");
+      if (!existsSync5(path)) {
         report2.add(
           "MD_LINK_TARGET",
           file,
@@ -696,7 +893,7 @@ function checkLinks(doc, file, root, report2) {
           "Point the link at a real file."
         );
       }
-      if (relative2(root, path).startsWith("..")) {
+      if (relative4(root, path).startsWith("..")) {
         report2.add(
           "MD_LINK_OUTSIDE",
           file,
@@ -709,7 +906,7 @@ function checkLinks(doc, file, root, report2) {
   });
 }
 function checkMarkdown(doc, _text, root, report2, _options = {}) {
-  const file = relative2(root, doc.path);
+  const file = relative4(root, doc.path);
   checkLinks(doc, file, root, report2);
   doc.lines.forEach((line, i) => {
     if (!doc.inCode[i] && /\bTODO\b/.test(prose(line))) {
@@ -752,79 +949,11 @@ function paragraphAfter(doc, line) {
 
 // plugins/sidecut-agentskills/server/src/check/plugin.ts
 import { existsSync as existsSync8, readdirSync as readdirSync5, readFileSync as readFileSync8, statSync as statSync4 } from "node:fs";
-import { join as join8, relative as relative7 } from "node:path";
-
-// plugins/sidecut-agentskills/server/src/check/evals-stamp.ts
-import { createHash } from "node:crypto";
-import { existsSync as existsSync5, readdirSync as readdirSync3, readFileSync as readFileSync4, realpathSync, statSync as statSync2 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join5, relative as relative3, sep as sep2 } from "node:path";
-var STAMP_FILE = "evals-source.json";
-function treeFiles(dir) {
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  const walk = (d) => {
-    const real = realpathSync(d);
-    if (seen.has(real)) throw new Error(`${relative3(dir, d) || "."} links back into the copy.`);
-    seen.add(real);
-    for (const name of readdirSync3(d)) {
-      if (name === ".DS_Store") continue;
-      const p = join5(d, name);
-      if (statSync2(p).isDirectory()) walk(p);
-      else out.push(relative3(dir, p).split(sep2).join("/"));
-    }
-    seen.delete(real);
-  };
-  walk(dir);
-  return out.sort();
-}
-function treeHash(dir, files = treeFiles(dir)) {
-  const h = createHash("sha256");
-  for (const f of files) {
-    const body = createHash("sha256").update(readFileSync4(join5(dir, f))).digest("hex");
-    h.update(`${f}
-${body}
-`);
-  }
-  return `sha256-${h.digest("hex")}`;
-}
-function stampProblems(root) {
-  const file = join5(root, STAMP_FILE);
-  if (!existsSync5(file)) return [];
-  let copies;
-  try {
-    copies = JSON.parse(readFileSync4(file, "utf8")).copies;
-  } catch {
-    copies = void 0;
-  }
-  if (!Array.isArray(copies) || copies.length === 0)
-    return [{ file: STAMP_FILE, message: `${STAMP_FILE} has no copies list.` }];
-  const problems = [];
-  for (const copy of copies) {
-    const path = String(copy?.path ?? "");
-    const dir = join5(root, path);
-    const inside = path !== "" && !isAbsolute2(path) && !relative3(root, dir).startsWith("..");
-    let hash = null;
-    try {
-      if (inside && existsSync5(dir) && statSync2(dir).isDirectory()) hash = treeHash(dir);
-    } catch (error) {
-      problems.push({
-        file: path,
-        message: `${path} can't be hashed: ${error instanceof Error ? error.message : String(error)}`
-      });
-      continue;
-    }
-    if (hash === null || hash !== copy.hash)
-      problems.push({
-        file: path || STAMP_FILE,
-        message: `${path || "A copy"} doesn't match the hash in ${STAMP_FILE}.`
-      });
-  }
-  return problems;
-}
+import { join as join8, relative as relative8 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/check/scan-text.ts
 import { readFileSync as readFileSync5 } from "node:fs";
-import { relative as relative4 } from "node:path";
+import { relative as relative5 } from "node:path";
 var SCAN_PATTERNS = [
   {
     what: "a download-and-run install",
@@ -887,7 +1016,7 @@ function checkScanText(pluginDir, root, report2) {
     const kinds = [...new Set(hits.map((h) => h.what))].join(", ");
     report2.add(
       "SCAN_TEXT",
-      relative4(root, path),
+      relative5(root, path),
       first.line,
       `${hits.length} ${hits.length === 1 ? "line names" : "places name"} ${kinds}. Claude's plugin scan may mark a plugin Caution when its shipped text names credentials, CI secrets, self-hosted runners or download-and-run installs.`,
       `Keep that text out of shipped files, or list the file under \`scanTextAllow\` in .agentskills.json and say plainly in the README what the plugin does with it.`
@@ -900,7 +1029,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync as existsSync6, mkdtempSync, readFileSync as readFileSync6, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join as join6, relative as relative5 } from "node:path";
+import { join as join6, relative as relative6 } from "node:path";
 var ESBUILD = /"esbuild": "([^"]+)"/.exec(
   readFileSync6(join6(templatesRoot, "repo", "package.json.tmpl"), "utf8")
 )?.[1] ?? "";
@@ -951,7 +1080,7 @@ function listTools(bundle) {
 function checkServer(pluginDir, root, report2) {
   const source = join6(pluginDir, "server", "src", "index.ts");
   const bundle = join6(pluginDir, "server", "index.mjs");
-  const where = relative5(root, join6(pluginDir, "server"));
+  const where = relative6(root, join6(pluginDir, "server"));
   if (!existsSync6(source) || !existsSync6(bundle)) {
     report2.add(
       "SERVER_FILES",
@@ -966,7 +1095,7 @@ function checkServer(pluginDir, root, report2) {
     if (/process\.cwd\(\)/.test(readFileSync6(file, "utf8"))) {
       report2.add(
         "SERVER_CWD",
-        relative5(root, file),
+        relative6(root, file),
         void 0,
         "Server code uses the working directory.",
         "Resolve paths from `import.meta.url`; in Claude Code the working directory is the user project."
@@ -994,7 +1123,7 @@ function checkServer(pluginDir, root, report2) {
     try {
       const result = build({
         absWorkingDir: root,
-        entryPoints: [relative5(root, source)],
+        entryPoints: [relative6(root, source)],
         bundle: true,
         platform: "node",
         format: "esm",
@@ -1022,7 +1151,7 @@ function checkServer(pluginDir, root, report2) {
     } else if (!readFileSync6(built).equals(readFileSync6(bundle))) {
       report2.add(
         "SERVER_BUNDLE_STALE",
-        relative5(root, bundle),
+        relative6(root, bundle),
         void 0,
         "The committed bundle doesn't match the source.",
         "Run `npm run build` and commit server/index.mjs."
@@ -1043,7 +1172,7 @@ function checkServer(pluginDir, root, report2) {
       if (missing.length > 0) {
         report2.add(
           "SERVER_LICENSES",
-          relative5(root, notices),
+          relative6(root, notices),
           void 0,
           `The bundle inlines ${missing.join(", ")} without its licence notice.`,
           "Run `npm run build`, which writes server/THIRD_PARTY_LICENSES.txt."
@@ -1057,7 +1186,7 @@ function checkServer(pluginDir, root, report2) {
   if (!listing) {
     report2.add(
       "SERVER_START",
-      relative5(root, bundle),
+      relative6(root, bundle),
       void 0,
       "The server didn't answer initialize and tools/list.",
       "Run `node server/index.mjs` and fix the startup error."
@@ -1113,7 +1242,7 @@ function checkServer(pluginDir, root, report2) {
 
 // plugins/sidecut-agentskills/server/src/check/skills.ts
 import { existsSync as existsSync7, readdirSync as readdirSync4, readFileSync as readFileSync7, statSync as statSync3 } from "node:fs";
-import { join as join7, relative as relative6 } from "node:path";
+import { join as join7, relative as relative7 } from "node:path";
 var FRONTMATTER_ORDER = [
   "name",
   "description",
@@ -1305,7 +1434,7 @@ function supportFiles(dir) {
 function checkLayout(dir, root, report2) {
   for (const path of listFiles(dir)) {
     const rel = relativePosix(dir, path);
-    const file = relative6(root, path);
+    const file = relative7(root, path);
     if (rel === "SKILL.md" || rel === "agents/openai.yaml") continue;
     const [folder, name, ...rest] = rel.split("/");
     const pattern = SUPPORT_FOLDERS[folder ?? ""];
@@ -1322,7 +1451,7 @@ function checkLayout(dir, root, report2) {
   if (!existsSync7(join7(dir, "agents", "openai.yaml"))) {
     report2.add(
       "SKILL_OPENAI_YAML",
-      relative6(root, dir),
+      relative7(root, dir),
       void 0,
       "Skill has no agents/openai.yaml.",
       "Add it with display_name, short_description and default_prompt."
@@ -1350,7 +1479,7 @@ function checkOpenAiYaml(dir, info, title, brandColor, root, report2) {
   if (readFileSync7(path, "utf8") !== expected) {
     report2.add(
       "SKILL_OPENAI_YAML",
-      relative6(root, path),
+      relative7(root, path),
       1,
       "openai.yaml doesn't match the skill.",
       `Make it exactly:
@@ -1360,7 +1489,7 @@ ${expected}`
 }
 function checkSections(dir, name, root, report2, tools, skills, plugin) {
   const path = join7(dir, "SKILL.md");
-  const file = relative6(root, path);
+  const file = relative7(root, path);
   const text = readFileSync7(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2, { skipH1Case: true });
@@ -1459,7 +1588,7 @@ function checkSections(dir, name, root, report2, tools, skills, plugin) {
   }
 }
 function checkSupportDoc(path, root, report2) {
-  const file = relative6(root, path);
+  const file = relative7(root, path);
   const text = readFileSync7(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2);
@@ -1482,7 +1611,7 @@ function checkSupportDoc(path, root, report2) {
   }
 }
 function checkScript(path, root, report2) {
-  const file = relative6(root, path);
+  const file = relative7(root, path);
   const text = readFileSync7(path, "utf8");
   for (const match of text.matchAll(/(?:from|import\()\s*['"]([^'"]+)['"]/g)) {
     if (!(match[1] ?? "").startsWith("node:")) {
@@ -1518,7 +1647,7 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
   if (!existsSync7(skillsDir)) {
     report2.add(
       "PLUGIN_NO_SKILLS",
-      relative6(root, pluginDir),
+      relative7(root, pluginDir),
       void 0,
       "Plugin has no skills folder.",
       "Add at least one skill."
@@ -1536,11 +1665,11 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
   const infos = [];
   for (const name of names) {
     const dir = join7(skillsDir, name);
-    const file = relative6(root, join7(dir, "SKILL.md"));
+    const file = relative7(root, join7(dir, "SKILL.md"));
     if (!isSkillName(name, prefix)) {
       report2.add(
         "NAME_SKILL",
-        relative6(root, dir),
+        relative7(root, dir),
         void 0,
         `Skill "${name}" is not ${prefix}- then a 2 or 3 word verb-object name.`,
         `Rename it, for example \`${prefix}-write-skill\`, or \`${prefix}\` for the router.`
@@ -1570,7 +1699,7 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
   if (hasRouter !== needsRouter) {
     report2.add(
       "SKILL_ROUTER",
-      relative6(root, skillsDir),
+      relative7(root, skillsDir),
       void 0,
       needsRouter ? `Plugin has 4 or more skills but no \`${prefix}\` router.` : `Plugin has a \`${prefix}\` router but fewer than 4 other skills.`,
       needsRouter ? `Add \`skills/${prefix}\`.` : `Remove \`skills/${prefix}\`.`
@@ -1605,7 +1734,7 @@ function checkRepeatedText(skillsDir, names, root, report2) {
       }
       report2.add(
         "SKILL_REPEATED_TEXT",
-        relative6(root, path),
+        relative7(root, path),
         i + 1,
         `This line is also in \`${other}\`.`,
         "Say it once: in a file under server/data/ that both skills point to, or in the skill that owns it."
@@ -1674,7 +1803,7 @@ function readJson(path, root, report2) {
   } catch {
     report2.add(
       "JSON_INVALID",
-      relative7(root, path),
+      relative8(root, path),
       void 0,
       "File is not valid JSON.",
       "Fix the JSON."
@@ -1714,7 +1843,7 @@ function checkAntigravity(pluginDir, root, report2) {
   const sync = "Run `npm exec --no -- sidecut-sync`, which writes it from the Claude Code and Codex files.";
   for (const { path, text } of want) {
     const full = join8(pluginDir, path);
-    const file = relative7(root, full);
+    const file = relative8(root, full);
     const have = existsSync8(full) ? readFileSync8(full, "utf8") : null;
     if (text === null) {
       if (have !== null)
@@ -1753,7 +1882,7 @@ function checkLayout2(pluginDir, root, report2) {
       const hint = name === "plugin.json" ? "Codex reads .codex-plugin/plugin.json; a root plugin.json stops it loading hooks." : name === "commands" ? "Turn commands into skills." : name === "evals" ? "Move evaluation cases to the repository root, outside the installed plugin." : "Move or remove it.";
       report2.add(
         "PLUGIN_ENTRY_UNEXPECTED",
-        relative7(root, join8(pluginDir, name)),
+        relative8(root, join8(pluginDir, name)),
         void 0,
         `"${name}" isn't part of the plugin layout.`,
         hint
@@ -1763,7 +1892,7 @@ function checkLayout2(pluginDir, root, report2) {
   for (const dir of emptyDirs(pluginDir)) {
     report2.add(
       "PLUGIN_EMPTY_FOLDER",
-      relative7(root, dir),
+      relative8(root, dir),
       void 0,
       "Empty folder.",
       "Remove it."
@@ -1776,7 +1905,7 @@ function checkLayout2(pluginDir, root, report2) {
       if (name !== "icon.png")
         report2.add(
           "PLUGIN_ASSET",
-          relative7(root, join8(assets, name)),
+          relative8(root, join8(assets, name)),
           void 0,
           "Only assets/icon.png is allowed.",
           "Remove it."
@@ -1787,7 +1916,7 @@ function checkLayout2(pluginDir, root, report2) {
   if (size?.[0] !== 512 || size[1] !== 512) {
     report2.add(
       "PLUGIN_ICON",
-      relative7(root, icon),
+      relative8(root, icon),
       void 0,
       "assets/icon.png is missing or not a 512 by 512 PNG.",
       "Add a 512 by 512 PNG."
@@ -1798,13 +1927,13 @@ function checkLayout2(pluginDir, root, report2) {
       if (!/^[a-z]+\.md$/.test(name)) {
         report2.add(
           "NAME_AGENT",
-          relative7(root, join8(pluginDir, "agents", name)),
+          relative8(root, join8(pluginDir, "agents", name)),
           void 0,
           "Subagent file is not a one-word role noun.",
           "Rename it, for example `reviewer.md`."
         );
       }
-      const prefix = skillPrefixOf(relative7(join8(pluginDir, ".."), pluginDir));
+      const prefix = skillPrefixOf(relative8(join8(pluginDir, ".."), pluginDir));
       const profile = join8(
         pluginDir,
         "codex",
@@ -1814,7 +1943,7 @@ function checkLayout2(pluginDir, root, report2) {
       if (!existsSync8(profile)) {
         report2.add(
           "AGENT_CODEX_PROFILE",
-          relative7(root, profile),
+          relative8(root, profile),
           void 0,
           "The subagent has no Codex profile.",
           "Run `npm run build`, which writes codex/agents/ from agents/."
@@ -1830,7 +1959,7 @@ function checkManifests(pluginDir, id, repoName, root, report2) {
     if (!existsSync8(path))
       report2.add(
         "MANIFEST_MISSING",
-        relative7(root, path),
+        relative8(root, path),
         void 0,
         "Manifest is missing.",
         "Add it from the template."
@@ -1840,8 +1969,8 @@ function checkManifests(pluginDir, id, repoName, root, report2) {
   const claude = readJson(claudePath, root, report2);
   const portable = readJson(portablePath, root, report2);
   if (!claude || !portable) return null;
-  const claudeFile = relative7(root, claudePath);
-  const portableFile = relative7(root, portablePath);
+  const claudeFile = relative8(root, claudePath);
+  const portableFile = relative8(root, portablePath);
   checkKeys(claude, SHARED_FIELDS, claudeFile, report2, "MANIFEST_FIELDS");
   const paths = { skills: "./skills/" };
   if (existsSync8(join8(pluginDir, "mcp.json"))) paths.mcpServers = "./mcp.json";
@@ -2003,7 +2132,7 @@ function isRecord2(value) {
 function checkApps(pluginDir, id, root, report2) {
   const path = join8(pluginDir, ".app.json");
   if (!existsSync8(path)) return;
-  const file = relative7(root, path);
+  const file = relative8(root, path);
   const config = readJson(path, root, report2);
   const apps = config?.apps;
   if (!isRecord2(config) || Object.keys(config).join() !== "apps" || !isRecord2(apps) || Object.keys(apps).length === 0) {
@@ -2044,7 +2173,7 @@ function checkApps(pluginDir, id, root, report2) {
   if (!isRecord2(fallback) || fallback.type !== "http" || typeof fallback.url !== "string") {
     report2.add(
       "APP_MCP_ROUTE",
-      relative7(root, mcpPath),
+      relative8(root, mcpPath),
       void 0,
       `The app's direct fallback must be a remote HTTP server named "${key}".`,
       "Use the same declaration name for the managed app and its hosted MCP fallback; do not shadow a local server."
@@ -2060,7 +2189,7 @@ function checkMcp(pluginDir, id, root, report2) {
   if (hasClaude !== hasPortable) {
     report2.add(
       "MCP_PAIR",
-      relative7(root, pluginDir),
+      relative8(root, pluginDir),
       void 0,
       "Only one of .mcp.json and mcp.json exists.",
       "Add the other; Claude Code reads .mcp.json and Codex reads mcp.json."
@@ -2070,8 +2199,8 @@ function checkMcp(pluginDir, id, root, report2) {
   const claude = readJson(claudePath, root, report2);
   const portable = readJson(portablePath, root, report2);
   if (!claude || !portable) return null;
-  const claudeFile = relative7(root, claudePath);
-  const portableFile = relative7(root, portablePath);
+  const claudeFile = relative8(root, claudePath);
+  const portableFile = relative8(root, portablePath);
   checkKeys(claude, ["mcpServers"], claudeFile, report2, "MCP_FIELDS");
   checkKeys(portable, ["mcpServers"], portableFile, report2, "MCP_FIELDS");
   const a = claude.mcpServers ?? {};
@@ -2178,7 +2307,7 @@ function checkHooks(pluginDir, root, report2) {
   if (!existsSync8(configPath) || !readJson(configPath, root, report2)) {
     report2.add(
       "HOOKS_CONFIG",
-      relative7(root, configPath),
+      relative8(root, configPath),
       void 0,
       "hooks/ has no valid hooks.json.",
       "Add hooks.json or remove the folder."
@@ -2191,7 +2320,7 @@ function checkHooks(pluginDir, root, report2) {
     const path = join8(dir, name);
     const config = existsSync8(path) ? readJson(path, root, report2) : null;
     const scripts2 = /* @__PURE__ */ new Set();
-    if (config) checkHookConfig(config, relative7(root, path), scripts2, report2);
+    if (config) checkHookConfig(config, relative8(root, path), scripts2, report2);
     for (const script of scripts2) registered.add(script);
     byHost.set(name, scripts2);
   }
@@ -2200,7 +2329,7 @@ function checkHooks(pluginDir, root, report2) {
   if (claudeHooks !== codexHooks) {
     report2.add(
       "HOOK_PARITY",
-      relative7(root, join8(dir, "codex-hooks.json")),
+      relative8(root, join8(dir, "codex-hooks.json")),
       void 0,
       "hooks.json and codex-hooks.json don't register the same scripts.",
       "Register every hook script in both, with the event and matcher each host uses."
@@ -2212,7 +2341,7 @@ function checkHooks(pluginDir, root, report2) {
     if (!registered.has(name))
       report2.add(
         "HOOK_UNREGISTERED",
-        relative7(root, path),
+        relative8(root, path),
         void 0,
         "Hook script is not registered.",
         "Register it in hooks.json or codex-hooks.json, or delete it."
@@ -2221,7 +2350,7 @@ function checkHooks(pluginDir, root, report2) {
     if (/\bfetch\(|node:https?|node:net|node:dgram/.test(text)) {
       report2.add(
         "HOOK_NETWORK",
-        relative7(root, path),
+        relative8(root, path),
         void 0,
         "Hook uses the network.",
         "Hooks make no network calls."
@@ -2230,12 +2359,12 @@ function checkHooks(pluginDir, root, report2) {
     if (name === "post-tool-use-skill-log.mjs") {
       const canonical = renderFile(
         `plugin/hooks/${name}.tmpl`,
-        settingsVars(relative7(join8(pluginDir, ".."), pluginDir))
+        settingsVars(relative8(join8(pluginDir, ".."), pluginDir))
       );
       if (text !== canonical) {
         report2.add(
           "HOOK_SKILL_LOG",
-          relative7(root, path),
+          relative8(root, path),
           void 0,
           "The usage log hook differs from the template copy.",
           "Copy it again from the sidecut-agentskills template."
@@ -2247,7 +2376,7 @@ function checkHooks(pluginDir, root, report2) {
     if (!scripts.includes(name))
       report2.add(
         "HOOK_MISSING",
-        relative7(root, dir),
+        relative8(root, dir),
         void 0,
         `Registered hook ${name} doesn't exist.`,
         "Add the script or remove the entry."
@@ -2267,10 +2396,19 @@ function checkEvalsSource(root, report2) {
 function checkEvals(skills, root, report2) {
   const dir = join8(root, "evals");
   const cases = existsSync8(dir) ? readdirSync5(dir).filter((n) => statSync4(join8(dir, n)).isDirectory()) : [];
+  const bySpecificity = [...skills].sort((a, b) => b.length - a.length);
+  const covered = /* @__PURE__ */ new Set();
+  let hasNegative = false;
   for (const name of cases) {
-    const where = relative7(root, join8(dir, name));
-    const owner = skills.find((s) => name.startsWith(`${s}-`));
-    if (!owner && !/^negative-[a-z0-9-]+$/.test(name)) {
+    const where = relative8(root, join8(dir, name));
+    const owner = bySpecificity.find((s) => name.startsWith(`${s}-`));
+    const prompt = join8(dir, name, "prompt.md");
+    const text = existsSync8(prompt) && statSync4(prompt).isFile() ? readFileSync8(prompt, "utf8") : "";
+    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text)?.[1] ?? "";
+    if (/^negative-[a-z0-9-]+$/.test(name) && (!owner || /^tags:\s*\[negative\]/m.test(frontmatter)))
+      hasNegative = true;
+    else if (owner) covered.add(owner);
+    else {
       report2.add(
         "EVAL_NAME",
         where,
@@ -2279,8 +2417,7 @@ function checkEvals(skills, root, report2) {
         "Rename it after the skill it tests."
       );
     }
-    const prompt = join8(dir, name, "prompt.md");
-    if (!existsSync8(prompt) || !readFileSync8(prompt, "utf8").startsWith("---\n")) {
+    if (!text.startsWith("---\n")) {
       report2.add(
         "EVAL_PROMPT",
         where,
@@ -2300,20 +2437,20 @@ function checkEvals(skills, root, report2) {
       );
     }
   }
-  if (cases.length > 0 && !cases.some((c) => c.startsWith("negative-"))) {
+  if (cases.length > 0 && !hasNegative) {
     report2.add(
       "EVAL_MISSING",
-      relative7(root, dir),
+      relative8(root, dir),
       void 0,
       "There is no negative- eval case.",
-      "Add evals/negative-<what>/ for a request no skill should answer."
+      "Add evals/negative-<what>/ for a request the skill under test should leave to another route."
     );
   }
   for (const skill of skills) {
-    if (!cases.some((c) => c.startsWith(`${skill}-`))) {
+    if (!covered.has(skill)) {
       report2.add(
         "EVAL_MISSING",
-        relative7(root, dir),
+        relative8(root, dir),
         void 0,
         `Skill ${skill} has no eval case.`,
         `Add evals/${skill}-<what>/ with a trigger case.`
@@ -2326,19 +2463,19 @@ function checkReadme(pluginDir, description, skills, root, report2) {
   if (!existsSync8(path)) {
     report2.add(
       "README_MISSING",
-      relative7(root, path),
+      relative8(root, path),
       void 0,
       "Plugin has no README.md.",
       "Add it from the template."
     );
     return;
   }
-  const file = relative7(root, path);
+  const file = relative8(root, path);
   const text = readFileSync8(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2, { skipH1Case: true });
   const h1 = doc.headings.find((h) => h.level === 1);
-  const id = relative7(join8(pluginDir, ".."), pluginDir);
+  const id = relative8(join8(pluginDir, ".."), pluginDir);
   if (h1 && h1.text !== displayNameOf(id))
     report2.add(
       "README_TITLE",
@@ -2406,14 +2543,14 @@ function checkChangelog(pluginDir, version, root, report2) {
   if (!existsSync8(path)) {
     report2.add(
       "CHANGELOG_MISSING",
-      relative7(root, path),
+      relative8(root, path),
       void 0,
       "Plugin has no CHANGELOG.md.",
       "Add it."
     );
     return;
   }
-  const file = relative7(root, path);
+  const file = relative8(root, path);
   const text = readFileSync8(path, "utf8");
   const doc = parseMarkdown(path, text);
   checkMarkdown(doc, text, root, report2, { allowDates: true });
@@ -2483,7 +2620,7 @@ function checkChangelog(pluginDir, version, root, report2) {
   }
 }
 function checkPlugin(pluginDir, root, report2, repoName) {
-  const id = relative7(join8(pluginDir, ".."), pluginDir);
+  const id = relative8(join8(pluginDir, ".."), pluginDir);
   checkLayout2(pluginDir, root, report2);
   const manifest = checkManifests(pluginDir, id, repoName, root, report2);
   checkApps(pluginDir, id, root, report2);
@@ -2513,7 +2650,15 @@ function checkPlugin(pluginDir, root, report2, repoName) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/sync.ts
-import { existsSync as existsSync9, mkdirSync as mkdirSync3, readdirSync as readdirSync6, readFileSync as readFileSync9, rmSync as rmSync2, writeFileSync as writeFileSync3 } from "node:fs";
+import {
+  existsSync as existsSync9,
+  lstatSync as lstatSync2,
+  mkdirSync as mkdirSync3,
+  readdirSync as readdirSync6,
+  readFileSync as readFileSync9,
+  rmSync as rmSync2,
+  writeFileSync as writeFileSync3
+} from "node:fs";
 import { dirname as dirname4, join as join9 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
@@ -2680,9 +2825,64 @@ function planPackage(root, vars, pinOnly) {
 `
   };
 }
+function planStarterEvals(root, id, key, kept) {
+  const evals = join9(root, "evals");
+  if (existsSync9(join9(root, STAMP_FILE)) || !lstatSync2(evals, { throwIfNoEntry: false })?.isDirectory())
+    return [];
+  const title = displayNameOf(id);
+  const skill = `${key}-check-status`;
+  return [...pluginStarterEvals(id, key, title)].flatMap(([name, next]) => {
+    const dir = join9(evals, name);
+    const graders = join9(dir, "graders");
+    const positive = name === `${skill}-trigger`;
+    const grader = `graders/${positive ? "skill-fired" : "no-skill"}.md`;
+    const old = /* @__PURE__ */ new Map([
+      [
+        "prompt.md",
+        `---
+tags: [${positive ? "trigger" : "negative"}]
+runs: 1
+max_turns: 6
+allowed_tools: [Read, Glob, Grep, Skill]
+---
+${positive ? `Is ${title} working? Check its server.` : "What is a good name for a pet goldfish?"}
+`
+      ],
+      [
+        grader,
+        `---
+type: tool_used
+tool: Skill
+input_match: "${positive ? `${id}:${skill}` : id}"
+${positive ? "min: 1\narm: with-only" : "min: 0\nmax: 0\narm: both"}
+---
+`
+      ]
+    ]);
+    if (!lstatSync2(dir, { throwIfNoEntry: false })?.isDirectory() || !lstatSync2(graders, { throwIfNoEntry: false })?.isDirectory() || readdirSync6(dir).length !== 2 || readdirSync6(graders).length !== 1)
+      return [];
+    const changes = [];
+    for (const [path, previous] of old) {
+      const target = join9(dir, path);
+      if (!lstatSync2(target, { throwIfNoEntry: false })?.isFile()) return [];
+      const have = readFileSync9(target, "utf8");
+      const want = next.get(path);
+      if (!want || have !== previous && have !== want) return [];
+      const file = `evals/${name}/${path}`;
+      if (have !== want && !kept(file))
+        changes.push({
+          file,
+          what: `The starter eval ${name} has a portable fixture update.`,
+          next: want
+        });
+    }
+    return changes;
+  });
+}
 function planSync(root, vars, kept = () => false) {
   const changes = [];
-  const settings = settingsVars(vars.id, repoSettings(root));
+  const answers = repoSettings(root);
+  const settings = settingsVars(vars.id, answers);
   const render2 = (file) => renderFile(`repo/${file}.tmpl`, {
     ...settings,
     id: vars.id,
@@ -2691,6 +2891,8 @@ function planSync(root, vars, kept = () => false) {
   });
   const guide = pluginOwnedFile(vars.id);
   const beside = vars.scope === "beside";
+  if (!beside)
+    changes.push(...planStarterEvals(root, vars.id, skillPrefixOf(vars.id, answers), kept));
   const applies = (file) => !beside || file === guide && existsSync9(join9(root, file)) || file === "scripts/eval.mjs" && existsSync9(join9(root, "evals"));
   for (const file of [...OWNED_FILES, guide].filter(applies)) {
     if (kept(file)) continue;
@@ -2805,7 +3007,7 @@ function markdownUnder(root, dir) {
 
 // plugins/sidecut-agentskills/server/src/check/test-git-env.ts
 import { existsSync as existsSync10, readdirSync as readdirSync7, readFileSync as readFileSync10, statSync as statSync5 } from "node:fs";
-import { dirname as dirname5, join as join10, relative as relative8, sep as sep3 } from "node:path";
+import { dirname as dirname5, join as join10, relative as relative9, sep as sep3 } from "node:path";
 var SKIP = /* @__PURE__ */ new Set([
   "node_modules",
   ".git",
@@ -2932,7 +3134,7 @@ function setupFiles(root) {
   } catch {
   }
   return named.map(
-    (p) => relative8(root, join10(root, p.replace(/^<rootDir>\//, ""))).split(sep3).join("/")
+    (p) => relative9(root, join10(root, p.replace(/^<rootDir>\//, ""))).split(sep3).join("/")
   ).filter((p) => existsSync10(join10(root, p)) && statSync5(join10(root, p)).isFile());
 }
 function checkTestGitEnv(root, report2) {
@@ -3032,7 +3234,7 @@ function git(root, ...args) {
   return result.status === 0 ? result.stdout : void 0;
 }
 var isRealDir = (path) => {
-  const stat = lstatSync(path);
+  const stat = lstatSync3(path);
   return stat.isDirectory() && !stat.isSymbolicLink();
 };
 var HOST_FOLDERS = [".claude", ".codex"];
@@ -3381,7 +3583,7 @@ function isHostedOnly(workflow) {
 function filesUnder(root, dir, ignored) {
   const path = join11(root, dir);
   if (!existsSync11(path)) return [];
-  if (!lstatSync(path).isDirectory()) return [dir];
+  if (!lstatSync3(path).isDirectory()) return [dir];
   return readdirSync8(path).filter((name) => name !== ".DS_Store" && !ignoredBy(ignored, name)).flatMap((name) => filesUnder(root, `${dir}/${name}`, ignored));
 }
 function checkInstallSource(root, id, repo, report2) {

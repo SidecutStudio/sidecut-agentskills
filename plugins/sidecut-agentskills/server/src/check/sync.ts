@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   ANTIGRAVITY_HOOKS,
@@ -7,15 +15,18 @@ import {
   antigravityFiles,
   SKILL_LOG_HOOK,
 } from '../antigravity.ts';
+import { pluginStarterEvals } from '../eval-fixtures.ts';
 import {
   displayNameOf,
   OLD_USER_INPUT_PATH,
   renderFile,
   settingsVars,
+  skillPrefixOf,
   USER_INPUT_PATH,
   userInput,
 } from '../scaffold.ts';
 import { repoSettings } from '../settings.ts';
+import { STAMP_FILE } from './evals-stamp.ts';
 
 /** Files sidecut-agentskills owns whole in every plugin repo. */
 export const OWNED_FILES = [
@@ -256,6 +267,62 @@ function planPackage(root: string, vars: SyncVars, pinOnly: boolean): Change | n
   };
 }
 
+/** Adopt the fixture prompts only where the old two-file starter is intact. */
+function planStarterEvals(
+  root: string,
+  id: string,
+  key: string,
+  kept: (file: string) => boolean,
+): Change[] {
+  const evals = join(root, 'evals');
+  if (
+    existsSync(join(root, STAMP_FILE)) ||
+    !lstatSync(evals, { throwIfNoEntry: false })?.isDirectory()
+  )
+    return [];
+  const title = displayNameOf(id);
+  const skill = `${key}-check-status`;
+  return [...pluginStarterEvals(id, key, title)].flatMap(([name, next]) => {
+    const dir = join(evals, name);
+    const graders = join(dir, 'graders');
+    const positive = name === `${skill}-trigger`;
+    const grader = `graders/${positive ? 'skill-fired' : 'no-skill'}.md`;
+    const old = new Map([
+      [
+        'prompt.md',
+        `---\ntags: [${positive ? 'trigger' : 'negative'}]\nruns: 1\nmax_turns: 6\nallowed_tools: [Read, Glob, Grep, Skill]\n---\n${positive ? `Is ${title} working? Check its server.` : 'What is a good name for a pet goldfish?'}\n`,
+      ],
+      [
+        grader,
+        `---\ntype: tool_used\ntool: Skill\ninput_match: "${positive ? `${id}:${skill}` : id}"\n${positive ? 'min: 1\narm: with-only' : 'min: 0\nmax: 0\narm: both'}\n---\n`,
+      ],
+    ]);
+    if (
+      !lstatSync(dir, { throwIfNoEntry: false })?.isDirectory() ||
+      !lstatSync(graders, { throwIfNoEntry: false })?.isDirectory() ||
+      readdirSync(dir).length !== 2 ||
+      readdirSync(graders).length !== 1
+    )
+      return [];
+    const changes: Change[] = [];
+    for (const [path, previous] of old) {
+      const target = join(dir, path);
+      if (!lstatSync(target, { throwIfNoEntry: false })?.isFile()) return [];
+      const have = readFileSync(target, 'utf8');
+      const want = next.get(path);
+      if (!want || (have !== previous && have !== want)) return [];
+      const file = `evals/${name}/${path}`;
+      if (have !== want && !kept(file))
+        changes.push({
+          file,
+          what: `The starter eval ${name} has a portable fixture update.`,
+          next: want,
+        });
+    }
+    return changes;
+  });
+}
+
 /**
  * Everything that differs from what sidecut-agentskills owns in the repo at `root`. `kept` says
  * whether sidecut.keep covers a file, or `code` (the plugin rule that reports it), so a kept file is
@@ -267,7 +334,8 @@ export function planSync(
   kept: (file: string, code?: string) => boolean = () => false,
 ): Change[] {
   const changes: Change[] = [];
-  const settings = settingsVars(vars.id, repoSettings(root));
+  const answers = repoSettings(root);
+  const settings = settingsVars(vars.id, answers);
   const render = (file: string) =>
     renderFile(`repo/${file}.tmpl`, {
       ...settings,
@@ -277,6 +345,8 @@ export function planSync(
     });
   const guide = pluginOwnedFile(vars.id);
   const beside = vars.scope === 'beside';
+  if (!beside)
+    changes.push(...planStarterEvals(root, vars.id, skillPrefixOf(vars.id, answers), kept));
   // Beside other work, the repo's own CLAUDE.md, VOICE.md and build scripts are its to fork; only
   // the eval script, which runs the plugin's evals, and the packaged guide stay the template's.
   const applies = (file: string) =>

@@ -68,6 +68,34 @@ const pkg = (root: string, change: (v: Pkg) => void) => {
 };
 const files = (root: string) => planSync(root, vars).map((c) => c.file);
 
+const oldPrompt = 'evals/demo-check-status-trigger/prompt.md';
+const oldGrader = 'evals/demo-check-status-trigger/graders/skill-fired.md';
+
+function legacyStatusCase(root: string): void {
+  write(
+    root,
+    oldPrompt,
+    read(base, oldPrompt).replace(
+      'I just updated Sidecut Demo and its tools disappeared. Can you check whether it is connected and what version is running?',
+      'Is Sidecut Demo working? Check its server.',
+    ),
+  );
+  write(
+    root,
+    oldGrader,
+    [
+      '---',
+      'type: tool_used',
+      'tool: Skill',
+      'input_match: "sidecut-demo:demo-check-status"',
+      'min: 1',
+      'arm: with-only',
+      '---',
+      '',
+    ].join('\n'),
+  );
+}
+
 test('a freshly generated repo has nothing to sync', () => {
   expect(planSync(base, vars)).toEqual([]);
 });
@@ -232,6 +260,42 @@ test('sidecut-sync --check lists the change, refuses uncommitted work, then sync
   git(root, 'commit', '-qm', 'base');
   expect(cli(root).status).toBe(0);
   expect(read(root, 'CLAUDE.md')).toBe('@AGENTS.md\n');
+});
+
+test('checker and sync agree on the untouched starter update and protect dirty files', () => {
+  const root = copy();
+  legacyStatusCase(root);
+  const report = new Report();
+  checkRepo(root, report);
+  expect(
+    report.problems.filter(({ code }) => code === 'REPO_SYNC').map(({ file }) => file),
+  ).toEqual([oldPrompt, oldGrader]);
+  git(root, 'init', '-q');
+  expect(cli(root, '--check').stdout).toContain('Would change ' + oldPrompt);
+  expect(cli(root).stderr).toContain('uncommitted changes');
+  expect(read(root, oldPrompt)).toContain('Is Sidecut Demo working?');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-qm', 'old starter');
+  expect(cli(root).status).toBe(0);
+  expect(read(root, oldPrompt)).toBe(read(base, oldPrompt));
+  expect(read(root, oldGrader)).toBe(read(base, oldGrader));
+  expect(planSync(root, vars)).toEqual([]);
+});
+
+test('sync skips stamped, customized and kept starter cases', () => {
+  const root = copy();
+  legacyStatusCase(root);
+  const kept = (file: string) => file === oldGrader;
+  const partial = planSync(root, vars, kept);
+  expect(partial.map(({ file }) => file)).toEqual([oldPrompt]);
+  applySync(root, partial);
+  expect(planSync(root, vars, kept)).toEqual([]);
+  expect(files(root)).toEqual([oldGrader]);
+  write(root, 'evals-source.json', '{}\n');
+  expect(planSync(root, vars)).toEqual([]);
+  rmSync(join(root, 'evals-source.json'));
+  write(root, oldGrader, read(root, oldGrader).replace('min: 1', 'min: 2'));
+  expect(planSync(root, vars)).toEqual([]);
 });
 
 test('sidecut-sync refuses a folder that is not a git repo', () => {
