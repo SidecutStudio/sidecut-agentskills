@@ -92,7 +92,7 @@ export function paragraphs(doc: MarkdownDoc): { line: number; text: string[] }[]
   return blocks;
 }
 
-function checkLinks(doc: MarkdownDoc, file: string, root: string, report: Report): void {
+export function checkLinks(doc: MarkdownDoc, file: string, root: string, report: Report): void {
   doc.lines.forEach((line, i) => {
     if (doc.inCode[i]) return;
     const text = prose(line);

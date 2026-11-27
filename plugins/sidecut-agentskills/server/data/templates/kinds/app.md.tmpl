@@ -1,0 +1,40 @@
+# Working in this repo
+
+One paragraph: what the app is, who it's for and its stack.
+
+## Read this when
+
+| You're working on | Read |
+| --- | --- |
+| Code layout, where data lives | [docs/architecture.md](docs/architecture.md) |
+| Deploys, CI, merging | [docs/shipping.md](docs/shipping.md) |
+
+Check the code before trusting a doc or an old chat's findings.
+
+## Commands
+
+| Command | Use |
+| --- | --- |
+| `<install>` | Install packages |
+| `<check>` | What CI's check job runs |
+
+## Conventions
+
+- The package manager, language settings and test layout the repo has settled on.
+
+## Keep docs true
+
+A pull request that changes behaviour, UI words, settings or what's done updates the affected doc in the same pull request, in place, with no dated notes.
+Keep this file short: it loads on every task. Put detail in `docs/`.
+
+## Gotchas
+
+- Generated files, and things that surprise a new agent.
+
+## Boundaries
+
+- What needs the owner's yes, and what never happens.
+
+## Before merging
+
+- The merge gate and anything that has to happen before or after a merge.{{workflowBlock}}

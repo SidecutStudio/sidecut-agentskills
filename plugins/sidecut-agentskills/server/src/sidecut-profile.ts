@@ -11,6 +11,15 @@ export const SOLO_START = '<!-- solo-workflow:start -->';
 export const SOLO_END = '<!-- solo-workflow:end -->';
 /** The headings Solo has used for that section. */
 export const SOLO_HEADINGS = ['Sidecut Solo', 'Solo Workflow'];
+/**
+ * The section Solo's project setup writes between the markers, word for word. Solo's own
+ * agents-section reference carries the same text; change both together.
+ */
+export const SOLO_BLOCK = `${SOLO_START}
+## Sidecut Solo
+
+Follow \`solo-workflow.toml\`. Use the relevant Solo skill, or \`solo\` to route the request.
+${SOLO_END}`;
 /** The Solo skill that fills the section. */
 export const SOLO_SETUP = 'Run solo-configure-project.';
 /** Actions from Sidecut Studio's private CI repo, which a public repo can't load. */
@@ -44,3 +53,34 @@ export const SIDECUT_CI_SNIPPETS: Record<string, string> = {
   // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
   ciAppKey: '${{ secrets.SIDECUT_CI_APP_KEY }}',
 };
+
+/**
+ * Where the profile's fleet data lives: the checkout of this repo, beside the checked one, holds the
+ * repo index and the map of which repo owns each shared fact.
+ */
+export const SIDECUT_FLEET = {
+  home: 'sidecut-home',
+  data: 'plugins/sidecut-home/server/data',
+  repos: 'repos.toml',
+  owners: 'owners.toml',
+};
+
+/**
+ * Names the profile has retired, with what replaces each. History (CHANGELOG.md) and tests may keep
+ * them; runtime identifiers aren't prose, so only text people read is checked.
+ */
+export const SIDECUT_RETIRED: { re: RegExp; name: string; use: string; autofix?: boolean }[] = [
+  // Only the written name: a URL, path or package name that still carries it is an identifier.
+  {
+    re: /(?<![\w/.@-])Veyla Labs(?![\w/-])/g,
+    name: 'Veyla Labs',
+    use: 'Sidecut Studio',
+    autofix: true,
+  },
+  {
+    re: /(?<![\w/.@-])Sidecut Workflows(?![\w/-])/g,
+    name: 'Sidecut Workflows',
+    use: 'Sidecut Solo',
+  },
+  { re: /(?<![\w/.@-])Ship Properly(?![\w/-])/g, name: 'Ship Properly', use: 'Sidecut Solo' },
+];

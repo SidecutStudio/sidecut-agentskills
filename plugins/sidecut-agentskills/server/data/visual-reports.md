@@ -32,23 +32,7 @@ Read this file from the loaded plugin's `server/data/` folder. The sibling `visu
 9. Make the report useful without scripts, storage or network access. Add interaction only when it helps compare, inspect or understand the material.
 10. Render the saved file before sharing it. Check narrow, tablet and desktop layouts, both themes, keyboard focus, zoom and print output.
 11. Check every interaction, source link and image. Reload the file to check that required content survives; avoid relying on browser storage.
-12. Show the report where the user already is, with a short chat answer. In Claude Code, publish it with the Artifact tool or open it in the desktop app's built-in browser; in Codex, open it in the in-app browser. Keep private data, such as usage, in the local browser view unless the user asks to share it. Never hand over a file the user has to download and open. With no view at all, give the path and name that gap.
-
-## Apply it to agent tooling
-
-| Work | Useful visual |
-| --- | --- |
-| Plugin or tool approaches | Source-linked options matrix and a labeled architecture diagram |
-| Workflow design | Event, decision and action flow, with roles, permission boundaries and failure paths |
-| Plugin review | Prioritized findings with file locations and observed examples; screenshots when reviewing rendered views |
-| Plugin rebuild | Before-and-after parity matrix for skills, tools, hard rules, hooks and checks |
-| Skill evaluation | Expected versus observed behavior, case groups and measured outcomes with sample counts |
-| MCP view design | Matched proposed layouts or captured views, with a readable text fallback |
-| Research | Source-linked comparisons, relevant diagrams and practical implications |
-
-Keep the owning skill's review groups, severity, parity checks and verification requirements. Distinguish proposed behavior from observed results.
-
-A saved HTML report isn't an MCP App. Building a live chat view needs the view procedure in `agentskills-build-mcp-server` and separate host verification.
+12. Show the report where the user already is, with a short chat answer. In Claude Code, publish it with the Artifact tool or open it in the desktop app's built-in browser; in Codex, open it in the in-app browser; in Gemini/Antigravity, save it in the artifact directory and share its clickable file link or open it in a browser view. Keep private data, such as usage, in the local browser view unless the user asks to share it. Never hand over a file the user has to download and open. With no view at all, give the path and name that gap.
 
 ## Match the material
 
@@ -88,8 +72,6 @@ Support device theme preference and reduced motion. Give images useful alternati
 For print, keep required content visible, including disclosure contents. Ensure long labels wrap and only wide tables scroll horizontally.
 
 ## Use the shared voice
-
-Use the packaged [VOICE.md](templates/repo/VOICE.md.tmpl). Follow the house style's Wording rules for agent instructions.
 
 Lead with what someone can decide or do. Be direct, human and quietly confident. Let specific work earn the conclusion.
 

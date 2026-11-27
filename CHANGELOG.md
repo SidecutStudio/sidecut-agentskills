@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.16.0] - 2026-11-27
+
+### Added
+
+- `sidecut-check` checks a whole repo of any kind: `plugin`, `app`, `marketplace`, `ops`, `site` or `data`, declared as `sidecut.kind` in `package.json`, read from the profile's repo index or guessed from the files. Each kind other than a plugin repo keeps the AGENTS.md sections of its template in `templates/kinds/`; an app's starts with a "Read this when" map. AGENTS.md carries the current Solo block and CLAUDE.md imports AGENTS.md.
+- Rules over every repo's text: internal links, retired names (CHANGELOG and tests may keep them), dated "as of" notes, pointer-only files, identical copies that nothing keeps the same, an AGENTS.md past 200 lines or 32 KiB, the owner described in public copy, and facts `owners.toml` gives to another repo (runner labels, plugin and CI action versions, the merge gate) written out in docs.
+- Advisories for another repo's reserved port written out, Markdown nothing links to, docs over 500 lines, reference files under 30 lines that one skill reads, and stock phrases and hedges. In GitHub Actions the checker prints problems as errors and advisories as warnings on changed lines only, with one notice per kind.
+- `sidecut-check --fast` runs the quick text and shape rules for a pre-push guard (`templates/kinds/lefthook.yml.tmpl`), and `--links` checks external links, for a scheduled job.
+- `sidecut-sync --fix` writes the current Solo block, adds CLAUDE.md's `@AGENTS.md` import and replaces the retired studio name, in a repo of any kind.
+
+### Changed
+
+- A repo that ships a plugin beside other work, or holds several plugins, gets the plugin checks and its kind's checks, instead of the plugin checks only. With no `sidecut.kind` and no repo index the kind is guessed, usually app or marketplace, so such a repo now needs its kind's AGENTS.md sections and CLAUDE.md import: declare `sidecut.kind`, or list a deliberate difference under `sidecut.keep`.
+- `sidecut-sync` keeps `server/data/visual-reports.md` and `visual-report.css` identical in every plugin that carries them. The guide's agent-tooling table moved into the house style's Visual reports section, and the guide now covers Gemini/Antigravity.
+
 ## [2.15.0] - 2026-11-27
 
 ### Added

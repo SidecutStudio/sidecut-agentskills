@@ -37,7 +37,7 @@ A repo exists to ship one plugin when it holds one plugin whose manifest `reposi
 
 A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `sidecut.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
 
-A repo that ships a plugin next to other work, such as an app or a tools repo, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down, whatever its package is called. It can still list deliberate differences under `sidecut.keep`.
+A repo that ships a plugin next to other work, such as an app or a tools repo, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down, whatever its package is called. The rest of it is checked as its kind, under Repo kinds. It can still list deliberate differences under `sidecut.keep`.
 
 ```text
 .github/workflows/check.yml
@@ -71,6 +71,43 @@ tsconfig.json
 | `package.json` | `name` is the plugin id, `version` matches the manifests, `packageManager` is a pinned `npm@x.y.z`, every dependency is an exact version or a tagged GitHub source | yes |
 | Code formatting | Biome with the template's `biome.json`: 2-space indent, single quotes, 100-character lines; it also formats every JSON file | yes |
 | Unexpected top-level files | Fail the check | yes |
+
+## Repo kinds
+
+`sidecut-check` checks a whole repo of any kind: `plugin`, `app`, `marketplace`, `ops`, `site` or `data`. A repo declares its kind as `"sidecut": { "kind": "app" }` in `package.json`. Without one, the checker takes it from the profile's repo index when that is on disk, and otherwise guesses: a repo that exists to ship one plugin is a plugin repo, one with `bundled/` or a multi-plugin marketplace is a marketplace, one with `.github/actions/` is ops, one with no `package.json` is data, one built with a site generator is a site, and anything else is an app. The first line of its output says which kind it used and how it knew.
+
+A plugin repo follows the rest of this house style. Every other kind keeps the H2 sections of its template in `templates/kinds/<kind>.md.tmpl`, in that order, and may add its own between them. An app's AGENTS.md starts with `## Read this when`, a table from what someone is working on to the doc to read, so it is the map of the repo. `templates/kinds/lefthook.yml.tmpl` is the pre-push guard such a repo adds: `sidecut-check --fast`, the quick exact rules.
+
+| Item | Rule | Checked |
+| --- | --- | --- |
+| Kind | `sidecut.kind`, when set, is one of the six kinds | yes |
+| AGENTS.md | Every kind but data has one; data has a README.md | yes |
+| Sections | The kind template's H2 sections, in order, with the repo's own between them | yes |
+| Workflow block | With a workflow profile, AGENTS.md carries the workflow's block word for word; `sidecut-sync --fix` writes it | yes |
+| CLAUDE.md | Imports AGENTS.md with an `@AGENTS.md` line, so the two never drift; `sidecut-sync --fix` adds it | yes |
+
+## Whole-repo text
+
+These rules read every file in the repo that git tracks, in every kind. CHANGELOG history and tests keep old names, dates and facts as they were. Skills a skills manager installs into a host folder (`.claude/skills/`, `.agents/skills/` and the like) and an app builder's own folders are checked where they come from.
+
+Exact rules block a merge. Heuristic rules can't tell intent, so they are advisories: the output names each kind once with where it shows up, and in GitHub Actions they appear as annotations on the lines a pull request changed. An advisory becomes blocking in a later checker version once a sweep of every repo shows none left.
+
+| Item | Rule | Checked |
+| --- | --- | --- |
+| Internal links | Every relative link in Markdown outside history and tests resolves inside the repo | yes |
+| External links | Answer, checked with `sidecut-check --links` on a schedule, since the result depends on other sites | scheduled |
+| Copies | The same Markdown in two places either has one copy generated (listed under `protected_paths` in the workflow settings) or becomes a link | yes |
+| Owned facts | A fact the profile's ownership map gives to one file (runner labels, plugin and CI action versions, the repo's merge gate) isn't written out elsewhere; point to the owning file. A repo may say its own version | yes |
+| Reserved ports | Another repo's reserved port written out is an advisory (`OWNED_PORT`), since reservations share numbers with framework defaults; a repo may say its own | advisory |
+| Retired names | None of the profile's retired names written as names in text people read; a URL, path or package name that still carries one is an identifier and stays. `sidecut-sync --fix` replaces a retired studio name | yes |
+| Dated notes | No "as of", "read on" or "last checked" note with a date; say what is true and link the source | yes |
+| Pointer-only files | No Markdown file that only sends the reader to another | yes |
+| AGENTS.md budget | 200 lines and 32 KiB at most: it loads on every task, and Codex stops reading at 32 KiB | yes |
+| Unlinked Markdown | Every Markdown file is linked or named somewhere, unless a host loads it by name | advisory |
+| Long docs | A doc over 500 lines is split by what readers come for | advisory |
+| Small references | A reference file under 30 lines that only one skill reads goes into that SKILL.md | advisory |
+| Stock phrases and hedges | Say the specific thing instead ("seamless", "robust", "it's worth noting") | advisory |
+| The owner in public copy | READMEs and a site's pages never describe the person behind the work, such as "built by a solo maker"; describing who it's for is fine | yes |
 
 ## Install source
 
@@ -349,9 +386,25 @@ Use [VOICE.md](templates/repo/VOICE.md.tmpl) as editorial guidance. It is not a 
 | New pages and identities | Show two or three rendered directions with the real words, after researching real examples, before building one; copy alone in chat is never the draft | review |
 | Markdown scope | The Markdown rules apply to instruction and documentation files; generated HTML reports and their packaged HTML/CSS assets use their own formats | review |
 
+For agent tooling, these visuals fit:
+
+| Work | Useful visual |
+| --- | --- |
+| Plugin or tool approaches | Source-linked options matrix and a labeled architecture diagram |
+| Workflow design | Event, decision and action flow, with roles, permission boundaries and failure paths |
+| Plugin review | Prioritized findings with file locations and observed examples; screenshots when reviewing rendered views |
+| Plugin rebuild | Before-and-after parity matrix for skills, tools, hard rules, hooks and checks |
+| Skill evaluation | Expected versus observed behavior, case groups and measured outcomes with sample counts |
+| MCP view design | Matched proposed layouts or captured views, with a readable text fallback |
+| Research | Source-linked comparisons, relevant diagrams and practical implications |
+
+Keep the owning skill's review groups, severity, parity checks and verification requirements. Distinguish proposed behavior from observed results.
+
+A saved HTML report isn't an MCP App. Building a live chat view needs the view procedure in `agentskills-build-mcp-server` and separate host verification.
+
 ## Markdown
 
-Use standard Markdown with readable headings and code fences. The checker fails unresolved local links, links outside the repository, and unfinished template instructions. It does not enforce sentence length, punctuation, paragraph shape, or a word blacklist.
+Use standard Markdown with readable headings and code fences. The checker fails unresolved local links, links outside the repository, and unfinished template instructions. It does not enforce sentence length, punctuation or paragraph shape; Whole-repo text says which words and notes it flags.
 
 ## README
 
@@ -393,6 +446,7 @@ sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecu
 | Starter status evals | Sync refreshes an exact copy of an older starter in a dedicated plugin repo | Edited, missing and stamped cases |
 | `.gitignore`, `AGENTS.md`, `SECURITY.md` | The block between `sidecut:start house-style` and `sidecut:end house-style` | Everything outside it |
 | `package.json` | `packageManager` and the versions of Biome, TypeScript, Lefthook, `@types/node` and `sidecut-agentskills`, which sync only ever raises | Everything else |
+| `server/data/visual-reports.md` and `visual-report.css` in a plugin that carries them | The whole file, so every plugin that makes reports reads the same guide | Nothing; the report page itself (`visual-report.html`) carries the plugin's own name |
 | `hooks/post-tool-use-skill-log.mjs`, `.antigravity-plugin/plugin.json`, `mcp_config.json`, `hooks.json` in the plugin | The whole file: the hook is the template's copy, and Antigravity's files are written from the Claude Code and Codex ones. They're reported under their own rules (`HOOK_SKILL_LOG`, `ANTIGRAVITY_*`), and a keep under that rule or the file's path stops sync rewriting them | Nothing |
 
 | Item | Rule | Checked |
@@ -418,7 +472,8 @@ Sections in this order: `# <Repo name>`, one paragraph, `## Commands` (a table w
 | `npm run check` | Runs `biome check .`, `tsc --noEmit`, `npm run style`, `npm test` and `node scripts/build-server.ts --check` in that order, with the repo's own steps anywhere between; the last fails when the bundle or its licence notices are stale | yes |
 | `npm run style` | `sidecut-check`, from the `sidecut-agentskills` dev dependency pinned to a tag; it includes the bundle drift check | yes |
 | Installed checker | The sidecut-agentskills in `node_modules` is the version `package.json` pins; run `npm install` when it isn't | yes |
-| Checker output | What it checked, then what is kept on purpose, then one line per problem: code, file and line, plain message, how to fix; `--json` for tools | yes |
+| Checker output | What it checked and which kind it took the repo for, what it couldn't check here, one line per advisory kind, what is kept on purpose, then one line per problem: code, file and line, plain message, how to fix; `--json` for tools, `--fast` for the pre-push guard, `--links` for external links | yes |
+| Annotations | In GitHub Actions the checker prints problems as errors, advisories as warnings on changed lines only, and one notice per advisory kind | yes |
 | Network | Checks pass offline | review |
 | Tests | Usage log forced off by a preload file; fetch stubbed | review |
 | Git in tests | A test that runs git drops every `GIT_*` variable first, in the preload file or in its own code: a git hook exports `GIT_DIR` and friends, so the test's git would otherwise act on the checkout running the hook. The template's `tests/setup.ts` carries the `git-env` block that does it | yes |

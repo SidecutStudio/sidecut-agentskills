@@ -1,30 +1,952 @@
 #!/usr/bin/env node
 
 // scripts/check.ts
-import { resolve } from "node:path";
+import { spawnSync as spawnSync5 } from "node:child_process";
+import { resolve as resolve2 } from "node:path";
 import { parseArgs } from "node:util";
 
-// plugins/sidecut-agentskills/server/src/check/repo.ts
+// plugins/sidecut-agentskills/server/src/check/docs.ts
+import { existsSync as existsSync4, lstatSync, readdirSync as readdirSync2, readFileSync as readFileSync3, statSync } from "node:fs";
+import { basename as basename2, join as join4 } from "node:path";
+
+// plugins/sidecut-agentskills/server/src/settings.ts
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join } from "node:path";
+
+// plugins/sidecut-agentskills/server/src/sidecut-profile.ts
+var SOLO_FILE = "solo-workflow.toml";
+var SOLO_LOCAL_FILE = "solo-workflow.local.toml";
+var SOLO_START = "<!-- solo-workflow:start -->";
+var SOLO_END = "<!-- solo-workflow:end -->";
+var SOLO_HEADINGS = ["Sidecut Solo", "Solo Workflow"];
+var SOLO_BLOCK = `${SOLO_START}
+## Sidecut Solo
+
+Follow \`solo-workflow.toml\`. Use the relevant Solo skill, or \`solo\` to route the request.
+${SOLO_END}`;
+var SOLO_SETUP = "Run solo-configure-project.";
+var PRIVATE_ACTIONS = /SidecutStudio\/sidecut-ops\/\.github\/actions\//;
+var CI_LAYOUT = "CI, using sidecut-ops' runner picker";
+var SIDECUT_SETTINGS = {
+  org: "SidecutStudio",
+  authorName: "Sidecut Studio",
+  authorUrl: "https://sidecut.dev",
+  homepage: "https://sidecut.dev",
+  prefix: "sidecut-",
+  marketplace: "SidecutStudio/sidecut-plugins",
+  ci: "sidecut",
+  license: "MIT",
+  brandColor: "#FF6B00",
+  brand: "Sidecut",
+  workflow: "solo"
+};
+var SIDECUT_OWNER = SIDECUT_SETTINGS.org;
+var SIDECUT_CI_SNIPPETS = {
+  ciLightRunner: `'{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}'`,
+  ciReleaseLabels: "[self-hosted, Linux, X64, sidecut-ci]",
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
+  ciAppKey: "${{ secrets.SIDECUT_CI_APP_KEY }}"
+};
+var SIDECUT_FLEET = {
+  home: "sidecut-home",
+  data: "plugins/sidecut-home/server/data",
+  repos: "repos.toml",
+  owners: "owners.toml"
+};
+var SIDECUT_RETIRED = [
+  // Only the written name: a URL, path or package name that still carries it is an identifier.
+  {
+    re: /(?<![\w/.@-])Veyla Labs(?![\w/-])/g,
+    name: "Veyla Labs",
+    use: "Sidecut Studio",
+    autofix: true
+  },
+  {
+    re: /(?<![\w/.@-])Sidecut Workflows(?![\w/-])/g,
+    name: "Sidecut Workflows",
+    use: "Sidecut Solo"
+  },
+  { re: /(?<![\w/.@-])Ship Properly(?![\w/-])/g, name: "Ship Properly", use: "Sidecut Solo" }
+];
+
+// plugins/sidecut-agentskills/server/src/settings.ts
+var DEFAULTS = {
+  profile: "",
+  org: "",
+  authorName: "",
+  authorUrl: "",
+  homepage: "",
+  prefix: "",
+  marketplace: "",
+  ci: "hosted",
+  license: "MIT",
+  brandColor: "#3B82F6",
+  brand: "",
+  workflow: ""
+};
+var PROFILES = {
+  sidecut: SIDECUT_SETTINGS
+};
+var REPO_FILE = ".agentskills.json";
+var KEYS = Object.keys(DEFAULTS);
+function cleanSettings(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return {};
+  const out = {};
+  for (const key of KEYS) {
+    const v = value[key];
+    if (typeof v === "string") out[key] = v;
+  }
+  return out;
+}
+function readInput(path) {
+  if (!existsSync(path)) return null;
+  try {
+    return cleanSettings(JSON.parse(readFileSync(path, "utf8")));
+  } catch {
+    throw new Error(`${path} isn't valid JSON.`);
+  }
+}
+function mergeSettings(...layers) {
+  let out = { ...DEFAULTS };
+  for (const layer of layers) {
+    if (!layer) continue;
+    if (layer.profile) {
+      const profile = PROFILES[layer.profile];
+      if (!profile)
+        throw new Error(
+          `Unknown profile "${layer.profile}". Known: ${Object.keys(PROFILES).join(", ")}.`
+        );
+      out = { ...out, ...profile, profile: layer.profile };
+    }
+    for (const key of KEYS) {
+      const v = layer[key];
+      if (key !== "profile" && v !== void 0) out[key] = v;
+    }
+  }
+  if (out.ci !== "hosted" && out.ci !== "sidecut")
+    throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (out.workflow !== "" && out.workflow !== "solo")
+    throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
+  if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
+    throw new Error(
+      `Marketplace "${out.marketplace}" must be owner/repo, or empty for the plugin's own repo.`
+    );
+  if (out.prefix && !/^[a-z0-9]+(-[a-z0-9]+)*-$/.test(out.prefix))
+    throw new Error(
+      `Prefix "${out.prefix}" must be lowercase kebab-case ending in a hyphen, such as acme-.`
+    );
+  return out;
+}
+function readRepoSettings(root2) {
+  return readInput(join(root2, REPO_FILE));
+}
+function readScanTextAllow(root2) {
+  const path = join(root2, REPO_FILE);
+  if (!existsSync(path)) return [];
+  try {
+    const value = JSON.parse(readFileSync(path, "utf8")).scanTextAllow;
+    return Array.isArray(value) ? value.filter((g) => typeof g === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function inferRepoSettings(root2) {
+  const plugins = join(root2, "plugins");
+  const ids = existsSync(plugins) ? readdirSync(plugins).filter((n) => n !== ".DS_Store") : [];
+  for (const id of ids) {
+    try {
+      const manifest = JSON.parse(
+        readFileSync(join(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
+      );
+      const owner2 = /^https:\/\/github\.com\/([\w.-]+)\//.exec(
+        String(manifest.repository ?? "")
+      )?.[1];
+      if (!owner2) continue;
+      if (owner2 === SIDECUT_OWNER) return { profile: "sidecut" };
+      const check = join(root2, ".github", "workflows", "check.yml");
+      const picker = existsSync(check) && readFileSync(check, "utf8").includes("/pick-runner@");
+      return cleanSettings({
+        org: owner2,
+        authorName: manifest.author?.name,
+        authorUrl: manifest.author?.url,
+        homepage: manifest.homepage,
+        ci: picker ? "sidecut" : "hosted"
+      });
+    } catch {
+    }
+  }
+  const remote = spawnSync("git", ["remote", "get-url", "origin"], {
+    cwd: root2,
+    encoding: "utf8",
+    env: Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")))
+  });
+  const owner = /github\.com[/:]([\w.-]+)\//.exec(remote.stdout ?? "")?.[1];
+  if (remote.status === 0 && owner === SIDECUT_OWNER) return { profile: "sidecut" };
+  return {};
+}
+function repoSettings(root2) {
+  return mergeSettings(readRepoSettings(root2) ?? inferRepoSettings(root2));
+}
+var active = mergeSettings();
+function current() {
+  return active;
+}
+function useSettings(settings) {
+  active = settings;
+  return settings;
+}
+var QUESTIONS = [
+  {
+    key: "profile",
+    ask: `Start from a saved profile? Answer "sidecut" for Sidecut Studio's values, or leave it empty and answer the rest.`,
+    default: ""
+  },
+  { key: "org", ask: "Which GitHub user or organization will hold the repo?", default: "" },
+  { key: "authorName", ask: "Whose name goes in the manifests and the licence?", default: "" },
+  { key: "authorUrl", ask: "The author's web address, if any?", default: "" },
+  { key: "homepage", ask: "The plugin's homepage, if any?", default: "" },
+  {
+    key: "prefix",
+    ask: 'A prefix for every plugin id, such as "acme-", or none?',
+    default: DEFAULTS.prefix
+  },
+  {
+    key: "marketplace",
+    ask: "Which marketplace lists the plugin: its own repo (leave empty), or another repo as owner/repo?",
+    default: DEFAULTS.marketplace
+  },
+  {
+    key: "ci",
+    ask: `Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04), or "sidecut" for the sidecut profile's own runners?`,
+    default: DEFAULTS.ci
+  }
+];
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function brandSpace(s = active) {
+  return s.brand ? `${s.brand} ` : "";
+}
+function marketplaceName(id, s = active) {
+  return s.marketplace ? s.marketplace.split("/")[1] ?? s.marketplace : id;
+}
+
+// plugins/sidecut-agentskills/server/src/check/fleet.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
-import { existsSync as existsSync11, lstatSync as lstatSync3, readdirSync as readdirSync8, readFileSync as readFileSync11, realpathSync as realpathSync2 } from "node:fs";
-import { join as join11 } from "node:path";
+import { existsSync as existsSync2, readFileSync as readFileSync2, realpathSync } from "node:fs";
+import { basename, dirname as dirname2, isAbsolute as isAbsolute2, join as join2, resolve } from "node:path";
+function git(root2, ...args) {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_"))
+  );
+  const result = spawnSync2("git", args, { cwd: root2, env, encoding: "utf8" });
+  return result.status === 0 ? result.stdout : void 0;
+}
+function trackedFiles(root2) {
+  const out = git(root2, "ls-files", "-z", "--cached", "--others", "--exclude-standard");
+  if (out === void 0) return null;
+  return out.split("\0").filter(Boolean).filter((file) => existsSync2(join2(root2, file)));
+}
+function repoName(root2) {
+  const url = git(root2, "remote", "get-url", "origin")?.trim() ?? "";
+  const fromUrl = /[/:]([\w.-]+?)(?:\.git)?$/.exec(url)?.[1];
+  return fromUrl ?? basename(root2);
+}
+function repoFolders(root2) {
+  const found = /* @__PURE__ */ new Set();
+  if (process.env.SIDECUT_REPOS) found.add(resolve(process.env.SIDECUT_REPOS));
+  found.add(dirname2(resolve(root2)));
+  const common = git(root2, "rev-parse", "--git-common-dir")?.trim();
+  if (common) {
+    const dir = isAbsolute2(common) ? common : join2(root2, common);
+    if (existsSync2(dir)) found.add(dirname2(dirname2(realpathSync(dir))));
+  }
+  return [...found];
+}
+function siblingCheckout(root2, name) {
+  if (repoName(root2) === name) return root2;
+  for (const folder of repoFolders(root2)) {
+    const path = join2(folder, name);
+    if (existsSync2(join2(path, ".git"))) return path;
+  }
+  return null;
+}
+function withoutComment(line) {
+  let quote = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === "#") return line.slice(0, i);
+  }
+  return line;
+}
+function readToml(text) {
+  const tables = { "": {} };
+  let at = "";
+  const lines = text.split("\n").map((raw) => withoutComment(raw).trim());
+  for (let n = 0; n < lines.length; n++) {
+    let line = lines[n] ?? "";
+    if (/=\s*\[/.test(line) && !line.includes("]"))
+      while (n + 1 < lines.length && !line.includes("]")) line += ` ${lines[++n] ?? ""}`;
+    if (!line) continue;
+    const header = /^\[\[?([^\]]+)\]\]?$/.exec(line);
+    if (header) {
+      at = (header[1] ?? "").trim();
+      tables[at] ??= {};
+      continue;
+    }
+    const pair = /^([\w.-]+)\s*=\s*(.+)$/.exec(line);
+    if (!pair) continue;
+    const value = (pair[2] ?? "").trim();
+    const table = tables[at] ?? {};
+    tables[at] = table;
+    if (value.startsWith("["))
+      table[pair[1] ?? ""] = [...value.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1] ?? "");
+    else if (value.startsWith('"')) table[pair[1] ?? ""] = value.slice(1, value.lastIndexOf('"'));
+    else if (value === "true" || value === "false") table[pair[1] ?? ""] = value === "true";
+    else if (/^-?\d+(\.\d+)?$/.test(value)) table[pair[1] ?? ""] = Number(value);
+  }
+  return tables;
+}
+function readFleet(root2) {
+  if (current().workflow !== "solo") return null;
+  const home = process.env.SIDECUT_HOME ? resolve(process.env.SIDECUT_HOME) : siblingCheckout(root2, SIDECUT_FLEET.home);
+  if (!home) return null;
+  const file = (name) => {
+    const path = join2(home, SIDECUT_FLEET.data, name);
+    return existsSync2(path) ? readFileSync2(path, "utf8") : null;
+  };
+  const repos = file(SIDECUT_FLEET.repos);
+  const owners = file(SIDECUT_FLEET.owners);
+  if (repos === null || owners === null) return null;
+  const kinds = /* @__PURE__ */ new Map();
+  for (const [table, values2] of Object.entries(readToml(repos))) {
+    const name = /^repos\.(.+)$/.exec(table)?.[1];
+    if (name && typeof values2.kind === "string") kinds.set(name, values2.kind);
+  }
+  const owned = /* @__PURE__ */ new Map();
+  for (const [table, values2] of Object.entries(readToml(owners))) {
+    const id = /^facts\.(.+)$/.exec(table)?.[1];
+    if (id && typeof values2.repo === "string" && typeof values2.path === "string")
+      owned.set(id, { repo: values2.repo, path: values2.path, says: String(values2.says ?? "") });
+  }
+  return {
+    kinds,
+    owners: owned,
+    read: (repo, path) => {
+      const checkout = siblingCheckout(root2, repo);
+      const full = checkout && join2(checkout, path);
+      return full && existsSync2(full) ? readFileSync2(full, "utf8") : null;
+    }
+  };
+}
+
+// plugins/sidecut-agentskills/server/src/check/markdown.ts
+import { existsSync as existsSync3 } from "node:fs";
+import { dirname as dirname3, join as join3, relative } from "node:path";
+var ALLOWED_HTML = /^<!-- sidecut:(start|end)( [\w-]+)? -->$/;
+var allowedHtml = (line) => ALLOWED_HTML.test(line) || line === SOLO_START || line === SOLO_END;
+function parseMarkdown(path, text) {
+  const lines = text.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  const inCode = lines.map(() => false);
+  let frontmatter = null;
+  let start = 0;
+  if (lines[0] === "---") {
+    const end = lines.indexOf("---", 1);
+    if (end > 0) {
+      frontmatter = lines.slice(1, end);
+      for (let i = 0; i <= end; i++) inCode[i] = true;
+      start = end + 1;
+    }
+  }
+  const headings = [];
+  let fence = false;
+  let solo = false;
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (line === SOLO_START) solo = true;
+    if (solo) {
+      inCode[i] = true;
+      if (line === SOLO_END) solo = false;
+      continue;
+    }
+    if (!fence && /^<!-- sidecut:(start|end) [\w-]+ -->$/.test(line)) {
+      inCode[i] = true;
+      continue;
+    }
+    if (/^\s*```/.test(line)) {
+      inCode[i] = true;
+      fence = !fence;
+      continue;
+    }
+    if (fence) {
+      inCode[i] = true;
+      continue;
+    }
+    const match = /^(#{1,6}) (.*)$/.exec(line);
+    if (match) headings.push({ level: match[1]?.length ?? 0, text: match[2] ?? "", line: i + 1 });
+  }
+  return { path, lines, frontmatter, headings, inCode };
+}
+function prose(line) {
+  return line.replace(/`[^`]*`/g, "``");
+}
+function isStructural(line) {
+  return /^\s*$|^#{1,6} |^\s*(- |\d+\. )|^\|/.test(line) || allowedHtml(line);
+}
+function checkLinks(doc, file, root2, report2) {
+  doc.lines.forEach((line, i) => {
+    if (doc.inCode[i]) return;
+    const text = prose(line);
+    for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const target = match[1] ?? "";
+      if (/^[a-z]+:/.test(target) || target.startsWith("#")) continue;
+      const path = join3(dirname3(doc.path), target.split("#")[0] ?? "");
+      if (!existsSync3(path)) {
+        report2.add(
+          "MD_LINK_TARGET",
+          file,
+          i + 1,
+          `Link target "${target}" doesn't exist.`,
+          "Point the link at a real file."
+        );
+      }
+      if (relative(root2, path).startsWith("..")) {
+        report2.add(
+          "MD_LINK_OUTSIDE",
+          file,
+          i + 1,
+          `Link "${target}" leaves the repo.`,
+          "Link to a file inside the repo."
+        );
+      }
+    }
+  });
+}
+function checkMarkdown(doc, _text, root2, report2, _options = {}) {
+  const file = relative(root2, doc.path);
+  checkLinks(doc, file, root2, report2);
+  doc.lines.forEach((line, i) => {
+    if (!doc.inCode[i] && /\bTODO\b/.test(prose(line))) {
+      report2.add(
+        "WORD_TODO",
+        file,
+        i + 1,
+        "Unfinished template text.",
+        "Complete the instruction or remove it."
+      );
+    }
+  });
+}
+function sections(doc) {
+  return doc.headings.filter((h) => h.level === 2);
+}
+function tableAfter(doc, heading) {
+  const rows = [];
+  for (let i = heading.line; i < doc.lines.length; i++) {
+    const line = doc.lines[i] ?? "";
+    if (/^#{1,6} /.test(line)) break;
+    if (!line.startsWith("|")) {
+      if (rows.length > 0) break;
+      continue;
+    }
+    const cells = line.slice(1, -1).split("|").map((c) => c.trim());
+    if (!cells.every((c) => /^-+$/.test(c))) rows.push(cells);
+  }
+  return rows;
+}
+function paragraphAfter(doc, line) {
+  for (let i = line; i < doc.lines.length; i++) {
+    const text = doc.lines[i] ?? "";
+    if (text.trim() === "") continue;
+    if (doc.inCode[i] || isStructural(text)) return null;
+    return { line: i + 1, text };
+  }
+  return null;
+}
+
+// plugins/sidecut-agentskills/server/src/check/docs.ts
+var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", ".next", ".output", ".vercel"]);
+var TEXT = /\.(md|mdx|markdown|txt|html?|astro|ts|tsx|js|mjs|cjs|jsx|json|toml|ya?ml|css|sh)$/i;
+var MARKDOWN = /\.(md|mdx|markdown)$/i;
+var PROSE = /\.(md|mdx|markdown|txt|html?|astro)$/i;
+function repoFiles(root2) {
+  const tracked = trackedFiles(root2);
+  if (tracked) return tracked.filter((file) => lstatSync(join4(root2, file)).isFile());
+  const walk = (dir) => readdirSync2(join4(root2, dir), { withFileTypes: true }).flatMap((entry) => {
+    const path = dir ? `${dir}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) return SKIP_DIRS.has(entry.name) ? [] : walk(path);
+    return entry.isFile() ? [path] : [];
+  });
+  return walk("");
+}
+function isVendored(file) {
+  return /^(\.agents|\.claude|\.codex|\.cursor|\.gemini)\/skills\//.test(file) || file.startsWith(".lovable/") || // A marketplace's bundled copies of other repos' plugins.
+  file.startsWith("bundled/");
+}
+function isHistoryOrTest(file) {
+  return /(^|\/)CHANGELOG[^/]*$/i.test(file) || /(^|\/)(tests?|__tests__|e2e|fixtures|examples?)\//.test(file) || /(^|\/)(archive|records|[\w-]*history)\//i.test(file) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(file);
+}
+function isPublicCopy(file, kind) {
+  if (/(^|\/)README[^/]*\.mdx?$/i.test(file)) return true;
+  return kind === "site" && /^(src|content|public|pages)\//.test(file) && PROSE.test(file);
+}
+function read(root2, file) {
+  try {
+    if (statSync(join4(root2, file)).size > 2e6) return null;
+    return readFileSync3(join4(root2, file), "utf8");
+  } catch {
+    return null;
+  }
+}
+var MONTH = "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?";
+var DATED = new RegExp(
+  `\\b(?:(?:accurate )?as of|read on|checked on|verified on|last (?:checked|verified|updated|reviewed|read)(?: on)?)\\s+(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2} ${MONTH} \\d{4}|${MONTH} (?:\\d{1,2},? )?\\d{4})`,
+  "i"
+);
+var WEAK_COPY = /\b(seamless(?:ly)?|leverag(?:e|es|ing)|robust|cutting[- ]edge|game[- ]chang\w*|unlock(?:s|ing)? the|empower\w*|best[- ]in[- ]class|world[- ]class|effortless(?:ly)?|supercharg\w*|next[- ]level|harness(?:es|ing)? the power|in today's fast[- ]paced|delv(?:e|es|ing) into|revolutioni[sz]\w*|it(?:'s| is) worth noting|might potentially|arguably|please note that|needless to say|rest assured)\b/i;
+var OWNER_DESCRIBED = /\b((?:by|from|I'm|I am|as) (?:a |an |one )?(?:solo (?:maker|founder|developer|dev|builder)|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker)|(?:I'm|I am|who is|who's) not a (?:trained |professional |real )?developer|built by one person|one[- ](?:person|man|woman) (?:studio|shop|company) behind)\b/i;
+function hostLoaded(file) {
+  const name = basename2(file);
+  return !file.includes("/") || /^(SKILL|AGENTS|CLAUDE|GEMINI|README|CHANGELOG|LICENSE|SECURITY|CONTRIBUTING)(\.[\w-]+)?\.mdx?$/i.test(
+    name
+  ) || /^(\.github|\.claude|\.agents|\.codex|\.cursor|evals)\//.test(file) || /(^|\/)(agents|commands|rules)\/[^/]+\.md$/.test(file);
+}
+function checkDocs(root2, kind, fleet, report2) {
+  const files = repoFiles(root2).filter(
+    (file) => !file.split("/").some((p) => SKIP_DIRS.has(p)) && !isVendored(file)
+  );
+  const texts = files.filter((file) => TEXT.test(file) || /(^|\/)LICENSE[^/]*$/.test(file)).flatMap((file) => {
+    const text = read(root2, file);
+    return text === null ? [] : [{ file, text }];
+  });
+  const markdown = texts.filter((t) => MARKDOWN.test(t.file));
+  for (const t of markdown)
+    if (!isHistoryOrTest(t.file))
+      checkLinks(parseMarkdown(join4(root2, t.file), t.text), t.file, root2, report2);
+  if (kind !== "data") {
+    checkRetired(texts, report2);
+    checkDated(markdown, report2);
+  }
+  checkPointers(markdown, report2);
+  if (kind !== "data") checkOrphans(markdown, texts, report2);
+  checkBudgets(markdown, kind, report2);
+  checkSmallRefs(markdown, report2);
+  checkDuplicates(root2, markdown, report2);
+  checkCopy(texts, kind, report2);
+  checkOwnedFacts(root2, markdown, fleet, report2);
+}
+function checkRetired(texts, report2) {
+  if (current().workflow !== "solo") return;
+  for (const t of texts) {
+    if (isHistoryOrTest(t.file) || !(PROSE.test(t.file) || /(^|\/)LICENSE[^/]*$/.test(t.file)))
+      continue;
+    t.text.split("\n").forEach((line, i) => {
+      for (const name of SIDECUT_RETIRED) {
+        name.re.lastIndex = 0;
+        if (!name.re.test(line)) continue;
+        report2.add(
+          "STALE_NAME",
+          t.file,
+          i + 1,
+          `Names ${name.name}, which is retired.`,
+          `Use ${name.use}. Only CHANGELOG history and tests keep the old name.`,
+          name.autofix ? {
+            what: `Replaced ${name.name} with ${name.use}.`,
+            apply: (text) => text.replace(name.re, name.use)
+          } : void 0
+        );
+      }
+    });
+  }
+}
+function checkDated(markdown, report2) {
+  for (const t of markdown) {
+    if (isHistoryOrTest(t.file)) continue;
+    const doc = parseMarkdown(t.file, t.text);
+    doc.lines.forEach((line, i) => {
+      if (!doc.inCode[i] && DATED.test(prose(line)))
+        report2.add(
+          "STALE_DATED",
+          t.file,
+          i + 1,
+          'A dated "as of" note, which is stale the day after it was written.',
+          "Say what is true now and drop the date; link to the source so it can be read again."
+        );
+    });
+  }
+}
+function checkPointers(markdown, report2) {
+  for (const t of markdown) {
+    if (/^(CLAUDE|GEMINI)\.md$/i.test(basename2(t.file)) || isHistoryOrTest(t.file)) continue;
+    const doc = parseMarkdown(t.file, t.text);
+    if (doc.frontmatter) continue;
+    const body = doc.lines.filter(
+      (line, i) => !doc.inCode[i] && line.trim() !== "" && !/^#{1,6} /.test(line) && !/^<!--.*-->$/.test(line)
+    );
+    const hasCode = doc.lines.some((line, i) => doc.inCode[i] && /^\s*```/.test(line));
+    if (hasCode) continue;
+    const pointer = body.length <= 2 && body.every((line) => /\]\([^)]+\)|^@\S+/.test(line)) && body.join(" ").replace(/\[[^\]]*\]\([^)]*\)|@\S+/g, "").split(/\s+/).filter(Boolean).length <= 12;
+    if (body.length === 0 || pointer)
+      report2.add(
+        "DEAD_POINTER",
+        t.file,
+        1,
+        body.length === 0 ? "The file has no text." : "The file only points to another one.",
+        "Remove it and link to the real file where this one was linked."
+      );
+  }
+}
+function checkOrphans(markdown, texts, report2) {
+  const named = /* @__PURE__ */ new Map();
+  for (const t of texts)
+    for (const m of t.text.matchAll(/[\w.@/-]*?([\w.@-]+\.mdx?)\b/gi)) {
+      const name = (m[1] ?? "").toLowerCase();
+      if (!named.has(name)) named.set(name, /* @__PURE__ */ new Set());
+      named.get(name)?.add(t.file);
+    }
+  for (const t of markdown) {
+    if (hostLoaded(t.file) || isHistoryOrTest(t.file)) continue;
+    const by = named.get(basename2(t.file).toLowerCase()) ?? /* @__PURE__ */ new Set();
+    if ([...by].some((file) => file !== t.file)) continue;
+    report2.add(
+      "DEAD_ORPHAN",
+      t.file,
+      void 0,
+      "No other file in the repo links to or names this one.",
+      'Link it from where readers start (the "Read this when" table or the skill that reads it), or remove it.'
+    );
+  }
+}
+var AGENTS_LINES = 200;
+var AGENTS_BYTES = 32 * 1024;
+var DOC_LINES = 500;
+function checkBudgets(markdown, kind, report2) {
+  for (const t of markdown) {
+    if (isHistoryOrTest(t.file)) continue;
+    const lines = t.text.split("\n").length;
+    if (basename2(t.file) === "AGENTS.md") {
+      if (lines > AGENTS_LINES || Buffer.byteLength(t.text) > AGENTS_BYTES)
+        report2.add(
+          "AGENTS_BUDGET",
+          t.file,
+          void 0,
+          `AGENTS.md is ${lines} lines and ${Math.ceil(Buffer.byteLength(t.text) / 1024)} KiB; it loads on every task, and Codex stops reading at 32 KiB.`,
+          `Keep it under ${AGENTS_LINES} lines: move detail into docs/ and link it from "Read this when".`
+        );
+    } else if (kind !== "data" && lines > DOC_LINES)
+      report2.add(
+        "BLOAT_LINES",
+        t.file,
+        void 0,
+        `${lines} lines, past the ${DOC_LINES}-line budget for a doc.`,
+        "Split it by what readers come for, or cut what the code already says."
+      );
+  }
+}
+var SMALL_REF = 30;
+function checkSmallRefs(markdown, report2) {
+  const skills = markdown.filter((t) => /^plugins\/[^/]+\/skills\/[^/]+\/SKILL\.md$/.test(t.file));
+  for (const t of markdown) {
+    const m = /^(plugins\/[^/]+\/skills\/[^/]+)\/(.+\.md)$/.exec(t.file);
+    if (!m || basename2(t.file) === "SKILL.md") continue;
+    if (t.text.split("\n").filter((l) => l.trim()).length >= SMALL_REF) continue;
+    const name = basename2(t.file);
+    const readers = skills.filter(
+      (s) => s.file.startsWith(`${m[1]}/`) || s.text.includes(name)
+    ).length;
+    if (readers <= 1)
+      report2.add(
+        "BLOAT_SMALL_REF",
+        t.file,
+        void 0,
+        `Under ${SMALL_REF} lines and read by one skill, so it costs an extra read for little.`,
+        "Fold it into that SKILL.md."
+      );
+  }
+}
+function generatedFiles(root2) {
+  const path = join4(root2, SOLO_FILE);
+  if (!existsSync4(path)) return /* @__PURE__ */ new Set();
+  const value = readToml(readFileSync3(path, "utf8"))[""]?.protected_paths;
+  return new Set(Array.isArray(value) ? value : []);
+}
+function checkDuplicates(root2, markdown, report2) {
+  const generated = generatedFiles(root2);
+  const byText = /* @__PURE__ */ new Map();
+  for (const t of markdown) {
+    if (isHistoryOrTest(t.file) || t.text.split("\n").filter((l) => l.trim()).length < 10) continue;
+    if (/^plugins\/[^/]+\/server\/data\/(user-input\.md|visual-reports\.md)$/.test(t.file))
+      continue;
+    byText.set(t.text, [...byText.get(t.text) ?? [], t.file]);
+  }
+  for (const group of byText.values()) {
+    const loose = group.filter((file) => !generated.has(file));
+    const [a, b] = group;
+    const pair = group.length === 2 && a !== void 0 && b !== void 0 && [a, b].some((f) => !f.includes("/")) && [a, b].some((f) => new RegExp(`^plugins/[^/]+/${escapeRegExp(basename2(a))}$`).test(f));
+    if (group.length < 2 || loose.length < 2 || pair) continue;
+    const [first, ...rest] = loose;
+    report2.add(
+      "COPY_DUPLICATE",
+      first ?? "",
+      void 0,
+      `${[first, ...rest].join(" and ")} are the same text, and nothing keeps them the same.`,
+      "Keep one and link to it, or generate the others in the build and list them under protected_paths."
+    );
+  }
+}
+function checkCopy(texts, kind, report2) {
+  for (const t of texts) {
+    if (isHistoryOrTest(t.file) || !PROSE.test(t.file)) continue;
+    const isPublic = isPublicCopy(t.file, kind);
+    const doc = MARKDOWN.test(t.file) ? parseMarkdown(t.file, t.text) : null;
+    t.text.split("\n").forEach((line, i) => {
+      if (doc?.inCode[i]) return;
+      const words = doc ? prose(line) : line;
+      if (isPublic && OWNER_DESCRIBED.test(words))
+        report2.add(
+          "COPY_OWNER",
+          t.file,
+          i + 1,
+          "Public copy describes the person behind the work.",
+          "Say what the product does; anything about its maker comes from their own words."
+        );
+      const weak = MARKDOWN.test(t.file) ? WEAK_COPY.exec(words.replace(/"[^"]*"|“[^”]*”/g, "")) : null;
+      if (weak)
+        report2.add(
+          "COPY_WEAK",
+          t.file,
+          i + 1,
+          `"${weak[1]}" is a stock phrase or a hedge.`,
+          "Say the specific thing it stands for, or cut it."
+        );
+    });
+  }
+}
+function namesOf(repo, prefix) {
+  const short = prefix && repo.startsWith(prefix) ? repo.slice(prefix.length) : repo;
+  const title = short.split("-").map((w) => w.length <= 2 ? w.toUpperCase() : `${w[0]?.toUpperCase()}${w.slice(1)}`).join(" ");
+  const brand = current().brand;
+  return [.../* @__PURE__ */ new Set([repo, title, brand ? `${brand} ${title}` : title])].filter(
+    (n) => n.length > 3
+  );
+}
+function labelsIn(value, key = "") {
+  if (typeof value === "string")
+    return /^(label|light_label|labels|name|names)$/.test(key) && /^[a-z][\w]*-[\w-]+$/.test(value) ? [value] : [];
+  if (Array.isArray(value)) return value.flatMap((v) => labelsIn(v, key));
+  if (value && typeof value === "object")
+    return Object.entries(value).flatMap(([k, v]) => labelsIn(v, k));
+  return [];
+}
+function detectors(root2, fleet, me, report2) {
+  const found = [];
+  const unread = [];
+  const source = (fact) => {
+    const owner = fleet.owners.get(fact);
+    if (!owner) return null;
+    const text = owner.repo === "*" ? null : fleet.read(owner.repo, owner.path);
+    if (owner.repo !== "*" && text === null) unread.push(`${fact} (no ${owner.repo} checkout)`);
+    return { ...owner, text };
+  };
+  const runners = source("runners");
+  if (runners?.text && runners.repo !== me) {
+    let labels = [];
+    try {
+      labels = [...new Set(labelsIn(JSON.parse(runners.text)))];
+    } catch {
+      unread.push("runners (its file is not JSON)");
+    }
+    const names = labels.map(escapeRegExp).join("|");
+    const inList = labels.length ? new RegExp(
+      `\\[[^\\]\\n]*,[^\\]\\n]*(?<![\\w.-])(${names})(?![\\w.-])[^\\[\\n]*\\](?!\\()|\\[[^\\]\\n]*(?<![\\w.-])(${names})(?![\\w.-])[^\\[\\n]*,[^\\[\\n]*\\](?!\\()`
+    ) : null;
+    const inCode = labels.length ? new RegExp(`\`(${names})\``) : null;
+    const runsOn = labels.length ? new RegExp(`runs-on:\\s*(${names})\\b`) : null;
+    found.push({
+      fact: "runners",
+      owner: runners.repo,
+      path: runners.path,
+      find: (line) => {
+        const m = inList?.exec(line) ?? runsOn?.exec(line) ?? (/\brunners?\b|\blabels?\b|self-hosted|\blanes?\b/i.test(line) ? inCode?.exec(line) : null);
+        return m ? `the runner label "${m[1] ?? m[2]}"` : null;
+      }
+    });
+  }
+  const ports = source("ports");
+  if (ports?.text && ports.repo !== me) {
+    const holder = /* @__PURE__ */ new Map();
+    for (const [repo, values2] of Object.entries(readToml(ports.text)))
+      for (const port of Object.values(values2))
+        if (typeof port === "number") holder.set(port, repo);
+    found.push({
+      fact: "ports",
+      owner: ports.repo,
+      path: ports.path,
+      find: (line) => {
+        for (const m of line.matchAll(
+          /\b(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{2,5})\b|\bports? (\d{4,5})\b/gi
+        )) {
+          const port = Number(m[1] ?? m[2]);
+          const of = holder.get(port);
+          if (of && of !== me) return `port ${port}, reserved for ${of}`;
+        }
+        return null;
+      }
+    });
+  }
+  const versioned = /* @__PURE__ */ new Map();
+  const pins = source("plugin-pins");
+  if (pins?.text && pins.repo !== me) {
+    try {
+      for (const [plugin, entry] of Object.entries(
+        JSON.parse(pins.text)
+      )) {
+        const repo = entry.repo?.split("/")[1] ?? plugin;
+        if (repo === me) continue;
+        for (const name of [plugin, repo])
+          versioned.set(name, { fact: "plugin-pins", owner: pins.repo, path: pins.path });
+      }
+    } catch {
+      unread.push("plugin-pins (its file is not JSON)");
+    }
+  }
+  const actions = source("ci-actions");
+  if (actions && actions.repo !== me && actions.repo !== "*")
+    versioned.set(actions.repo, { fact: "ci-actions", owner: actions.repo, path: actions.path });
+  const prefix = current().prefix;
+  for (const [repo, where2] of versioned) {
+    const names = namesOf(repo, prefix).map(escapeRegExp).join("|");
+    const re = new RegExp(`(?<![\\w-])(${names})(?:@| v| version |#v| )v?(\\d+\\.\\d+\\.\\d+)\\b`);
+    found.push({
+      ...where2,
+      find: (line) => {
+        const m = re.exec(line);
+        return m ? `${m[1]} ${m[2]}` : null;
+      }
+    });
+  }
+  const gate = fleet.owners.get("merge-gate");
+  const settings = join4(root2, gate?.path ?? SOLO_FILE);
+  if (gate?.repo === "*" && existsSync4(settings)) {
+    const value = readToml(readFileSync3(settings, "utf8"))[""]?.required_checks;
+    const checks = Array.isArray(value) ? value : [];
+    const names = new RegExp(`\`(${checks.map(escapeRegExp).join("|")})\``, "g");
+    found.push({
+      fact: "merge-gate",
+      owner: me,
+      path: gate.path,
+      find: (line) => {
+        if (!checks.length || !/merge gate|required[ _]checks?/i.test(line)) return null;
+        const listed = [...new Set([...line.matchAll(names)].map((m) => m[1]))];
+        return listed.length >= 2 ? `the required checks ${listed.map((c) => `\`${c}\``).join(", ")}` : null;
+      }
+    });
+  }
+  if (unread.length) report2.notes.push(`Owned facts not checked: ${unread.join(", ")}.`);
+  return found;
+}
+function checkOwnedFacts(root2, markdown, fleet, report2) {
+  if (current().workflow !== "solo") return;
+  if (!fleet) {
+    report2.notes.push(
+      "Owned facts and the repo index not checked: the fleet's data checkout isn't beside this repo (set SIDECUT_HOME to it)."
+    );
+    return;
+  }
+  const me = repoName(root2);
+  const finders = detectors(root2, fleet, me, report2);
+  for (const t of markdown) {
+    if (isHistoryOrTest(t.file)) continue;
+    t.text.split("\n").forEach((line, i) => {
+      for (const d of finders) {
+        if (d.owner === me && t.file === d.path) continue;
+        const what = d.find(line);
+        if (!what) continue;
+        const where2 = d.owner === me ? d.path : `${d.path} in ${d.owner}`;
+        report2.add(
+          d.fact === "ports" ? "OWNED_PORT" : "OWNED_FACT",
+          t.file,
+          i + 1,
+          `Writes out ${what}, which ${where2} owns, so this copy goes stale when it changes.`,
+          `Point to ${where2} instead of repeating the value.`
+        );
+      }
+    });
+  }
+}
+async function checkExternalLinks(root2, report2) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const file of repoFiles(root2).filter((f) => MARKDOWN.test(f) && !isHistoryOrTest(f))) {
+    const text = read(root2, file);
+    if (text === null) continue;
+    const doc = parseMarkdown(file, text);
+    doc.lines.forEach((line, i) => {
+      if (doc.inCode[i]) return;
+      for (const m of prose(line).matchAll(/\]\((https?:\/\/[^)\s]+)\)|<(https?:\/\/[^>\s]+)>/g)) {
+        const url = (m[1] ?? m[2] ?? "").replace(/#.*$/, "");
+        if (!/\/\/(localhost|127\.|0\.0\.0\.0)/.test(url) && !seen.has(url))
+          seen.set(url, { file, line: i + 1 });
+      }
+    });
+  }
+  const queue = [...seen];
+  const worker = async () => {
+    for (let next = queue.shift(); next; next = queue.shift()) {
+      const [url, at] = next;
+      let status = 0;
+      for (const method of ["HEAD", "GET"]) {
+        try {
+          const res = await fetch(url, {
+            method,
+            redirect: "follow",
+            signal: AbortSignal.timeout(15e3)
+          });
+          status = res.status;
+          if (res.ok || ![403, 405, 501].includes(res.status)) break;
+        } catch {
+          status = 0;
+        }
+      }
+      if (status === 0 || status === 404 || status === 410 || status >= 500)
+        report2.add(
+          "LINK_EXTERNAL",
+          at.file,
+          at.line,
+          `${url} ${status ? `answers ${status}` : "doesn't answer"}.`,
+          "Point it at the current page, or remove it."
+        );
+    }
+  };
+  await Promise.all(Array.from({ length: 8 }, worker));
+}
+
+// plugins/sidecut-agentskills/server/src/check/repo.ts
+import { spawnSync as spawnSync4 } from "node:child_process";
+import { existsSync as existsSync14, lstatSync as lstatSync4, readdirSync as readdirSync9, readFileSync as readFileSync14, realpathSync as realpathSync3 } from "node:fs";
+import { join as join14 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
 import {
-  existsSync as existsSync4,
-  lstatSync,
+  existsSync as existsSync7,
+  lstatSync as lstatSync2,
   mkdirSync as mkdirSync2,
-  readdirSync as readdirSync3,
-  readFileSync as readFileSync4,
-  statSync as statSync2,
+  readdirSync as readdirSync4,
+  readFileSync as readFileSync6,
+  statSync as statSync3,
   writeFileSync as writeFileSync2
 } from "node:fs";
-import { basename, dirname as dirname2, join as join4, relative as relative3 } from "node:path";
+import { basename as basename3, dirname as dirname4, join as join7, relative as relative4 } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // plugins/sidecut-agentskills/server/src/antigravity.ts
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync as existsSync5, readFileSync as readFileSync4 } from "node:fs";
+import { join as join5 } from "node:path";
 var ANTIGRAVITY_SCHEMA = "https://antigravity.google/schemas/v1/plugin.json";
 var ANTIGRAVITY_MANIFEST = ".antigravity-plugin/plugin.json";
 var ANTIGRAVITY_MCP = "mcp_config.json";
@@ -166,9 +1088,9 @@ ${indent}}`;
   return `${out(value, "", 0, false)}
 `;
 }
-function antigravityFilesFrom(read) {
+function antigravityFilesFrom(read2) {
   const parse = (path) => {
-    const text = read(path);
+    const text = read2(path);
     if (text === null) return null;
     try {
       const value = JSON.parse(text);
@@ -181,9 +1103,9 @@ function antigravityFilesFrom(read) {
   const codex = parse(".codex-plugin/plugin.json");
   if (!claude || !codex) return null;
   const mcp = parse(".mcp.json");
-  if (!mcp && read(".mcp.json") !== null) return null;
-  const hasSkillLog = read(`hooks/${SKILL_LOG_HOOK}`) !== null;
-  const hooks = antigravityHooks(parse("hooks/hooks.json"), read(ANTIGRAVITY_HOOKS), hasSkillLog);
+  if (!mcp && read2(".mcp.json") !== null) return null;
+  const hasSkillLog = read2(`hooks/${SKILL_LOG_HOOK}`) !== null;
+  const hooks = antigravityHooks(parse("hooks/hooks.json"), read2(ANTIGRAVITY_HOOKS), hasSkillLog);
   return [
     { path: ANTIGRAVITY_MANIFEST, text: formatJson(antigravityManifest(claude, codex)) },
     { path: ANTIGRAVITY_MCP, text: mcp ? formatJson(antigravityMcp(mcp)) : null },
@@ -195,28 +1117,28 @@ function antigravityFilesFrom(read) {
 }
 function antigravityFiles(pluginDir) {
   return antigravityFilesFrom((path) => {
-    const full = join(pluginDir, path);
-    return existsSync(full) ? readFileSync(full, "utf8") : null;
+    const full = join5(pluginDir, path);
+    return existsSync5(full) ? readFileSync4(full, "utf8") : null;
   });
 }
 
 // plugins/sidecut-agentskills/server/src/check/evals-stamp.ts
 import { createHash } from "node:crypto";
-import { existsSync as existsSync2, readdirSync, readFileSync as readFileSync2, realpathSync, statSync } from "node:fs";
-import { isAbsolute, join as join2, relative, sep } from "node:path";
+import { existsSync as existsSync6, readdirSync as readdirSync3, readFileSync as readFileSync5, realpathSync as realpathSync2, statSync as statSync2 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join6, relative as relative2, sep } from "node:path";
 var STAMP_FILE = "evals-source.json";
 function treeFiles(dir) {
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   const walk = (d) => {
-    const real = realpathSync(d);
-    if (seen.has(real)) throw new Error(`${relative(dir, d) || "."} links back into the copy.`);
+    const real = realpathSync2(d);
+    if (seen.has(real)) throw new Error(`${relative2(dir, d) || "."} links back into the copy.`);
     seen.add(real);
-    for (const name of readdirSync(d)) {
+    for (const name of readdirSync3(d)) {
       if (name === ".DS_Store") continue;
-      const p = join2(d, name);
-      if (statSync(p).isDirectory()) walk(p);
-      else out.push(relative(dir, p).split(sep).join("/"));
+      const p = join6(d, name);
+      if (statSync2(p).isDirectory()) walk(p);
+      else out.push(relative2(dir, p).split(sep).join("/"));
     }
     seen.delete(real);
   };
@@ -226,19 +1148,19 @@ function treeFiles(dir) {
 function treeHash(dir, files = treeFiles(dir)) {
   const h = createHash("sha256");
   for (const f of files) {
-    const body = createHash("sha256").update(readFileSync2(join2(dir, f))).digest("hex");
+    const body = createHash("sha256").update(readFileSync5(join6(dir, f))).digest("hex");
     h.update(`${f}
 ${body}
 `);
   }
   return `sha256-${h.digest("hex")}`;
 }
-function stampProblems(root) {
-  const file = join2(root, STAMP_FILE);
-  if (!existsSync2(file)) return [];
+function stampProblems(root2) {
+  const file = join6(root2, STAMP_FILE);
+  if (!existsSync6(file)) return [];
   let copies;
   try {
-    copies = JSON.parse(readFileSync2(file, "utf8")).copies;
+    copies = JSON.parse(readFileSync5(file, "utf8")).copies;
   } catch {
     copies = void 0;
   }
@@ -247,11 +1169,11 @@ function stampProblems(root) {
   const problems = [];
   for (const copy of copies) {
     const path = String(copy?.path ?? "");
-    const dir = join2(root, path);
-    const inside = path !== "" && !isAbsolute(path) && !relative(root, dir).startsWith("..");
+    const dir = join6(root2, path);
+    const inside = path !== "" && !isAbsolute3(path) && !relative2(root2, dir).startsWith("..");
     let hash = null;
     try {
-      if (inside && existsSync2(dir) && statSync(dir).isDirectory()) hash = treeHash(dir);
+      if (inside && existsSync6(dir) && statSync2(dir).isDirectory()) hash = treeHash(dir);
     } catch (error) {
       problems.push({
         file: path,
@@ -269,13 +1191,26 @@ function stampProblems(root) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/report.ts
-import { relative as relative2, sep as sep2 } from "node:path";
+import { relative as relative3, sep as sep2 } from "node:path";
 function toPosix(path) {
   return sep2 === "/" ? path : path.split(sep2).join("/");
 }
 function relativePosix(from, path) {
-  return toPosix(relative2(from, path));
+  return toPosix(relative3(from, path));
 }
+var ADVISORY_CODES = [
+  "SKILL_LENGTH",
+  "REF_LENGTH",
+  "SKILL_DESCRIPTION_LENGTH",
+  "SCAN_TEXT",
+  "SKILL_LONG_STEP",
+  "SKILL_REPEATED_TEXT",
+  "DEAD_ORPHAN",
+  "BLOAT_LINES",
+  "BLOAT_SMALL_REF",
+  "COPY_WEAK",
+  "OWNED_PORT"
+];
 function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
 }
@@ -286,6 +1221,10 @@ var Report = class {
   kept = [];
   /** What was checked, for example the whole repo or only its plugins, and why. */
   scope = "";
+  /** Checks that couldn't run here, and why, so a pass never hides them. */
+  notes = [];
+  /** What `sidecut-sync --fix` can change, keyed to the problem it fixes. */
+  fixes = [];
   /**
    * Moves the problems `keep` covers into `kept`. A key covers a problem when it is the problem's
    * code, its file, a folder holding the file, or "CODE file". A key that covers nothing is itself a
@@ -312,18 +1251,21 @@ var Report = class {
         );
       for (const p of hit) this.kept.push({ ...p, reason: String(reason) });
       this.problems = this.problems.filter((p) => !hit.includes(p));
+      for (let i = this.fixes.length - 1; i >= 0; i--) {
+        const f = this.fixes[i];
+        if (f && keepCovers(key, f.code, f.file)) this.fixes.splice(i, 1);
+      }
     }
   }
-  add(code, file, line, message, fix) {
-    const target = [
-      "SKILL_LENGTH",
-      "REF_LENGTH",
-      "SKILL_DESCRIPTION_LENGTH",
-      "SCAN_TEXT",
-      "SKILL_LONG_STEP",
-      "SKILL_REPEATED_TEXT"
-    ].includes(code) ? this.advisories : this.problems;
-    target.push({ code, file: toPosix(file), line, message, fix });
+  add(code, file, line, message, fix, autoFix) {
+    const target = ADVISORY_CODES.includes(code) ? this.advisories : this.problems;
+    const path = toPosix(file);
+    if (target.some(
+      (p) => p.code === code && p.file === path && p.line === line && p.message === message
+    ))
+      return;
+    target.push({ code, file: path, line, message, fix });
+    if (autoFix) this.fixes.push({ ...autoFix, code, file: toPosix(file) });
   }
   format() {
     return this.problems.map((p) => `${p.code} ${p.file}${p.line ? `:${p.line}` : ""} ${p.message} Fix: ${p.fix}`).join("\n");
@@ -335,36 +1277,6 @@ function sentences(text) {
 function sameJson(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
-
-// plugins/sidecut-agentskills/server/src/sidecut-profile.ts
-var SOLO_FILE = "solo-workflow.toml";
-var SOLO_LOCAL_FILE = "solo-workflow.local.toml";
-var SOLO_START = "<!-- solo-workflow:start -->";
-var SOLO_END = "<!-- solo-workflow:end -->";
-var SOLO_HEADINGS = ["Sidecut Solo", "Solo Workflow"];
-var SOLO_SETUP = "Run solo-configure-project.";
-var PRIVATE_ACTIONS = /SidecutStudio\/sidecut-ops\/\.github\/actions\//;
-var CI_LAYOUT = "CI, using sidecut-ops' runner picker";
-var SIDECUT_SETTINGS = {
-  org: "SidecutStudio",
-  authorName: "Sidecut Studio",
-  authorUrl: "https://sidecut.dev",
-  homepage: "https://sidecut.dev",
-  prefix: "sidecut-",
-  marketplace: "SidecutStudio/sidecut-plugins",
-  ci: "sidecut",
-  license: "MIT",
-  brandColor: "#FF6B00",
-  brand: "Sidecut",
-  workflow: "solo"
-};
-var SIDECUT_OWNER = SIDECUT_SETTINGS.org;
-var SIDECUT_CI_SNIPPETS = {
-  ciLightRunner: `'{"group":"sidecut-linux-x64","labels":["self-hosted","Linux","X64","sidecut-light"]}'`,
-  ciReleaseLabels: "[self-hosted, Linux, X64, sidecut-ci]",
-  // biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression, not JS.
-  ciAppKey: "${{ secrets.SIDECUT_CI_APP_KEY }}"
-};
 
 // plugins/sidecut-agentskills/server/src/ci-snippets.ts
 var INDENT = "          ";
@@ -428,163 +1340,6 @@ var plugin_status_default = {
     }
   ]
 };
-
-// plugins/sidecut-agentskills/server/src/settings.ts
-import { existsSync as existsSync3, mkdirSync, readdirSync as readdirSync2, readFileSync as readFileSync3, writeFileSync } from "node:fs";
-import { dirname, isAbsolute as isAbsolute2, join as join3 } from "node:path";
-var DEFAULTS = {
-  profile: "",
-  org: "",
-  authorName: "",
-  authorUrl: "",
-  homepage: "",
-  prefix: "",
-  marketplace: "",
-  ci: "hosted",
-  license: "MIT",
-  brandColor: "#3B82F6",
-  brand: "",
-  workflow: ""
-};
-var PROFILES = {
-  sidecut: SIDECUT_SETTINGS
-};
-var REPO_FILE = ".agentskills.json";
-var KEYS = Object.keys(DEFAULTS);
-function cleanSettings(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return {};
-  const out = {};
-  for (const key of KEYS) {
-    const v = value[key];
-    if (typeof v === "string") out[key] = v;
-  }
-  return out;
-}
-function readInput(path) {
-  if (!existsSync3(path)) return null;
-  try {
-    return cleanSettings(JSON.parse(readFileSync3(path, "utf8")));
-  } catch {
-    throw new Error(`${path} isn't valid JSON.`);
-  }
-}
-function mergeSettings(...layers) {
-  let out = { ...DEFAULTS };
-  for (const layer of layers) {
-    if (!layer) continue;
-    if (layer.profile) {
-      const profile = PROFILES[layer.profile];
-      if (!profile)
-        throw new Error(
-          `Unknown profile "${layer.profile}". Known: ${Object.keys(PROFILES).join(", ")}.`
-        );
-      out = { ...out, ...profile, profile: layer.profile };
-    }
-    for (const key of KEYS) {
-      const v = layer[key];
-      if (key !== "profile" && v !== void 0) out[key] = v;
-    }
-  }
-  if (out.ci !== "hosted" && out.ci !== "sidecut")
-    throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
-  if (out.workflow !== "" && out.workflow !== "solo")
-    throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
-  if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
-    throw new Error(
-      `Marketplace "${out.marketplace}" must be owner/repo, or empty for the plugin's own repo.`
-    );
-  if (out.prefix && !/^[a-z0-9]+(-[a-z0-9]+)*-$/.test(out.prefix))
-    throw new Error(
-      `Prefix "${out.prefix}" must be lowercase kebab-case ending in a hyphen, such as acme-.`
-    );
-  return out;
-}
-function readRepoSettings(root) {
-  return readInput(join3(root, REPO_FILE));
-}
-function readScanTextAllow(root) {
-  const path = join3(root, REPO_FILE);
-  if (!existsSync3(path)) return [];
-  try {
-    const value = JSON.parse(readFileSync3(path, "utf8")).scanTextAllow;
-    return Array.isArray(value) ? value.filter((g) => typeof g === "string") : [];
-  } catch {
-    return [];
-  }
-}
-function inferRepoSettings(root) {
-  const plugins = join3(root, "plugins");
-  const ids = existsSync3(plugins) ? readdirSync2(plugins).filter((n) => n !== ".DS_Store") : [];
-  for (const id of ids) {
-    try {
-      const manifest = JSON.parse(
-        readFileSync3(join3(plugins, id, ".claude-plugin", "plugin.json"), "utf8")
-      );
-      const owner = /^https:\/\/github\.com\/([\w.-]+)\//.exec(
-        String(manifest.repository ?? "")
-      )?.[1];
-      if (!owner) continue;
-      if (owner === SIDECUT_OWNER) return { profile: "sidecut" };
-      const check = join3(root, ".github", "workflows", "check.yml");
-      const picker = existsSync3(check) && readFileSync3(check, "utf8").includes("/pick-runner@");
-      return cleanSettings({
-        org: owner,
-        authorName: manifest.author?.name,
-        authorUrl: manifest.author?.url,
-        homepage: manifest.homepage,
-        ci: picker ? "sidecut" : "hosted"
-      });
-    } catch {
-    }
-  }
-  return {};
-}
-function repoSettings(root) {
-  return mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
-}
-var active = mergeSettings();
-function current() {
-  return active;
-}
-function useSettings(settings) {
-  active = settings;
-  return settings;
-}
-var QUESTIONS = [
-  {
-    key: "profile",
-    ask: `Start from a saved profile? Answer "sidecut" for Sidecut Studio's values, or leave it empty and answer the rest.`,
-    default: ""
-  },
-  { key: "org", ask: "Which GitHub user or organization will hold the repo?", default: "" },
-  { key: "authorName", ask: "Whose name goes in the manifests and the licence?", default: "" },
-  { key: "authorUrl", ask: "The author's web address, if any?", default: "" },
-  { key: "homepage", ask: "The plugin's homepage, if any?", default: "" },
-  {
-    key: "prefix",
-    ask: 'A prefix for every plugin id, such as "acme-", or none?',
-    default: DEFAULTS.prefix
-  },
-  {
-    key: "marketplace",
-    ask: "Which marketplace lists the plugin: its own repo (leave empty), or another repo as owner/repo?",
-    default: DEFAULTS.marketplace
-  },
-  {
-    key: "ci",
-    ask: `Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04), or "sidecut" for the sidecut profile's own runners?`,
-    default: DEFAULTS.ci
-  }
-];
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function brandSpace(s = active) {
-  return s.brand ? `${s.brand} ` : "";
-}
-function marketplaceName(id, s = active) {
-  return s.marketplace ? s.marketplace.split("/")[1] ?? s.marketplace : id;
-}
 
 // plugins/sidecut-agentskills/server/src/eval-fixtures.ts
 function shellString(text) {
@@ -668,15 +1423,15 @@ function pluginStarterEvals(id, key, displayName) {
 }
 
 // plugins/sidecut-agentskills/server/src/scaffold.ts
-var here = dirname2(fileURLToPath(import.meta.url));
-var dataRoot = existsSync4(join4(here, "data")) ? join4(here, "data") : existsSync4(join4(here, "..", "data")) ? join4(here, "..", "data") : join4(here, "..", "plugins", "sidecut-agentskills", "server", "data");
-var templatesRoot = join4(dataRoot, "templates");
+var here = dirname4(fileURLToPath(import.meta.url));
+var dataRoot = existsSync7(join7(here, "data")) ? join7(here, "data") : existsSync7(join7(here, "..", "data")) ? join7(here, "..", "data") : join7(here, "..", "plugins", "sidecut-agentskills", "server", "data");
+var templatesRoot = join7(dataRoot, "templates");
 var USER_INPUT_PATH = "server/data/user-input.md";
 var OLD_USER_INPUT_PATH = "server/data/owner-input.md";
 function userInput() {
-  return readFileSync4(join4(dataRoot, "user-input.md"), "utf8");
+  return readFileSync6(join7(dataRoot, "user-input.md"), "utf8");
 }
-var ownVersion = JSON.parse(readFileSync4(join4(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
+var ownVersion = JSON.parse(readFileSync6(join7(dataRoot, "..", "..", ".claude-plugin", "plugin.json"), "utf8")).version;
 function pluginIdPattern(s = current()) {
   return new RegExp(`^${escapeRegExp(s.prefix)}[a-z0-9]+(-[a-z0-9]+)*$`);
 }
@@ -743,12 +1498,12 @@ function render(text, vars) {
   });
 }
 function renderFile(path, vars) {
-  return render(readFileSync4(join4(templatesRoot, path), "utf8"), vars);
+  return render(readFileSync6(join7(templatesRoot, path), "utf8"), vars);
 }
 function listFiles(dir) {
-  return readdirSync3(dir).flatMap((name) => {
-    const path = join4(dir, name);
-    return statSync2(path).isDirectory() ? listFiles(path) : [path];
+  return readdirSync4(dir).flatMap((name) => {
+    const path = join7(dir, name);
+    return statSync3(path).isDirectory() ? listFiles(path) : [path];
   });
 }
 function settingsVars(id, s = current()) {
@@ -815,144 +1570,145 @@ ${SOLO_LOCAL_FILE}` : ""
 }
 function brandColorOf(pluginDir) {
   try {
-    const codex = JSON.parse(readFileSync4(join4(pluginDir, ".codex-plugin", "plugin.json"), "utf8"));
+    const codex = JSON.parse(readFileSync6(join7(pluginDir, ".codex-plugin", "plugin.json"), "utf8"));
     return String(codex.interface?.brandColor ?? "");
   } catch {
     return "";
   }
 }
 
-// plugins/sidecut-agentskills/server/src/check/markdown.ts
-import { existsSync as existsSync5 } from "node:fs";
-import { dirname as dirname3, join as join5, relative as relative4 } from "node:path";
-var ALLOWED_HTML = /^<!-- sidecut:(start|end)( [\w-]+)? -->$/;
-var allowedHtml = (line) => ALLOWED_HTML.test(line) || line === SOLO_START || line === SOLO_END;
-function parseMarkdown(path, text) {
-  const lines = text.split("\n");
-  if (lines.at(-1) === "") lines.pop();
-  const inCode = lines.map(() => false);
-  let frontmatter = null;
-  let start = 0;
-  if (lines[0] === "---") {
-    const end = lines.indexOf("---", 1);
-    if (end > 0) {
-      frontmatter = lines.slice(1, end);
-      for (let i = 0; i <= end; i++) inCode[i] = true;
-      start = end + 1;
-    }
+// plugins/sidecut-agentskills/server/src/check/kinds.ts
+import { existsSync as existsSync8, readFileSync as readFileSync7 } from "node:fs";
+import { join as join8 } from "node:path";
+var KINDS = ["plugin", "app", "marketplace", "ops", "site", "data"];
+function readJson(path) {
+  try {
+    return JSON.parse(readFileSync7(path, "utf8"));
+  } catch {
+    return null;
   }
-  const headings = [];
-  let fence = false;
-  let solo = false;
-  for (let i = start; i < lines.length; i++) {
-    const line = lines[i] ?? "";
-    if (line === SOLO_START) solo = true;
-    if (solo) {
-      inCode[i] = true;
-      if (line === SOLO_END) solo = false;
-      continue;
-    }
-    if (!fence && /^<!-- sidecut:(start|end) [\w-]+ -->$/.test(line)) {
-      inCode[i] = true;
-      continue;
-    }
-    if (/^\s*```/.test(line)) {
-      inCode[i] = true;
-      fence = !fence;
-      continue;
-    }
-    if (fence) {
-      inCode[i] = true;
-      continue;
-    }
-    const match = /^(#{1,6}) (.*)$/.exec(line);
-    if (match) headings.push({ level: match[1]?.length ?? 0, text: match[2] ?? "", line: i + 1 });
+}
+var SITE_TOOLS = ["astro", "next", "@docusaurus/core", "vitepress", "@11ty/eleventy"];
+function repoKind(root2, fleet, ships, report2) {
+  const pkg = readJson(join8(root2, "package.json"));
+  const declared = pkg?.sidecut?.kind;
+  if (declared !== void 0) {
+    if (KINDS.includes(declared)) return { kind: declared, how: "declared" };
+    report2.add(
+      "REPO_KIND",
+      "package.json",
+      void 0,
+      `sidecut.kind is "${String(declared)}", which isn't a repo kind.`,
+      `Use one of ${KINDS.join(", ")}.`
+    );
   }
-  return { path, lines, frontmatter, headings, inCode };
+  const listed = fleet?.kinds.get(repoName(root2));
+  if (listed && KINDS.includes(listed)) return { kind: listed, how: "listed" };
+  if (ships) return { kind: "plugin", how: "inferred" };
+  const market = readJson(join8(root2, ".claude-plugin", "marketplace.json"));
+  if (existsSync8(join8(root2, "bundled")) || (market?.plugins ?? []).length > 1)
+    return { kind: "marketplace", how: "inferred" };
+  if (existsSync8(join8(root2, ".github", "actions"))) return { kind: "ops", how: "inferred" };
+  if (!pkg) return { kind: "data", how: "inferred" };
+  const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+  if (SITE_TOOLS.some((tool) => tool in deps)) return { kind: "site", how: "inferred" };
+  return { kind: "app", how: "inferred" };
 }
-function prose(line) {
-  return line.replace(/`[^`]*`/g, "``");
+function kindTemplate(kind) {
+  const solo = current().workflow === "solo";
+  return renderFile(`kinds/${kind}.md.tmpl`, { workflowBlock: solo ? `
+
+${SOLO_BLOCK}` : "" });
 }
-function isStructural(line) {
-  return /^\s*$|^#{1,6} |^\s*(- |\d+\. )|^\|/.test(line) || allowedHtml(line);
+function kindSections(kind) {
+  const doc = parseMarkdown("AGENTS.md", kindTemplate(kind));
+  return sections(doc).map((h) => h.text);
 }
-function checkLinks(doc, file, root, report2) {
-  doc.lines.forEach((line, i) => {
-    if (doc.inCode[i]) return;
-    const text = prose(line);
-    for (const match of text.matchAll(/\]\(([^)\s]+)\)/g)) {
-      const target = match[1] ?? "";
-      if (/^[a-z]+:/.test(target) || target.startsWith("#")) continue;
-      const path = join5(dirname3(doc.path), target.split("#")[0] ?? "");
-      if (!existsSync5(path)) {
-        report2.add(
-          "MD_LINK_TARGET",
-          file,
-          i + 1,
-          `Link target "${target}" doesn't exist.`,
-          "Point the link at a real file."
-        );
-      }
-      if (relative4(root, path).startsWith("..")) {
-        report2.add(
-          "MD_LINK_OUTSIDE",
-          file,
-          i + 1,
-          `Link "${target}" leaves the repo.`,
-          "Link to a file inside the repo."
-        );
-      }
-    }
-  });
+function inOrder(have, want) {
+  let at = 0;
+  for (const name of have) if (name === want[at]) at++;
+  return at === want.length;
 }
-function checkMarkdown(doc, _text, root, report2, _options = {}) {
-  const file = relative4(root, doc.path);
-  checkLinks(doc, file, root, report2);
-  doc.lines.forEach((line, i) => {
-    if (!doc.inCode[i] && /\bTODO\b/.test(prose(line))) {
+function withSoloBlock(text) {
+  const start = text.indexOf(SOLO_START);
+  const end = text.indexOf(SOLO_END);
+  if (start >= 0 && end > start)
+    return text.slice(0, start) + SOLO_BLOCK + text.slice(end + SOLO_END.length);
+  return `${text.replace(/\s*$/, "")}
+
+${SOLO_BLOCK}
+`;
+}
+function checkShape(root2, kind, report2) {
+  const agents = join8(root2, "AGENTS.md");
+  if (kind === "data" && !existsSync8(join8(root2, "README.md")))
+    report2.add(
+      "SHAPE_AGENTS",
+      "README.md",
+      void 0,
+      "A data repo has no README.md saying what the data is.",
+      "Add one: what the data is, where it comes from and who reads it."
+    );
+  if (!existsSync8(agents)) {
+    if (kind !== "data")
       report2.add(
-        "WORD_TODO",
-        file,
-        i + 1,
-        "Unfinished template text.",
-        "Complete the instruction or remove it."
+        "SHAPE_AGENTS",
+        "AGENTS.md",
+        void 0,
+        `There is no AGENTS.md, which every ${kind} repo keeps.`,
+        `Start it from templates/kinds/${kind}.md.tmpl in sidecut-agentskills.`
       );
-    }
-  });
-}
-function sections(doc) {
-  return doc.headings.filter((h) => h.level === 2);
-}
-function tableAfter(doc, heading) {
-  const rows = [];
-  for (let i = heading.line; i < doc.lines.length; i++) {
-    const line = doc.lines[i] ?? "";
-    if (/^#{1,6} /.test(line)) break;
-    if (!line.startsWith("|")) {
-      if (rows.length > 0) break;
-      continue;
-    }
-    const cells = line.slice(1, -1).split("|").map((c) => c.trim());
-    if (!cells.every((c) => /^-+$/.test(c))) rows.push(cells);
+    return;
   }
-  return rows;
-}
-function paragraphAfter(doc, line) {
-  for (let i = line; i < doc.lines.length; i++) {
-    const text = doc.lines[i] ?? "";
-    if (text.trim() === "") continue;
-    if (doc.inCode[i] || isStructural(text)) return null;
-    return { line: i + 1, text };
+  const text = readFileSync7(agents, "utf8");
+  const found = sections(parseMarkdown(agents, text)).map((h) => h.text);
+  const want = kindSections(kind);
+  if (!inOrder(found, want)) {
+    const missing = want.filter((name) => !found.includes(name));
+    report2.add(
+      "SHAPE_SECTIONS",
+      "AGENTS.md",
+      void 0,
+      missing.length > 0 ? `AGENTS.md has no ${missing.map((m) => `"${m}"`).join(", ")} section.` : `AGENTS.md has the ${kind} sections out of order.`,
+      `Keep ${want.map((w) => `"${w}"`).join(", ")} in that order; the repo's own sections can go between them.`
+    );
   }
-  return null;
+  if (current().workflow === "solo" && existsSync8(join8(root2, SOLO_FILE)) && !text.includes(SOLO_BLOCK))
+    report2.add(
+      "SHAPE_SOLO",
+      "AGENTS.md",
+      void 0,
+      text.includes(SOLO_START) ? `The ${SOLO_HEADINGS[0]} block isn't the current wording.` : `AGENTS.md has no ${SOLO_HEADINGS[0]} block.`,
+      "Run `sidecut-sync --fix`, which writes the current block.",
+      { what: `Wrote the current ${SOLO_HEADINGS[0]} block.`, apply: withSoloBlock }
+    );
+  checkClaude(root2, report2);
+}
+function checkClaude(root2, report2) {
+  const path = join8(root2, "CLAUDE.md");
+  const text = existsSync8(path) ? readFileSync7(path, "utf8") : null;
+  if (text?.split("\n").some((line) => line.trim() === "@AGENTS.md")) return;
+  report2.add(
+    "SHAPE_CLAUDE",
+    "CLAUDE.md",
+    1,
+    text === null ? "There is no CLAUDE.md, so Claude Code never reads AGENTS.md." : "CLAUDE.md doesn't import AGENTS.md, so the two can drift.",
+    "Put an `@AGENTS.md` line at the top; `sidecut-sync --fix` adds it.",
+    {
+      what: "Imported AGENTS.md at the top of CLAUDE.md.",
+      apply: (have) => have.trim() === "" ? "@AGENTS.md\n" : `@AGENTS.md
+
+${have}`
+    }
+  );
 }
 
 // plugins/sidecut-agentskills/server/src/check/plugin.ts
-import { existsSync as existsSync8, readdirSync as readdirSync5, readFileSync as readFileSync8, statSync as statSync4 } from "node:fs";
-import { join as join8, relative as relative8 } from "node:path";
+import { existsSync as existsSync11, readdirSync as readdirSync6, readFileSync as readFileSync11, statSync as statSync5 } from "node:fs";
+import { join as join11, relative as relative8 } from "node:path";
 
 // plugins/sidecut-agentskills/server/src/check/scan-text.ts
-import { readFileSync as readFileSync5 } from "node:fs";
+import { readFileSync as readFileSync8 } from "node:fs";
 import { relative as relative5 } from "node:path";
 var SCAN_PATTERNS = [
   {
@@ -999,14 +1755,14 @@ function scanText(text) {
   });
   return hits;
 }
-function checkScanText(pluginDir, root, report2) {
-  const allow = readScanTextAllow(root);
+function checkScanText(pluginDir, root2, report2) {
+  const allow = readScanTextAllow(root2);
   for (const path of listFiles(pluginDir)) {
     const inPlugin = relativePosix(pluginDir, path);
     if (!scannedFile(inPlugin) || allow.some((g) => globMatch(g, inPlugin))) continue;
     let text;
     try {
-      text = readFileSync5(path, "utf8");
+      text = readFileSync8(path, "utf8");
     } catch {
       continue;
     }
@@ -1016,7 +1772,7 @@ function checkScanText(pluginDir, root, report2) {
     const kinds = [...new Set(hits.map((h) => h.what))].join(", ");
     report2.add(
       "SCAN_TEXT",
-      relative5(root, path),
+      relative5(root2, path),
       first.line,
       `${hits.length} ${hits.length === 1 ? "line names" : "places name"} ${kinds}. Claude's plugin scan may mark a plugin Caution when its shipped text names credentials, CI secrets, self-hosted runners or download-and-run installs.`,
       `Keep that text out of shipped files, or list the file under \`scanTextAllow\` in .agentskills.json and say plainly in the README what the plugin does with it.`
@@ -1025,13 +1781,13 @@ function checkScanText(pluginDir, root, report2) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/server.ts
-import { spawnSync } from "node:child_process";
-import { existsSync as existsSync6, mkdtempSync, readFileSync as readFileSync6, rmSync } from "node:fs";
+import { spawnSync as spawnSync3 } from "node:child_process";
+import { existsSync as existsSync9, mkdtempSync, readFileSync as readFileSync9, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join as join6, relative as relative6 } from "node:path";
+import { join as join9, relative as relative6 } from "node:path";
 var ESBUILD = /"esbuild": "([^"]+)"/.exec(
-  readFileSync6(join6(templatesRoot, "repo", "package.json.tmpl"), "utf8")
+  readFileSync9(join9(templatesRoot, "repo", "package.json.tmpl"), "utf8")
 )?.[1] ?? "";
 var HINTS = ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"];
 var PASSED_ENV = ["PATH", "HOME", "TMPDIR", "TMP", "TEMP", "LANG", "SystemRoot", "USERPROFILE"];
@@ -1054,7 +1810,7 @@ function listTools(bundle) {
     { method: "notifications/initialized" },
     { id: 2, method: "tools/list" }
   ];
-  const result = spawnSync("node", [bundle], {
+  const result = spawnSync3("node", [bundle], {
     input: `${messages.map((m) => JSON.stringify({ jsonrpc: "2.0", ...m })).join("\n")}
 `,
     encoding: "utf8",
@@ -1077,43 +1833,43 @@ function listTools(bundle) {
     tools: list.tools ?? []
   };
 }
-function checkServer(pluginDir, root, report2) {
-  const source = join6(pluginDir, "server", "src", "index.ts");
-  const bundle = join6(pluginDir, "server", "index.mjs");
-  const where = relative6(root, join6(pluginDir, "server"));
-  if (!existsSync6(source) || !existsSync6(bundle)) {
+function checkServer(pluginDir, root2, report2) {
+  const source = join9(pluginDir, "server", "src", "index.ts");
+  const bundle = join9(pluginDir, "server", "index.mjs");
+  const where2 = relative6(root2, join9(pluginDir, "server"));
+  if (!existsSync9(source) || !existsSync9(bundle)) {
     report2.add(
       "SERVER_FILES",
-      where,
+      where2,
       void 0,
       "Local server needs server/src/index.ts and server/index.mjs.",
       "Add the source and run `npm run build`."
     );
     return null;
   }
-  for (const file of listFiles(join6(pluginDir, "server", "src"))) {
-    if (/process\.cwd\(\)/.test(readFileSync6(file, "utf8"))) {
+  for (const file of listFiles(join9(pluginDir, "server", "src"))) {
+    if (/process\.cwd\(\)/.test(readFileSync9(file, "utf8"))) {
       report2.add(
         "SERVER_CWD",
-        relative6(root, file),
+        relative6(root2, file),
         void 0,
         "Server code uses the working directory.",
         "Resolve paths from `import.meta.url`; in Claude Code the working directory is the user project."
       );
     }
   }
-  const out = mkdtempSync(join6(tmpdir(), "sidecut-check-"));
+  const out = mkdtempSync(join9(tmpdir(), "sidecut-check-"));
   try {
-    const built = join6(out, "index.mjs");
+    const built = join9(out, "index.mjs");
     let inputs;
     let failure;
     let build;
     try {
-      build = createRequire(join6(root, "package.json"))("esbuild").buildSync;
+      build = createRequire(join9(root2, "package.json"))("esbuild").buildSync;
     } catch {
       report2.add(
         "SERVER_BUILD",
-        where,
+        where2,
         void 0,
         "The server can't be checked: sidecut-check builds it with esbuild from this repo's devDependencies, and esbuild isn't installed. Bun's bundler can't stand in, because the check compares the bytes of the two builds.",
         `Add esbuild ${ESBUILD} to devDependencies, install, and build server/index.mjs with it using the options in the template's scripts/build-server.ts.`
@@ -1122,8 +1878,8 @@ function checkServer(pluginDir, root, report2) {
     }
     try {
       const result = build({
-        absWorkingDir: root,
-        entryPoints: [relative6(root, source)],
+        absWorkingDir: root2,
+        entryPoints: [relative6(root2, source)],
         bundle: true,
         platform: "node",
         format: "esm",
@@ -1143,15 +1899,15 @@ function checkServer(pluginDir, root, report2) {
     if (failure !== void 0) {
       report2.add(
         "SERVER_BUILD",
-        where,
+        where2,
         void 0,
         `The server doesn't build: ${failure.split("\n")[0]}`,
         "Run `npm install`, then fix the build error."
       );
-    } else if (!readFileSync6(built).equals(readFileSync6(bundle))) {
+    } else if (!readFileSync9(built).equals(readFileSync9(bundle))) {
       report2.add(
         "SERVER_BUNDLE_STALE",
-        relative6(root, bundle),
+        relative6(root2, bundle),
         void 0,
         "The committed bundle doesn't match the source.",
         "Run `npm run build` and commit server/index.mjs."
@@ -1166,13 +1922,13 @@ function checkServer(pluginDir, root, report2) {
           )
         )
       ];
-      const notices = join6(pluginDir, "server", "THIRD_PARTY_LICENSES.txt");
-      const text = existsSync6(notices) ? readFileSync6(notices, "utf8") : "";
+      const notices = join9(pluginDir, "server", "THIRD_PARTY_LICENSES.txt");
+      const text = existsSync9(notices) ? readFileSync9(notices, "utf8") : "";
       const missing = packages.filter((pkg) => !text.split("\n").includes(pkg));
       if (missing.length > 0) {
         report2.add(
           "SERVER_LICENSES",
-          relative6(root, notices),
+          relative6(root2, notices),
           void 0,
           `The bundle inlines ${missing.join(", ")} without its licence notice.`,
           "Run `npm run build`, which writes server/THIRD_PARTY_LICENSES.txt."
@@ -1186,7 +1942,7 @@ function checkServer(pluginDir, root, report2) {
   if (!listing) {
     report2.add(
       "SERVER_START",
-      relative6(root, bundle),
+      relative6(root2, bundle),
       void 0,
       "The server didn't answer initialize and tools/list.",
       "Run `node server/index.mjs` and fix the startup error."
@@ -1197,14 +1953,14 @@ function checkServer(pluginDir, root, report2) {
   if (count < 3 || count > 6) {
     report2.add(
       "SERVER_INSTRUCTIONS",
-      where,
+      where2,
       void 0,
       `Server instructions have ${count} sentences.`,
       "Write 3 to 6 sentences: what it covers, where to start, what tool output is."
     );
   }
   for (const tool of listing.tools) {
-    const label = `${where} tool ${tool.name}`;
+    const label = `${where2} tool ${tool.name}`;
     if (!/^[a-z]+(_[a-z]+)+$/.test(tool.name)) {
       report2.add(
         "NAME_TOOL",
@@ -1241,8 +1997,8 @@ function checkServer(pluginDir, root, report2) {
 }
 
 // plugins/sidecut-agentskills/server/src/check/skills.ts
-import { existsSync as existsSync7, readdirSync as readdirSync4, readFileSync as readFileSync7, statSync as statSync3 } from "node:fs";
-import { join as join7, relative as relative7 } from "node:path";
+import { existsSync as existsSync10, readdirSync as readdirSync5, readFileSync as readFileSync10, statSync as statSync4 } from "node:fs";
+import { join as join10, relative as relative7 } from "node:path";
 var FRONTMATTER_ORDER = [
   "name",
   "description",
@@ -1428,13 +2184,13 @@ function checkFrontmatter(name, lines, file, report2, tools, plugin) {
 }
 function supportFiles(dir) {
   return Object.keys(SUPPORT_FOLDERS).flatMap(
-    (folder) => existsSync7(join7(dir, folder)) ? readdirSync4(join7(dir, folder)).filter((f) => statSync3(join7(dir, folder, f)).isFile()).map((f) => `${folder}/${f}`) : []
+    (folder) => existsSync10(join10(dir, folder)) ? readdirSync5(join10(dir, folder)).filter((f) => statSync4(join10(dir, folder, f)).isFile()).map((f) => `${folder}/${f}`) : []
   );
 }
-function checkLayout(dir, root, report2) {
+function checkLayout(dir, root2, report2) {
   for (const path of listFiles(dir)) {
     const rel = relativePosix(dir, path);
-    const file = relative7(root, path);
+    const file = relative7(root2, path);
     if (rel === "SKILL.md" || rel === "agents/openai.yaml") continue;
     const [folder, name, ...rest] = rel.split("/");
     const pattern = SUPPORT_FOLDERS[folder ?? ""];
@@ -1448,10 +2204,10 @@ function checkLayout(dir, root, report2) {
       );
     }
   }
-  if (!existsSync7(join7(dir, "agents", "openai.yaml"))) {
+  if (!existsSync10(join10(dir, "agents", "openai.yaml"))) {
     report2.add(
       "SKILL_OPENAI_YAML",
-      relative7(root, dir),
+      relative7(root2, dir),
       void 0,
       "Skill has no agents/openai.yaml.",
       "Add it with display_name, short_description and default_prompt."
@@ -1472,14 +2228,14 @@ function openAiYamlOf(info, title, brandColor) {
     ""
   ].join("\n");
 }
-function checkOpenAiYaml(dir, info, title, brandColor, root, report2) {
-  const path = join7(dir, "agents", "openai.yaml");
-  if (!existsSync7(path)) return;
+function checkOpenAiYaml(dir, info, title, brandColor, root2, report2) {
+  const path = join10(dir, "agents", "openai.yaml");
+  if (!existsSync10(path)) return;
   const expected = openAiYamlOf(info, title, brandColor);
-  if (readFileSync7(path, "utf8") !== expected) {
+  if (readFileSync10(path, "utf8") !== expected) {
     report2.add(
       "SKILL_OPENAI_YAML",
-      relative7(root, path),
+      relative7(root2, path),
       1,
       "openai.yaml doesn't match the skill.",
       `Make it exactly:
@@ -1487,12 +2243,12 @@ ${expected}`
     );
   }
 }
-function checkSections(dir, name, root, report2, tools, skills, plugin) {
-  const path = join7(dir, "SKILL.md");
-  const file = relative7(root, path);
-  const text = readFileSync7(path, "utf8");
+function checkSections(dir, name, root2, report2, tools, skills, plugin) {
+  const path = join10(dir, "SKILL.md");
+  const file = relative7(root2, path);
+  const text = readFileSync10(path, "utf8");
   const doc = parseMarkdown(path, text);
-  checkMarkdown(doc, text, root, report2, { skipH1Case: true });
+  checkMarkdown(doc, text, root2, report2, { skipH1Case: true });
   if (doc.lines.length > 200) {
     report2.add(
       "SKILL_LENGTH",
@@ -1582,16 +2338,16 @@ function checkSections(dir, name, root, report2, tools, skills, plugin) {
     );
   }
   for (const f of support) {
-    const p = join7(dir, f);
-    if (f.endsWith(".md")) checkSupportDoc(p, root, report2);
-    else checkScript(p, root, report2);
+    const p = join10(dir, f);
+    if (f.endsWith(".md")) checkSupportDoc(p, root2, report2);
+    else checkScript(p, root2, report2);
   }
 }
-function checkSupportDoc(path, root, report2) {
-  const file = relative7(root, path);
-  const text = readFileSync7(path, "utf8");
+function checkSupportDoc(path, root2, report2) {
+  const file = relative7(root2, path);
+  const text = readFileSync10(path, "utf8");
   const doc = parseMarkdown(path, text);
-  checkMarkdown(doc, text, root, report2);
+  checkMarkdown(doc, text, root2, report2);
   if (doc.frontmatter)
     report2.add(
       "REF_FRONTMATTER",
@@ -1610,9 +2366,9 @@ function checkSupportDoc(path, root, report2) {
     );
   }
 }
-function checkScript(path, root, report2) {
-  const file = relative7(root, path);
-  const text = readFileSync7(path, "utf8");
+function checkScript(path, root2, report2) {
+  const file = relative7(root2, path);
+  const text = readFileSync10(path, "utf8");
   for (const match of text.matchAll(/(?:from|import\()\s*['"]([^'"]+)['"]/g)) {
     if (!(match[1] ?? "").startsWith("node:")) {
       report2.add(
@@ -1642,40 +2398,40 @@ function checkScript(path, root, report2) {
     );
   }
 }
-function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
-  const skillsDir = join7(pluginDir, "skills");
-  if (!existsSync7(skillsDir)) {
+function checkSkills(pluginDir, root2, report2, tools, plugin, brandColor) {
+  const skillsDir = join10(pluginDir, "skills");
+  if (!existsSync10(skillsDir)) {
     report2.add(
       "PLUGIN_NO_SKILLS",
-      relative7(root, pluginDir),
+      relative7(root2, pluginDir),
       void 0,
       "Plugin has no skills folder.",
       "Add at least one skill."
     );
     return [];
   }
-  const names = readdirSync4(skillsDir).filter((n) => statSync3(join7(skillsDir, n)).isDirectory()).sort();
+  const names = readdirSync5(skillsDir).filter((n) => statSync4(join10(skillsDir, n)).isDirectory()).sort();
   const skills = new Set(names);
-  const agentsDir = join7(pluginDir, "agents");
+  const agentsDir = join10(pluginDir, "agents");
   const targets = new Set(names);
-  if (existsSync7(agentsDir)) {
-    for (const f of readdirSync4(agentsDir)) if (f.endsWith(".md")) targets.add(f.slice(0, -3));
+  if (existsSync10(agentsDir)) {
+    for (const f of readdirSync5(agentsDir)) if (f.endsWith(".md")) targets.add(f.slice(0, -3));
   }
   const prefix = skillPrefixOf(plugin);
   const infos = [];
   for (const name of names) {
-    const dir = join7(skillsDir, name);
-    const file = relative7(root, join7(dir, "SKILL.md"));
+    const dir = join10(skillsDir, name);
+    const file = relative7(root2, join10(dir, "SKILL.md"));
     if (!isSkillName(name, prefix)) {
       report2.add(
         "NAME_SKILL",
-        relative7(root, dir),
+        relative7(root2, dir),
         void 0,
         `Skill "${name}" is not ${prefix}- then a 2 or 3 word verb-object name.`,
         `Rename it, for example \`${prefix}-write-skill\`, or \`${prefix}\` for the router.`
       );
     }
-    if (!existsSync7(join7(dir, "SKILL.md"))) {
+    if (!existsSync10(join10(dir, "SKILL.md"))) {
       report2.add(
         "SKILL_MISSING",
         file,
@@ -1685,12 +2441,12 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
       );
       continue;
     }
-    checkLayout(dir, root, report2);
-    const doc = parseMarkdown(join7(dir, "SKILL.md"), readFileSync7(join7(dir, "SKILL.md"), "utf8"));
+    checkLayout(dir, root2, report2);
+    const doc = parseMarkdown(join10(dir, "SKILL.md"), readFileSync10(join10(dir, "SKILL.md"), "utf8"));
     const info = checkFrontmatter(name, doc.frontmatter, file, report2, tools, plugin);
-    checkSections(dir, name, root, report2, tools, targets, plugin);
+    checkSections(dir, name, root2, report2, tools, targets, plugin);
     if (info) {
-      checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), brandColor, root, report2);
+      checkOpenAiYaml(dir, info, skillTitleOf(name, prefix), brandColor, root2, report2);
       infos.push(info);
     }
   }
@@ -1699,13 +2455,13 @@ function checkSkills(pluginDir, root, report2, tools, plugin, brandColor) {
   if (hasRouter !== needsRouter) {
     report2.add(
       "SKILL_ROUTER",
-      relative7(root, skillsDir),
+      relative7(root2, skillsDir),
       void 0,
       needsRouter ? `Plugin has 4 or more skills but no \`${prefix}\` router.` : `Plugin has a \`${prefix}\` router but fewer than 4 other skills.`,
       needsRouter ? `Add \`skills/${prefix}\`.` : `Remove \`skills/${prefix}\`.`
     );
   }
-  checkRepeatedText(skillsDir, names, root, report2);
+  checkRepeatedText(skillsDir, names, root2, report2);
   return infos;
 }
 var LONG_STEP_WORDS = 120;
@@ -1714,12 +2470,12 @@ function stepWords(line) {
   if (/^\s*$|^#{1,6} |^\|/.test(line)) return 0;
   return prose(line).replace(/^\s*(- |\d+\. )/, "").split(/\s+/).filter(Boolean).length;
 }
-function checkRepeatedText(skillsDir, names, root, report2) {
+function checkRepeatedText(skillsDir, names, root2, report2) {
   const firstSeen = /* @__PURE__ */ new Map();
   for (const name of names) {
-    const path = join7(skillsDir, name, "SKILL.md");
-    if (!existsSync7(path)) continue;
-    const doc = parseMarkdown(path, readFileSync7(path, "utf8"));
+    const path = join10(skillsDir, name, "SKILL.md");
+    if (!existsSync10(path)) continue;
+    const doc = parseMarkdown(path, readFileSync10(path, "utf8"));
     const seenHere = /* @__PURE__ */ new Set();
     doc.lines.forEach((line, i) => {
       if (doc.inCode[i] || stepWords(line) < REPEATED_LINE_WORDS) return;
@@ -1734,7 +2490,7 @@ function checkRepeatedText(skillsDir, names, root, report2) {
       }
       report2.add(
         "SKILL_REPEATED_TEXT",
-        relative7(root, path),
+        relative7(root2, path),
         i + 1,
         `This line is also in \`${other}\`.`,
         "Say it once: in a file under server/data/ that both skills point to, or in the skill that owns it."
@@ -1797,13 +2553,13 @@ var README_SECTIONS = [
   "License"
 ];
 var CHANGELOG_SECTIONS = ["Added", "Changed", "Fixed", "Removed"];
-function readJson(path, root, report2) {
+function readJson2(path, root2, report2) {
   try {
-    return JSON.parse(readFileSync8(path, "utf8"));
+    return JSON.parse(readFileSync11(path, "utf8"));
   } catch {
     report2.add(
       "JSON_INVALID",
-      relative8(root, path),
+      relative8(root2, path),
       void 0,
       "File is not valid JSON.",
       "Fix the JSON."
@@ -1824,27 +2580,27 @@ function checkKeys(obj, expected, file, report2, code) {
   }
 }
 function emptyDirs(dir) {
-  const entries = readdirSync5(dir);
+  const entries = readdirSync6(dir);
   const found = entries.length === 0 ? [dir] : [];
   for (const name of entries) {
-    const path = join8(dir, name);
-    if (statSync4(path).isDirectory()) found.push(...emptyDirs(path));
+    const path = join11(dir, name);
+    if (statSync5(path).isDirectory()) found.push(...emptyDirs(path));
   }
   return found;
 }
 function pngSize(path) {
-  const bytes = readFileSync8(path);
+  const bytes = readFileSync11(path);
   if (bytes.length < 24 || bytes.toString("ascii", 12, 16) !== "IHDR") return null;
   return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
 }
-function checkAntigravity(pluginDir, root, report2) {
+function checkAntigravity(pluginDir, root2, report2) {
   const want = antigravityFiles(pluginDir);
   if (!want) return;
   const sync = "Run `npm exec --no -- sidecut-sync`, which writes it from the Claude Code and Codex files.";
   for (const { path, text } of want) {
-    const full = join8(pluginDir, path);
-    const file = relative8(root, full);
-    const have = existsSync8(full) ? readFileSync8(full, "utf8") : null;
+    const full = join11(pluginDir, path);
+    const file = relative8(root2, full);
+    const have = existsSync11(full) ? readFileSync11(full, "utf8") : null;
     if (text === null) {
       if (have !== null)
         report2.add(
@@ -1875,14 +2631,14 @@ function checkAntigravity(pluginDir, root, report2) {
       );
   }
 }
-function checkLayout2(pluginDir, root, report2) {
-  for (const name of readdirSync5(pluginDir)) {
+function checkLayout2(pluginDir, root2, report2) {
+  for (const name of readdirSync6(pluginDir)) {
     if (name === ".DS_Store") continue;
     if (!PLUGIN_ENTRIES.has(name)) {
       const hint = name === "plugin.json" ? "Codex reads .codex-plugin/plugin.json; a root plugin.json stops it loading hooks." : name === "commands" ? "Turn commands into skills." : name === "evals" ? "Move evaluation cases to the repository root, outside the installed plugin." : "Move or remove it.";
       report2.add(
         "PLUGIN_ENTRY_UNEXPECTED",
-        relative8(root, join8(pluginDir, name)),
+        relative8(root2, join11(pluginDir, name)),
         void 0,
         `"${name}" isn't part of the plugin layout.`,
         hint
@@ -1892,58 +2648,58 @@ function checkLayout2(pluginDir, root, report2) {
   for (const dir of emptyDirs(pluginDir)) {
     report2.add(
       "PLUGIN_EMPTY_FOLDER",
-      relative8(root, dir),
+      relative8(root2, dir),
       void 0,
       "Empty folder.",
       "Remove it."
     );
   }
-  const assets = join8(pluginDir, "assets");
-  const icon = join8(assets, "icon.png");
-  if (existsSync8(assets)) {
-    for (const name of readdirSync5(assets)) {
+  const assets = join11(pluginDir, "assets");
+  const icon = join11(assets, "icon.png");
+  if (existsSync11(assets)) {
+    for (const name of readdirSync6(assets)) {
       if (name !== "icon.png")
         report2.add(
           "PLUGIN_ASSET",
-          relative8(root, join8(assets, name)),
+          relative8(root2, join11(assets, name)),
           void 0,
           "Only assets/icon.png is allowed.",
           "Remove it."
         );
     }
   }
-  const size = existsSync8(icon) ? pngSize(icon) : null;
+  const size = existsSync11(icon) ? pngSize(icon) : null;
   if (size?.[0] !== 512 || size[1] !== 512) {
     report2.add(
       "PLUGIN_ICON",
-      relative8(root, icon),
+      relative8(root2, icon),
       void 0,
       "assets/icon.png is missing or not a 512 by 512 PNG.",
       "Add a 512 by 512 PNG."
     );
   }
-  if (existsSync8(join8(pluginDir, "agents"))) {
-    for (const name of readdirSync5(join8(pluginDir, "agents"))) {
+  if (existsSync11(join11(pluginDir, "agents"))) {
+    for (const name of readdirSync6(join11(pluginDir, "agents"))) {
       if (!/^[a-z]+\.md$/.test(name)) {
         report2.add(
           "NAME_AGENT",
-          relative8(root, join8(pluginDir, "agents", name)),
+          relative8(root2, join11(pluginDir, "agents", name)),
           void 0,
           "Subagent file is not a one-word role noun.",
           "Rename it, for example `reviewer.md`."
         );
       }
-      const prefix = skillPrefixOf(relative8(join8(pluginDir, ".."), pluginDir));
-      const profile = join8(
+      const prefix = skillPrefixOf(relative8(join11(pluginDir, ".."), pluginDir));
+      const profile = join11(
         pluginDir,
         "codex",
         "agents",
         `${prefix}-${name.replace(/\.md$/, "")}.toml`
       );
-      if (!existsSync8(profile)) {
+      if (!existsSync11(profile)) {
         report2.add(
           "AGENT_CODEX_PROFILE",
-          relative8(root, profile),
+          relative8(root2, profile),
           void 0,
           "The subagent has no Codex profile.",
           "Run `npm run build`, which writes codex/agents/ from agents/."
@@ -1952,30 +2708,30 @@ function checkLayout2(pluginDir, root, report2) {
     }
   }
 }
-function checkManifests(pluginDir, id, repoName, root, report2) {
-  const claudePath = join8(pluginDir, ".claude-plugin", "plugin.json");
-  const portablePath = join8(pluginDir, ".codex-plugin", "plugin.json");
+function checkManifests(pluginDir, id, repoName2, root2, report2) {
+  const claudePath = join11(pluginDir, ".claude-plugin", "plugin.json");
+  const portablePath = join11(pluginDir, ".codex-plugin", "plugin.json");
   for (const path of [claudePath, portablePath]) {
-    if (!existsSync8(path))
+    if (!existsSync11(path))
       report2.add(
         "MANIFEST_MISSING",
-        relative8(root, path),
+        relative8(root2, path),
         void 0,
         "Manifest is missing.",
         "Add it from the template."
       );
   }
-  if (!existsSync8(claudePath) || !existsSync8(portablePath)) return null;
-  const claude = readJson(claudePath, root, report2);
-  const portable = readJson(portablePath, root, report2);
+  if (!existsSync11(claudePath) || !existsSync11(portablePath)) return null;
+  const claude = readJson2(claudePath, root2, report2);
+  const portable = readJson2(portablePath, root2, report2);
   if (!claude || !portable) return null;
-  const claudeFile = relative8(root, claudePath);
-  const portableFile = relative8(root, portablePath);
+  const claudeFile = relative8(root2, claudePath);
+  const portableFile = relative8(root2, portablePath);
   checkKeys(claude, SHARED_FIELDS, claudeFile, report2, "MANIFEST_FIELDS");
   const paths = { skills: "./skills/" };
-  if (existsSync8(join8(pluginDir, "mcp.json"))) paths.mcpServers = "./mcp.json";
-  if (existsSync8(join8(pluginDir, ".app.json"))) paths.apps = "./.app.json";
-  if (existsSync8(join8(pluginDir, "hooks", "codex-hooks.json")))
+  if (existsSync11(join11(pluginDir, "mcp.json"))) paths.mcpServers = "./mcp.json";
+  if (existsSync11(join11(pluginDir, ".app.json"))) paths.apps = "./.app.json";
+  if (existsSync11(join11(pluginDir, "hooks", "codex-hooks.json")))
     paths.hooks = "./hooks/codex-hooks.json";
   checkKeys(
     portable,
@@ -2049,7 +2805,7 @@ function checkManifests(pluginDir, id, repoName, root, report2) {
     );
   const repository = String(claude.repository ?? "");
   const owner = s.org || /^https:\/\/github\.com\/([\w.-]+)\//.exec(repository)?.[1] || "";
-  const repoOk = repoName ? repository === `https://github.com/${owner}/${repoName}` : Boolean(owner) && repository.startsWith(`https://github.com/${owner}/`);
+  const repoOk = repoName2 ? repository === `https://github.com/${owner}/${repoName2}` : Boolean(owner) && repository.startsWith(`https://github.com/${owner}/`);
   if (!repoOk)
     report2.add(
       "MANIFEST_REPOSITORY",
@@ -2129,11 +2885,11 @@ function checkManifests(pluginDir, id, repoName, root, report2) {
 function isRecord2(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-function checkApps(pluginDir, id, root, report2) {
-  const path = join8(pluginDir, ".app.json");
-  if (!existsSync8(path)) return;
-  const file = relative8(root, path);
-  const config = readJson(path, root, report2);
+function checkApps(pluginDir, id, root2, report2) {
+  const path = join11(pluginDir, ".app.json");
+  if (!existsSync11(path)) return;
+  const file = relative8(root2, path);
+  const config = readJson2(path, root2, report2);
   const apps = config?.apps;
   if (!isRecord2(config) || Object.keys(config).join() !== "apps" || !isRecord2(apps) || Object.keys(apps).length === 0) {
     report2.add(
@@ -2166,41 +2922,41 @@ function checkApps(pluginDir, id, root, report2) {
       );
     }
   }
-  const mcpPath = join8(pluginDir, "mcp.json");
-  if (!existsSync8(mcpPath)) return;
-  const mcp = readJson(mcpPath, root, report2);
+  const mcpPath = join11(pluginDir, "mcp.json");
+  if (!existsSync11(mcpPath)) return;
+  const mcp = readJson2(mcpPath, root2, report2);
   const fallback = isRecord2(mcp?.mcpServers) ? mcp.mcpServers[key] : void 0;
   if (!isRecord2(fallback) || fallback.type !== "http" || typeof fallback.url !== "string") {
     report2.add(
       "APP_MCP_ROUTE",
-      relative8(root, mcpPath),
+      relative8(root2, mcpPath),
       void 0,
       `The app's direct fallback must be a remote HTTP server named "${key}".`,
       "Use the same declaration name for the managed app and its hosted MCP fallback; do not shadow a local server."
     );
   }
 }
-function checkMcp(pluginDir, id, root, report2) {
-  const claudePath = join8(pluginDir, ".mcp.json");
-  const portablePath = join8(pluginDir, "mcp.json");
-  const hasClaude = existsSync8(claudePath);
-  const hasPortable = existsSync8(portablePath);
+function checkMcp(pluginDir, id, root2, report2) {
+  const claudePath = join11(pluginDir, ".mcp.json");
+  const portablePath = join11(pluginDir, "mcp.json");
+  const hasClaude = existsSync11(claudePath);
+  const hasPortable = existsSync11(portablePath);
   if (!hasClaude && !hasPortable) return null;
   if (hasClaude !== hasPortable) {
     report2.add(
       "MCP_PAIR",
-      relative8(root, pluginDir),
+      relative8(root2, pluginDir),
       void 0,
       "Only one of .mcp.json and mcp.json exists.",
       "Add the other; Claude Code reads .mcp.json and Codex reads mcp.json."
     );
     return null;
   }
-  const claude = readJson(claudePath, root, report2);
-  const portable = readJson(portablePath, root, report2);
+  const claude = readJson2(claudePath, root2, report2);
+  const portable = readJson2(portablePath, root2, report2);
   if (!claude || !portable) return null;
-  const claudeFile = relative8(root, claudePath);
-  const portableFile = relative8(root, portablePath);
+  const claudeFile = relative8(root2, claudePath);
+  const portableFile = relative8(root2, portablePath);
   checkKeys(claude, ["mcpServers"], claudeFile, report2, "MCP_FIELDS");
   checkKeys(portable, ["mcpServers"], portableFile, report2, "MCP_FIELDS");
   const a = claude.mcpServers ?? {};
@@ -2253,7 +3009,7 @@ function checkMcp(pluginDir, id, root, report2) {
       }
     }
   }
-  return local ? checkServer(pluginDir, root, report2) : null;
+  return local ? checkServer(pluginDir, root2, report2) : null;
 }
 function kebab(event) {
   return event.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
@@ -2300,14 +3056,14 @@ function checkHookConfig(config, file, registered, report2) {
     }
   }
 }
-function checkHooks(pluginDir, root, report2) {
-  const dir = join8(pluginDir, "hooks");
-  if (!existsSync8(dir)) return;
-  const configPath = join8(dir, "hooks.json");
-  if (!existsSync8(configPath) || !readJson(configPath, root, report2)) {
+function checkHooks(pluginDir, root2, report2) {
+  const dir = join11(pluginDir, "hooks");
+  if (!existsSync11(dir)) return;
+  const configPath = join11(dir, "hooks.json");
+  if (!existsSync11(configPath) || !readJson2(configPath, root2, report2)) {
     report2.add(
       "HOOKS_CONFIG",
-      relative8(root, configPath),
+      relative8(root2, configPath),
       void 0,
       "hooks/ has no valid hooks.json.",
       "Add hooks.json or remove the folder."
@@ -2317,10 +3073,10 @@ function checkHooks(pluginDir, root, report2) {
   const registered = /* @__PURE__ */ new Set();
   const byHost = /* @__PURE__ */ new Map();
   for (const name of ["hooks.json", "codex-hooks.json"]) {
-    const path = join8(dir, name);
-    const config = existsSync8(path) ? readJson(path, root, report2) : null;
+    const path = join11(dir, name);
+    const config = existsSync11(path) ? readJson2(path, root2, report2) : null;
     const scripts2 = /* @__PURE__ */ new Set();
-    if (config) checkHookConfig(config, relative8(root, path), scripts2, report2);
+    if (config) checkHookConfig(config, relative8(root2, path), scripts2, report2);
     for (const script of scripts2) registered.add(script);
     byHost.set(name, scripts2);
   }
@@ -2329,28 +3085,28 @@ function checkHooks(pluginDir, root, report2) {
   if (claudeHooks !== codexHooks) {
     report2.add(
       "HOOK_PARITY",
-      relative8(root, join8(dir, "codex-hooks.json")),
+      relative8(root2, join11(dir, "codex-hooks.json")),
       void 0,
       "hooks.json and codex-hooks.json don't register the same scripts.",
       "Register every hook script in both, with the event and matcher each host uses."
     );
   }
-  const scripts = readdirSync5(dir).filter((n) => n.endsWith(".mjs"));
+  const scripts = readdirSync6(dir).filter((n) => n.endsWith(".mjs"));
   for (const name of scripts) {
-    const path = join8(dir, name);
+    const path = join11(dir, name);
     if (!registered.has(name))
       report2.add(
         "HOOK_UNREGISTERED",
-        relative8(root, path),
+        relative8(root2, path),
         void 0,
         "Hook script is not registered.",
         "Register it in hooks.json or codex-hooks.json, or delete it."
       );
-    const text = readFileSync8(path, "utf8");
+    const text = readFileSync11(path, "utf8");
     if (/\bfetch\(|node:https?|node:net|node:dgram/.test(text)) {
       report2.add(
         "HOOK_NETWORK",
-        relative8(root, path),
+        relative8(root2, path),
         void 0,
         "Hook uses the network.",
         "Hooks make no network calls."
@@ -2359,12 +3115,12 @@ function checkHooks(pluginDir, root, report2) {
     if (name === "post-tool-use-skill-log.mjs") {
       const canonical = renderFile(
         `plugin/hooks/${name}.tmpl`,
-        settingsVars(relative8(join8(pluginDir, ".."), pluginDir))
+        settingsVars(relative8(join11(pluginDir, ".."), pluginDir))
       );
       if (text !== canonical) {
         report2.add(
           "HOOK_SKILL_LOG",
-          relative8(root, path),
+          relative8(root2, path),
           void 0,
           "The usage log hook differs from the template copy.",
           "Copy it again from the sidecut-agentskills template."
@@ -2376,15 +3132,15 @@ function checkHooks(pluginDir, root, report2) {
     if (!scripts.includes(name))
       report2.add(
         "HOOK_MISSING",
-        relative8(root, dir),
+        relative8(root2, dir),
         void 0,
         `Registered hook ${name} doesn't exist.`,
         "Add the script or remove the entry."
       );
   }
 }
-function checkEvalsSource(root, report2) {
-  for (const problem of stampProblems(root))
+function checkEvalsSource(root2, report2) {
+  for (const problem of stampProblems(root2))
     report2.add(
       "EVAL_SOURCE",
       problem.file,
@@ -2393,17 +3149,17 @@ function checkEvalsSource(root, report2) {
       "Edit the evals at their source and sync again, or delete evals-source.json to own them here."
     );
 }
-function checkEvals(skills, root, report2) {
-  const dir = join8(root, "evals");
-  const cases = existsSync8(dir) ? readdirSync5(dir).filter((n) => statSync4(join8(dir, n)).isDirectory()) : [];
+function checkEvals(skills, root2, report2) {
+  const dir = join11(root2, "evals");
+  const cases = existsSync11(dir) ? readdirSync6(dir).filter((n) => statSync5(join11(dir, n)).isDirectory()) : [];
   const bySpecificity = [...skills].sort((a, b) => b.length - a.length);
   const covered = /* @__PURE__ */ new Set();
   let hasNegative = false;
   for (const name of cases) {
-    const where = relative8(root, join8(dir, name));
+    const where2 = relative8(root2, join11(dir, name));
     const owner = bySpecificity.find((s) => name.startsWith(`${s}-`));
-    const prompt = join8(dir, name, "prompt.md");
-    const text = existsSync8(prompt) && statSync4(prompt).isFile() ? readFileSync8(prompt, "utf8") : "";
+    const prompt = join11(dir, name, "prompt.md");
+    const text = existsSync11(prompt) && statSync5(prompt).isFile() ? readFileSync11(prompt, "utf8") : "";
     const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text)?.[1] ?? "";
     if (/^negative-[a-z0-9-]+$/.test(name) && (!owner || /^tags:\s*\[negative\]/m.test(frontmatter)))
       hasNegative = true;
@@ -2411,7 +3167,7 @@ function checkEvals(skills, root, report2) {
     else {
       report2.add(
         "EVAL_NAME",
-        where,
+        where2,
         void 0,
         "Eval case is not named <skill>-<what> or negative-<what>.",
         "Rename it after the skill it tests."
@@ -2420,17 +3176,17 @@ function checkEvals(skills, root, report2) {
     if (!text.startsWith("---\n")) {
       report2.add(
         "EVAL_PROMPT",
-        where,
+        where2,
         void 0,
         "Eval case has no prompt.md with frontmatter.",
         "Add prompt.md with tags, runs, max_turns and allowed_tools."
       );
     }
-    const graders = join8(dir, name, "graders");
-    if (!existsSync8(graders) || !readdirSync5(graders).some((g) => g.endsWith(".md"))) {
+    const graders = join11(dir, name, "graders");
+    if (!existsSync11(graders) || !readdirSync6(graders).some((g) => g.endsWith(".md"))) {
       report2.add(
         "EVAL_GRADERS",
-        where,
+        where2,
         void 0,
         "Eval case has no graders.",
         "Add at least one graders/*.md file."
@@ -2440,7 +3196,7 @@ function checkEvals(skills, root, report2) {
   if (cases.length > 0 && !hasNegative) {
     report2.add(
       "EVAL_MISSING",
-      relative8(root, dir),
+      relative8(root2, dir),
       void 0,
       "There is no negative- eval case.",
       "Add evals/negative-<what>/ for a request the skill under test should leave to another route."
@@ -2450,7 +3206,7 @@ function checkEvals(skills, root, report2) {
     if (!covered.has(skill)) {
       report2.add(
         "EVAL_MISSING",
-        relative8(root, dir),
+        relative8(root2, dir),
         void 0,
         `Skill ${skill} has no eval case.`,
         `Add evals/${skill}-<what>/ with a trigger case.`
@@ -2458,24 +3214,24 @@ function checkEvals(skills, root, report2) {
     }
   }
 }
-function checkReadme(pluginDir, description, skills, root, report2) {
-  const path = join8(pluginDir, "README.md");
-  if (!existsSync8(path)) {
+function checkReadme(pluginDir, description, skills, root2, report2) {
+  const path = join11(pluginDir, "README.md");
+  if (!existsSync11(path)) {
     report2.add(
       "README_MISSING",
-      relative8(root, path),
+      relative8(root2, path),
       void 0,
       "Plugin has no README.md.",
       "Add it from the template."
     );
     return;
   }
-  const file = relative8(root, path);
-  const text = readFileSync8(path, "utf8");
+  const file = relative8(root2, path);
+  const text = readFileSync11(path, "utf8");
   const doc = parseMarkdown(path, text);
-  checkMarkdown(doc, text, root, report2, { skipH1Case: true });
+  checkMarkdown(doc, text, root2, report2, { skipH1Case: true });
   const h1 = doc.headings.find((h) => h.level === 1);
-  const id = relative8(join8(pluginDir, ".."), pluginDir);
+  const id = relative8(join11(pluginDir, ".."), pluginDir);
   if (h1 && h1.text !== displayNameOf(id))
     report2.add(
       "README_TITLE",
@@ -2538,22 +3294,22 @@ function checkReadme(pluginDir, description, skills, root, report2) {
     );
   }
 }
-function checkChangelog(pluginDir, version, root, report2) {
-  const path = join8(pluginDir, "CHANGELOG.md");
-  if (!existsSync8(path)) {
+function checkChangelog(pluginDir, version, root2, report2) {
+  const path = join11(pluginDir, "CHANGELOG.md");
+  if (!existsSync11(path)) {
     report2.add(
       "CHANGELOG_MISSING",
-      relative8(root, path),
+      relative8(root2, path),
       void 0,
       "Plugin has no CHANGELOG.md.",
       "Add it."
     );
     return;
   }
-  const file = relative8(root, path);
-  const text = readFileSync8(path, "utf8");
+  const file = relative8(root2, path);
+  const text = readFileSync11(path, "utf8");
   const doc = parseMarkdown(path, text);
-  checkMarkdown(doc, text, root, report2, { allowDates: true });
+  checkMarkdown(doc, text, root2, report2, { allowDates: true });
   if (doc.headings[0]?.text !== "Changelog" || doc.headings[0]?.level !== 1) {
     report2.add(
       "CHANGELOG_TITLE",
@@ -2619,31 +3375,31 @@ function checkChangelog(pluginDir, version, root, report2) {
       );
   }
 }
-function checkPlugin(pluginDir, root, report2, repoName) {
-  const id = relative8(join8(pluginDir, ".."), pluginDir);
-  checkLayout2(pluginDir, root, report2);
-  const manifest = checkManifests(pluginDir, id, repoName, root, report2);
-  checkApps(pluginDir, id, root, report2);
-  const tools = checkMcp(pluginDir, id, root, report2);
-  const skills = checkSkills(pluginDir, root, report2, tools, id, brandColorOf(pluginDir));
-  checkHooks(pluginDir, root, report2);
-  checkAntigravity(pluginDir, root, report2);
-  if (repoName) {
+function checkPlugin(pluginDir, root2, report2, repoName2) {
+  const id = relative8(join11(pluginDir, ".."), pluginDir);
+  checkLayout2(pluginDir, root2, report2);
+  const manifest = checkManifests(pluginDir, id, repoName2, root2, report2);
+  checkApps(pluginDir, id, root2, report2);
+  const tools = checkMcp(pluginDir, id, root2, report2);
+  const skills = checkSkills(pluginDir, root2, report2, tools, id, brandColorOf(pluginDir));
+  checkHooks(pluginDir, root2, report2);
+  checkAntigravity(pluginDir, root2, report2);
+  if (repoName2) {
     checkEvals(
       skills.map((s) => s.name),
-      root,
+      root2,
       report2
     );
-    checkEvalsSource(root, report2);
+    checkEvalsSource(root2, report2);
   }
   const version = typeof manifest?.version === "string" ? manifest.version : null;
-  checkReadme(pluginDir, String(manifest?.description ?? ""), skills, root, report2);
-  if (version) checkChangelog(pluginDir, version, root, report2);
-  checkScanText(pluginDir, root, report2);
+  checkReadme(pluginDir, String(manifest?.description ?? ""), skills, root2, report2);
+  if (version) checkChangelog(pluginDir, version, root2, report2);
+  checkScanText(pluginDir, root2, report2);
   for (const path of listFiles(pluginDir)) {
     if (path.endsWith(".md") && !path.includes("/skills/") && !/\/(README|CHANGELOG)\.md$/.test(path)) {
-      const text = readFileSync8(path, "utf8");
-      checkMarkdown(parseMarkdown(path, text), text, root, report2);
+      const text = readFileSync11(path, "utf8");
+      checkMarkdown(parseMarkdown(path, text), text, root2, report2);
     }
   }
   return { version };
@@ -2651,15 +3407,15 @@ function checkPlugin(pluginDir, root, report2, repoName) {
 
 // plugins/sidecut-agentskills/server/src/check/sync.ts
 import {
-  existsSync as existsSync9,
-  lstatSync as lstatSync2,
+  existsSync as existsSync12,
+  lstatSync as lstatSync3,
   mkdirSync as mkdirSync3,
-  readdirSync as readdirSync6,
-  readFileSync as readFileSync9,
+  readdirSync as readdirSync7,
+  readFileSync as readFileSync12,
   rmSync as rmSync2,
   writeFileSync as writeFileSync3
 } from "node:fs";
-import { dirname as dirname4, join as join9 } from "node:path";
+import { dirname as dirname5, join as join12 } from "node:path";
 var OWNED_FILES = [
   "CLAUDE.md",
   "VOICE.md",
@@ -2667,6 +3423,7 @@ var OWNED_FILES = [
   "scripts/build-server.ts",
   "scripts/release.ts"
 ];
+var SHARED_DATA = ["visual-reports.md", "visual-report.css"];
 function pluginOwnedFile(id) {
   return `plugins/${id}/${USER_INPUT_PATH}`;
 }
@@ -2785,10 +3542,10 @@ function newer(a, b) {
   for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
   return false;
 }
-function planPackage(root, vars, pinOnly) {
-  const path = join9(root, "package.json");
-  if (!existsSync9(path)) return null;
-  const text = readFileSync9(path, "utf8");
+function planPackage(root2, vars, pinOnly) {
+  const path = join12(root2, "package.json");
+  if (!existsSync12(path)) return null;
+  const text = readFileSync12(path, "utf8");
   const pkg = JSON.parse(text);
   const indent = /^\{\r?\n([ \t]+)"/.exec(text)?.[1] ?? "  ";
   const template = JSON.parse(
@@ -2825,15 +3582,15 @@ function planPackage(root, vars, pinOnly) {
 `
   };
 }
-function planStarterEvals(root, id, key, kept) {
-  const evals = join9(root, "evals");
-  if (existsSync9(join9(root, STAMP_FILE)) || !lstatSync2(evals, { throwIfNoEntry: false })?.isDirectory())
+function planStarterEvals(root2, id, key, kept) {
+  const evals = join12(root2, "evals");
+  if (existsSync12(join12(root2, STAMP_FILE)) || !lstatSync3(evals, { throwIfNoEntry: false })?.isDirectory())
     return [];
   const title = displayNameOf(id);
   const skill = `${key}-check-status`;
   return [...pluginStarterEvals(id, key, title)].flatMap(([name, next]) => {
-    const dir = join9(evals, name);
-    const graders = join9(dir, "graders");
+    const dir = join12(evals, name);
+    const graders = join12(dir, "graders");
     const positive = name === `${skill}-trigger`;
     const grader = `graders/${positive ? "skill-fired" : "no-skill"}.md`;
     const old = /* @__PURE__ */ new Map([
@@ -2859,13 +3616,13 @@ ${positive ? "min: 1\narm: with-only" : "min: 0\nmax: 0\narm: both"}
 `
       ]
     ]);
-    if (!lstatSync2(dir, { throwIfNoEntry: false })?.isDirectory() || !lstatSync2(graders, { throwIfNoEntry: false })?.isDirectory() || readdirSync6(dir).length !== 2 || readdirSync6(graders).length !== 1)
+    if (!lstatSync3(dir, { throwIfNoEntry: false })?.isDirectory() || !lstatSync3(graders, { throwIfNoEntry: false })?.isDirectory() || readdirSync7(dir).length !== 2 || readdirSync7(graders).length !== 1)
       return [];
     const changes = [];
     for (const [path, previous] of old) {
-      const target = join9(dir, path);
-      if (!lstatSync2(target, { throwIfNoEntry: false })?.isFile()) return [];
-      const have = readFileSync9(target, "utf8");
+      const target = join12(dir, path);
+      if (!lstatSync3(target, { throwIfNoEntry: false })?.isFile()) return [];
+      const have = readFileSync12(target, "utf8");
       const want = next.get(path);
       if (!want || have !== previous && have !== want) return [];
       const file = `evals/${name}/${path}`;
@@ -2879,9 +3636,9 @@ ${positive ? "min: 1\narm: with-only" : "min: 0\nmax: 0\narm: both"}
     return changes;
   });
 }
-function planSync(root, vars, kept = () => false) {
+function planSync(root2, vars, kept = () => false) {
   const changes = [];
-  const answers = repoSettings(root);
+  const answers = repoSettings(root2);
   const settings = settingsVars(vars.id, answers);
   const render2 = (file) => renderFile(`repo/${file}.tmpl`, {
     ...settings,
@@ -2892,13 +3649,13 @@ function planSync(root, vars, kept = () => false) {
   const guide = pluginOwnedFile(vars.id);
   const beside = vars.scope === "beside";
   if (!beside)
-    changes.push(...planStarterEvals(root, vars.id, skillPrefixOf(vars.id, answers), kept));
-  const applies = (file) => !beside || file === guide && existsSync9(join9(root, file)) || file === "scripts/eval.mjs" && existsSync9(join9(root, "evals"));
+    changes.push(...planStarterEvals(root2, vars.id, skillPrefixOf(vars.id, answers), kept));
+  const applies = (file) => !beside || file === guide && existsSync12(join12(root2, file)) || file === "scripts/eval.mjs" && existsSync12(join12(root2, "evals"));
   for (const file of [...OWNED_FILES, guide].filter(applies)) {
     if (kept(file)) continue;
     const want = file === guide ? userInput() : render2(file);
-    const path = join9(root, file);
-    const have = existsSync9(path) ? readFileSync9(path, "utf8") : null;
+    const path = join12(root2, file);
+    const have = existsSync12(path) ? readFileSync12(path, "utf8") : null;
     if (have !== want)
       changes.push({
         file,
@@ -2906,10 +3663,18 @@ function planSync(root, vars, kept = () => false) {
         next: want
       });
   }
+  for (const name of SHARED_DATA) {
+    const file = `plugins/${vars.id}/server/data/${name}`;
+    const path = join12(root2, file);
+    if (kept(file) || !existsSync12(path)) continue;
+    const want = readFileSync12(join12(dataRoot, name), "utf8");
+    if (readFileSync12(path, "utf8") !== want)
+      changes.push({ file, what: `${file} differs from the shared copy.`, next: want });
+  }
   const hook = `plugins/${vars.id}/hooks/${SKILL_LOG_HOOK}`;
-  if (!kept(hook, "HOOK_SKILL_LOG") && existsSync9(join9(root, hook))) {
+  if (!kept(hook, "HOOK_SKILL_LOG") && existsSync12(join12(root2, hook))) {
     const want = renderFile(`plugin/hooks/${SKILL_LOG_HOOK}.tmpl`, settings);
-    if (readFileSync9(join9(root, hook), "utf8") !== want)
+    if (readFileSync12(join12(root2, hook), "utf8") !== want)
       changes.push({
         file: hook,
         what: `${hook} differs from the template copy.`,
@@ -2917,9 +3682,9 @@ function planSync(root, vars, kept = () => false) {
         code: "HOOK_SKILL_LOG"
       });
   }
-  for (const { path, text } of antigravityFiles(join9(root, "plugins", vars.id)) ?? []) {
+  for (const { path, text } of antigravityFiles(join12(root2, "plugins", vars.id)) ?? []) {
     const file = `plugins/${vars.id}/${path}`;
-    const have = existsSync9(join9(root, file)) ? readFileSync9(join9(root, file), "utf8") : null;
+    const have = existsSync12(join12(root2, file)) ? readFileSync12(join12(root2, file), "utf8") : null;
     if (text === null) {
       if (have !== null && !kept(file, "ANTIGRAVITY_UNEXPECTED"))
         changes.push({
@@ -2946,13 +3711,13 @@ function planSync(root, vars, kept = () => false) {
       });
   }
   const oldGuide = `plugins/${vars.id}/${OLD_USER_INPUT_PATH}`;
-  for (const file of guideMoveFiles(root, vars.id)) {
+  for (const file of guideMoveFiles(root2, vars.id)) {
     if (kept(file)) continue;
     if (file === oldGuide) {
       changes.push({ file, what: `${file} is now ${guide}.`, next: "", remove: true });
       continue;
     }
-    const have = readFileSync9(join9(root, file), "utf8");
+    const have = readFileSync12(join12(root2, file), "utf8");
     changes.push({
       file,
       what: `${file} points at ${OLD_USER_INPUT_PATH}, now ${USER_INPUT_PATH}.`,
@@ -2961,16 +3726,16 @@ function planSync(root, vars, kept = () => false) {
   }
   for (const file of [...BLOCK_FILES, SETUP_FILE]) {
     if (kept(file)) continue;
-    const path = join9(root, file);
-    if (file === SETUP_FILE && !existsSync9(path)) continue;
-    if (beside && file !== SETUP_FILE && !(existsSync9(path) && hasBlocks(readFileSync9(path, "utf8"))))
+    const path = join12(root2, file);
+    if (file === SETUP_FILE && !existsSync12(path)) continue;
+    if (beside && file !== SETUP_FILE && !(existsSync12(path) && hasBlocks(readFileSync12(path, "utf8"))))
       continue;
     const template = render2(file);
-    if (!existsSync9(path)) {
+    if (!existsSync12(path)) {
       changes.push({ file, what: `${file} is missing.`, next: template });
       continue;
     }
-    const have = readFileSync9(path, "utf8");
+    const have = readFileSync12(path, "utf8");
     const merged = mergeBlocks(have, template, file);
     if ("error" in merged)
       changes.push({ file, what: `${merged.error} Fix them by hand.`, next: null });
@@ -2982,32 +3747,32 @@ function planSync(root, vars, kept = () => false) {
       });
   }
   if (!kept("package.json")) {
-    const pkg = planPackage(root, vars, beside);
+    const pkg = planPackage(root2, vars, beside);
     if (pkg) changes.push(pkg);
   }
   return changes;
 }
-function guideMoveFiles(root, id) {
+function guideMoveFiles(root2, id) {
   const plugin = `plugins/${id}`;
   const oldGuide = `${plugin}/${OLD_USER_INPUT_PATH}`;
-  const pointers = markdownUnder(root, plugin).filter(
-    (file) => file !== oldGuide && readFileSync9(join9(root, file), "utf8").includes(OLD_USER_INPUT_PATH)
+  const pointers = markdownUnder(root2, plugin).filter(
+    (file) => file !== oldGuide && readFileSync12(join12(root2, file), "utf8").includes(OLD_USER_INPUT_PATH)
   );
-  return [...existsSync9(join9(root, oldGuide)) ? [oldGuide] : [], ...pointers];
+  return [...existsSync12(join12(root2, oldGuide)) ? [oldGuide] : [], ...pointers];
 }
-function markdownUnder(root, dir) {
-  const path = join9(root, dir);
-  if (!existsSync9(path)) return [];
-  return readdirSync6(path, { withFileTypes: true }).flatMap((entry) => {
+function markdownUnder(root2, dir) {
+  const path = join12(root2, dir);
+  if (!existsSync12(path)) return [];
+  return readdirSync7(path, { withFileTypes: true }).flatMap((entry) => {
     const file = `${dir}/${entry.name}`;
-    if (entry.isDirectory()) return entry.name === "node_modules" ? [] : markdownUnder(root, file);
+    if (entry.isDirectory()) return entry.name === "node_modules" ? [] : markdownUnder(root2, file);
     return entry.name.endsWith(".md") ? [file] : [];
   });
 }
 
 // plugins/sidecut-agentskills/server/src/check/test-git-env.ts
-import { existsSync as existsSync10, readdirSync as readdirSync7, readFileSync as readFileSync10, statSync as statSync5 } from "node:fs";
-import { dirname as dirname5, join as join10, relative as relative9, sep as sep3 } from "node:path";
+import { existsSync as existsSync13, readdirSync as readdirSync8, readFileSync as readFileSync13, statSync as statSync6 } from "node:fs";
+import { dirname as dirname6, join as join13, relative as relative9, sep as sep3 } from "node:path";
 var SKIP = /* @__PURE__ */ new Set([
   "node_modules",
   ".git",
@@ -3081,24 +3846,24 @@ function isTest(path) {
   const parts = path.split("/");
   return parts.slice(0, -1).some((p) => p === "test" || p === "tests" || p === "__tests__") || /\.(?:test|spec)\.[^/]+$/.test(path);
 }
-function codeFiles(root, dir = "") {
+function codeFiles(root2, dir = "") {
   const out = [];
-  for (const entry of readdirSync7(join10(root, dir), { withFileTypes: true })) {
+  for (const entry of readdirSync8(join13(root2, dir), { withFileTypes: true })) {
     if (SKIP.has(entry.name)) continue;
     const path = dir ? `${dir}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) out.push(...codeFiles(root, path));
+    if (entry.isDirectory()) out.push(...codeFiles(root2, path));
     else if (entry.isFile() && CODE.test(entry.name)) out.push(path);
   }
   return out;
 }
-function importsOf(root, file, text) {
+function importsOf(root2, file, text) {
   const specs = [
     ...text.matchAll(
       /(?:\bfrom\s+|\bimport\s*\(\s*|\brequire\(\s*|^\s*import\s+)['"](\.\.?\/[^'"]+)['"]/gm
     )
   ].map((m) => m[1] ?? "");
   return specs.flatMap((spec) => {
-    const base = join10(dirname5(file), spec).split(sep3).join("/");
+    const base = join13(dirname6(file), spec).split(sep3).join("/");
     const stem = base.replace(/\.[cm]?js$/, "");
     const tries = [
       base,
@@ -3106,26 +3871,26 @@ function importsOf(root, file, text) {
         (ext) => stem + ext
       )
     ];
-    const hit = tries.find((p) => existsSync10(join10(root, p)) && statSync5(join10(root, p)).isFile());
+    const hit = tries.find((p) => existsSync13(join13(root2, p)) && statSync6(join13(root2, p)).isFile());
     return hit === void 0 ? [] : [hit];
   });
 }
-function setupFiles(root) {
+function setupFiles(root2) {
   const named = [];
   const quoted = (list) => [...list.matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1] ?? "");
-  for (const config of readdirSync7(root).filter(
+  for (const config of readdirSync8(root2).filter(
     (n) => /^(?:vite(?:st)?\.(?:config|workspace)|jest\.config)\.[cm]?[jt]s$/.test(n)
   )) {
-    const text = readFileSync10(join10(root, config), "utf8");
+    const text = readFileSync13(join13(root2, config), "utf8");
     for (const m of text.matchAll(/setupFiles(?:AfterEnv)?\s*:\s*(\[[^\]]*\]|['"][^'"]+['"])/g))
       named.push(...quoted(m[1] ?? ""));
   }
-  if (existsSync10(join10(root, "bunfig.toml"))) {
-    const text = readFileSync10(join10(root, "bunfig.toml"), "utf8");
+  if (existsSync13(join13(root2, "bunfig.toml"))) {
+    const text = readFileSync13(join13(root2, "bunfig.toml"), "utf8");
     named.push(...quoted(/preload\s*=\s*(\[[^\]]*\]|"[^"]+")/.exec(text)?.[1] ?? ""));
   }
   try {
-    const pkg = JSON.parse(readFileSync10(join10(root, "package.json"), "utf8"));
+    const pkg = JSON.parse(readFileSync13(join13(root2, "package.json"), "utf8"));
     for (const key of ["setupFiles", "setupFilesAfterEnv"])
       if (Array.isArray(pkg.jest?.[key])) named.push(...pkg.jest[key].map(String));
     for (const script of Object.values(pkg.scripts ?? {}))
@@ -3134,32 +3899,32 @@ function setupFiles(root) {
   } catch {
   }
   return named.map(
-    (p) => relative9(root, join10(root, p.replace(/^<rootDir>\//, ""))).split(sep3).join("/")
-  ).filter((p) => existsSync10(join10(root, p)) && statSync5(join10(root, p)).isFile());
+    (p) => relative9(root2, join13(root2, p.replace(/^<rootDir>\//, ""))).split(sep3).join("/")
+  ).filter((p) => existsSync13(join13(root2, p)) && statSync6(join13(root2, p)).isFile());
 }
-function checkTestGitEnv(root, report2) {
+function checkTestGitEnv(root2, report2) {
   const texts = /* @__PURE__ */ new Map();
-  const read = (file) => {
+  const read2 = (file) => {
     let text = texts.get(file);
     if (text === void 0) {
-      text = stripComments(readFileSync10(join10(root, file), "utf8"));
+      text = stripComments(readFileSync13(join13(root2, file), "utf8"));
       texts.set(file, text);
     }
     return text;
   };
-  const drops = (file, depth = 0) => dropsGitEnv(read(file)) || depth < 3 && importsOf(root, file, read(file)).some((f) => drops(f, depth + 1));
+  const drops = (file, depth = 0) => dropsGitEnv(read2(file)) || depth < 3 && importsOf(root2, file, read2(file)).some((f) => drops(f, depth + 1));
   const inheritedGit = (file) => {
-    const text = read(file);
+    const text = read2(file);
     const runs = new RegExp(RUNS_GIT.source, "g");
     for (const m of text.matchAll(runs)) if (!ownEnv(text, m.index)) return m.index;
     return -1;
   };
-  const files = codeFiles(root).filter(isTest);
+  const files = codeFiles(root2).filter(isTest);
   const offenders = files.filter((file) => inheritedGit(file) >= 0);
   if (offenders.length === 0) return;
-  if (setupFiles(root).some((file) => drops(file))) return;
+  if (setupFiles(root2).some((file) => drops(file))) return;
   for (const file of offenders.filter((f) => !drops(f))) {
-    const line = read(file).slice(0, inheritedGit(file)).split("\n").length - 1;
+    const line = read2(file).slice(0, inheritedGit(file)).split("\n").length - 1;
     report2.add(
       "TEST_GIT_ENV",
       file,
@@ -3212,7 +3977,7 @@ var CHECK_STEPS = [
   "npm test",
   "node scripts/build-server.ts --check"
 ];
-function inOrder(script, steps) {
+function inOrder2(script, steps) {
   let at = 0;
   for (const step of script.split("&&").map((s) => s.trim())) if (step === steps[at]) at++;
   return at === steps.length;
@@ -3226,51 +3991,51 @@ function ignoredBy(patterns, name) {
     return clean === name;
   });
 }
-function git(root, ...args) {
+function git2(root2, ...args) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_"))
   );
-  const result = spawnSync2("git", args, { cwd: root, env, encoding: "utf8" });
+  const result = spawnSync4("git", args, { cwd: root2, env, encoding: "utf8" });
   return result.status === 0 ? result.stdout : void 0;
 }
 var isRealDir = (path) => {
-  const stat = lstatSync3(path);
+  const stat = lstatSync4(path);
   return stat.isDirectory() && !stat.isSymbolicLink();
 };
 var HOST_FOLDERS = [".claude", ".codex"];
-function onlyHostState(root, folder) {
-  const dir = join11(root, folder);
+function onlyHostState(root2, folder) {
+  const dir = join14(root2, folder);
   if (!isRealDir(dir)) return false;
-  const top = git(root, "rev-parse", "--show-toplevel")?.trim();
-  if (!top || realpathSync2(top) !== realpathSync2(root)) return false;
-  if (git(root, "ls-files", "-z", "--", folder) !== "") return false;
+  const top = git2(root2, "rev-parse", "--show-toplevel")?.trim();
+  if (!top || realpathSync3(top) !== realpathSync3(root2)) return false;
+  if (git2(root2, "ls-files", "-z", "--", folder) !== "") return false;
   const registered = new Set(
-    (git(root, "worktree", "list", "--porcelain", "-z") ?? "").split("\0").filter((line) => line.startsWith("worktree ")).flatMap((line) => {
+    (git2(root2, "worktree", "list", "--porcelain", "-z") ?? "").split("\0").filter((line) => line.startsWith("worktree ")).flatMap((line) => {
       const path = line.slice("worktree ".length);
-      return existsSync11(path) ? [realpathSync2(path)] : [];
+      return existsSync14(path) ? [realpathSync3(path)] : [];
     })
   );
-  return readdirSync8(dir).every((name) => {
-    const path = join11(dir, name);
+  return readdirSync9(dir).every((name) => {
+    const path = join14(dir, name);
     if (folder === ".claude" && name === "worktrees" && isRealDir(path))
-      return readdirSync8(path).every(
-        (tree) => isRealDir(join11(path, tree)) && registered.has(realpathSync2(join11(path, tree)))
+      return readdirSync9(path).every(
+        (tree) => isRealDir(join14(path, tree)) && registered.has(realpathSync3(join14(path, tree)))
       );
-    return git(root, "check-ignore", "-q", "--", `${folder}/${name}`) !== void 0;
+    return git2(root2, "check-ignore", "-q", "--", `${folder}/${name}`) !== void 0;
   });
 }
-function checkCheckerVersion(root, report2) {
-  const read = (path) => {
+function checkCheckerVersion(root2, report2) {
+  const read2 = (path) => {
     try {
-      return JSON.parse(readFileSync11(join11(root, path), "utf8"));
+      return JSON.parse(readFileSync14(join14(root2, path), "utf8"));
     } catch {
       return null;
     }
   };
   const pinned = /#v(\d+\.\d+\.\d+)$/.exec(
-    read("package.json")?.devDependencies?.["sidecut-agentskills"] ?? ""
+    read2("package.json")?.devDependencies?.["sidecut-agentskills"] ?? ""
   )?.[1];
-  const installed = read("node_modules/sidecut-agentskills/package.json")?.version;
+  const installed = read2("node_modules/sidecut-agentskills/package.json")?.version;
   if (pinned && installed && pinned !== installed)
     report2.add(
       "REPO_CHECKER_VERSION",
@@ -3280,10 +4045,10 @@ function checkCheckerVersion(root, report2) {
       "Run `npm install`, then check again."
     );
 }
-function checkTopLevel(root, report2) {
-  const gitignore = existsSync11(join11(root, ".gitignore")) ? readFileSync11(join11(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
-  const entries = readdirSync8(root).filter(
-    (n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n))
+function checkTopLevel(root2, report2) {
+  const gitignore = existsSync14(join14(root2, ".gitignore")) ? readFileSync14(join14(root2, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
+  const entries = readdirSync9(root2).filter(
+    (n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root2, n))
   );
   for (const name of entries) {
     if (!REQUIRED_ENTRIES.includes(name) && !OPTIONAL_ENTRIES.includes(name)) {
@@ -3307,8 +4072,8 @@ function checkTopLevel(root, report2) {
       );
   }
 }
-function checkLicense(root, report2) {
-  const license = existsSync11(join11(root, "LICENSE")) ? readFileSync11(join11(root, "LICENSE"), "utf8") : "";
+function checkLicense(root2, report2) {
+  const license = existsSync14(join14(root2, "LICENSE")) ? readFileSync14(join14(root2, "LICENSE"), "utf8") : "";
   const s = current();
   if (s.license !== "MIT") {
     if (license.trim() === "")
@@ -3332,10 +4097,10 @@ function checkLicense(root, report2) {
     );
   }
 }
-function checkPackage(root, id, version, report2) {
-  const path = join11(root, "package.json");
-  if (!existsSync11(path)) return {};
-  const pkg = JSON.parse(readFileSync11(path, "utf8"));
+function checkPackage(root2, id, version, report2) {
+  const path = join14(root2, "package.json");
+  if (!existsSync14(path)) return {};
+  const pkg = JSON.parse(readFileSync14(path, "utf8"));
   if (pkg.name !== id)
     report2.add(
       "REPO_PACKAGE_NAME",
@@ -3363,7 +4128,7 @@ function checkPackage(root, id, version, report2) {
     );
   }
   const scripts = pkg.scripts ?? {};
-  if (!inOrder(scripts.check ?? "", CHECK_STEPS)) {
+  if (!inOrder2(scripts.check ?? "", CHECK_STEPS)) {
     report2.add(
       "REPO_CHECK_SCRIPT",
       "package.json",
@@ -3380,7 +4145,7 @@ function checkPackage(root, id, version, report2) {
       "There is no `style` script.",
       'Add `"style": "sidecut-check"`.'
     );
-  if (!inOrder(scripts.build ?? "", ["node scripts/build-server.ts"]))
+  if (!inOrder2(scripts.build ?? "", ["node scripts/build-server.ts"]))
     report2.add(
       "REPO_BUILD_SCRIPT",
       "package.json",
@@ -3404,12 +4169,12 @@ function checkPackage(root, id, version, report2) {
   }
   return scripts;
 }
-function checkAgents(root, id, scripts, report2) {
-  const path = join11(root, "AGENTS.md");
-  if (!existsSync11(path)) return;
-  const text = readFileSync11(path, "utf8");
+function checkAgents(root2, id, scripts, report2) {
+  const path = join14(root2, "AGENTS.md");
+  if (!existsSync14(path)) return;
+  const text = readFileSync14(path, "utf8");
   const doc = parseMarkdown(path, text);
-  checkMarkdown(doc, text, root, report2, { skipH1Case: true });
+  checkMarkdown(doc, text, root2, report2, { skipH1Case: true });
   const h1 = doc.headings.find((h) => h.level === 1);
   if (h1?.text !== id)
     report2.add("AGENTS_TITLE", "AGENTS.md", h1?.line, `H1 is not "${id}".`, `Use \`# ${id}\`.`);
@@ -3460,9 +4225,9 @@ function checkAgents(root, id, scripts, report2) {
     );
   }
 }
-function checkCi(root, report2) {
-  const dir = join11(root, ".github", "workflows");
-  if (!existsSync11(join11(dir, "check.yml"))) {
+function checkCi(root2, report2) {
+  const dir = join14(root2, ".github", "workflows");
+  if (!existsSync14(join14(dir, "check.yml"))) {
     report2.add(
       "CI_MISSING",
       ".github/workflows/check.yml",
@@ -3471,7 +4236,7 @@ function checkCi(root, report2) {
       "Copy check.yml from the template."
     );
   }
-  if (!existsSync11(join11(dir, "release.yml"))) {
+  if (!existsSync14(join14(dir, "release.yml"))) {
     report2.add(
       "CI_RELEASE",
       ".github/workflows/release.yml",
@@ -3480,10 +4245,10 @@ function checkCi(root, report2) {
       "Copy release.yml from the template, so merging a version bump publishes it."
     );
   }
-  if (!existsSync11(dir)) return;
-  for (const name of readdirSync8(dir)) {
+  if (!existsSync14(dir)) return;
+  for (const name of readdirSync9(dir)) {
     const file = `.github/workflows/${name}`;
-    const text = readFileSync11(join11(dir, name), "utf8");
+    const text = readFileSync14(join14(dir, name), "utf8");
     text.split("\n").forEach((line, i) => {
       const uses = /uses:\s*([^\s#]+)/.exec(line)?.[1];
       if (uses && !uses.startsWith("./") && !/@[0-9a-f]{40}$/.test(uses)) {
@@ -3514,9 +4279,9 @@ function checkCi(root, report2) {
         );
     });
   }
-  for (const name of readdirSync8(dir)) {
+  for (const name of readdirSync9(dir)) {
     const file = `.github/workflows/${name}`;
-    for (const line of bunlessToolSteps(readFileSync11(join11(dir, name), "utf8"))) {
+    for (const line of bunlessToolSteps(readFileSync14(join14(dir, name), "utf8"))) {
       report2.add(
         "CI_TOOLS",
         file,
@@ -3526,9 +4291,9 @@ function checkCi(root, report2) {
       );
     }
   }
-  const check = existsSync11(join11(dir, "check.yml")) ? readFileSync11(join11(dir, "check.yml"), "utf8") : "";
+  const check = existsSync14(join14(dir, "check.yml")) ? readFileSync14(join14(dir, "check.yml"), "utf8") : "";
   const hostedOnly = isHostedOnly(check);
-  const release = existsSync11(join11(dir, "release.yml")) ? readFileSync11(join11(dir, "release.yml"), "utf8") : "";
+  const release = existsSync14(join14(dir, "release.yml")) ? readFileSync14(join14(dir, "release.yml"), "utf8") : "";
   if (hostedOnly && (/self-hosted/.test(release) || PRIVATE_ACTIONS.test(release))) {
     report2.add(
       "CI_RELEASE",
@@ -3580,22 +4345,22 @@ function isHostedOnly(workflow) {
   const jobs = jobsOf(workflow);
   return jobs.length > 0 && jobs.every((job) => job.runsOn === "ubuntu-24.04");
 }
-function filesUnder(root, dir, ignored) {
-  const path = join11(root, dir);
-  if (!existsSync11(path)) return [];
-  if (!lstatSync3(path).isDirectory()) return [dir];
-  return readdirSync8(path).filter((name) => name !== ".DS_Store" && !ignoredBy(ignored, name)).flatMap((name) => filesUnder(root, `${dir}/${name}`, ignored));
+function filesUnder(root2, dir, ignored) {
+  const path = join14(root2, dir);
+  if (!existsSync14(path)) return [];
+  if (!lstatSync4(path).isDirectory()) return [dir];
+  return readdirSync9(path).filter((name) => name !== ".DS_Store" && !ignoredBy(ignored, name)).flatMap((name) => filesUnder(root2, `${dir}/${name}`, ignored));
 }
-function checkInstallSource(root, id, repo, report2) {
-  const check = join11(root, ".github", "workflows", "check.yml");
+function checkInstallSource(root2, id, repo, report2) {
+  const check = join14(root2, ".github", "workflows", "check.yml");
   const s = current();
   const org = s.org || "<owner>";
   const market = marketplaceName(id, s);
-  const hostedOnly = existsSync11(check) && isHostedOnly(readFileSync11(check, "utf8"));
-  const hasOwn = MARKETPLACES.some((file) => existsSync11(join11(root, file)));
+  const hostedOnly = existsSync14(check) && isHostedOnly(readFileSync14(check, "utf8"));
+  const hasOwn = MARKETPLACES.some((file) => existsSync14(join14(root2, file)));
   const isPublic = !s.marketplace || hostedOnly;
-  const gitignore = existsSync11(join11(root, ".gitignore")) ? readFileSync11(join11(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
-  const found = [".claude-plugin", ".agents"].flatMap((dir) => filesUnder(root, dir, gitignore));
+  const gitignore = existsSync14(join14(root2, ".gitignore")) ? readFileSync14(join14(root2, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
+  const found = [".claude-plugin", ".agents"].flatMap((dir) => filesUnder(root2, dir, gitignore));
   const extra = found.filter((f) => !MARKETPLACES.includes(f));
   for (const file of extra)
     report2.add(
@@ -3620,7 +4385,7 @@ function checkInstallSource(root, id, repo, report2) {
   const [claudeFile, codexFile] = MARKETPLACES;
   const how = "Write it as the house style's Install source section shows.";
   for (const file of MARKETPLACES) {
-    if (!existsSync11(join11(root, file)))
+    if (!existsSync14(join14(root2, file)))
       report2.add(
         "REPO_MARKETPLACE",
         file,
@@ -3630,8 +4395,8 @@ function checkInstallSource(root, id, repo, report2) {
       );
   }
   const only = (file, source) => {
-    if (!existsSync11(join11(root, file))) return;
-    const marketplace = readJson2(join11(root, file));
+    if (!existsSync14(join14(root2, file))) return;
+    const marketplace = readJson3(join14(root2, file));
     const plugins = marketplace.plugins;
     const ok = marketplace.name === id && Array.isArray(plugins) && plugins.length === 1 && plugins[0]?.name === id && source(plugins[0]);
     if (!ok)
@@ -3649,7 +4414,7 @@ function checkInstallSource(root, id, repo, report2) {
     const source = entry.source;
     return source?.source === "local" && source.path === path;
   });
-  const readme = existsSync11(join11(root, "README.md")) ? readFileSync11(join11(root, "README.md"), "utf8") : "";
+  const readme = existsSync14(join14(root2, "README.md")) ? readFileSync14(join14(root2, "README.md"), "utf8") : "";
   const install = /\n## Install\n([\s\S]*?)(?=\n## |$)/.exec(readme)?.[1] ?? "";
   const add = `marketplace add ${org}/${repo}`;
   const named = new Set(
@@ -3724,10 +4489,10 @@ function jobsOf(workflow) {
   }
   return jobs;
 }
-function checkSolo(root, report2) {
+function checkSolo(root2, report2) {
   if (current().workflow !== "solo") return;
-  const path = join11(root, SOLO_FILE);
-  if (!existsSync11(path)) {
+  const path = join14(root2, SOLO_FILE);
+  if (!existsSync14(path)) {
     report2.add(
       "SOLO_REQUIRED",
       SOLO_FILE,
@@ -3737,7 +4502,7 @@ function checkSolo(root, report2) {
     );
     return;
   }
-  const required = requiredChecks(readFileSync11(path, "utf8"));
+  const required = requiredChecks(readFileSync14(path, "utf8"));
   if (!required.includes("check")) {
     report2.add(
       "SOLO_REQUIRED",
@@ -3747,7 +4512,7 @@ function checkSolo(root, report2) {
       'Add "check" to required_checks.'
     );
   }
-  const runs = workflowChecks(root);
+  const runs = workflowChecks(root2);
   if (runs === null) return;
   for (const name of required.filter((name2) => !runs(name2)))
     report2.add(
@@ -3764,10 +4529,10 @@ function requiredChecks(toml) {
   )?.[1];
   return body ? [...body.matchAll(/"([^"]*)"/g)].map((m) => m[1] ?? "") : [];
 }
-function workflowChecks(root) {
-  const dir = join11(root, ".github", "workflows");
-  if (!existsSync11(dir)) return null;
-  const names = readdirSync8(dir).filter((file) => /\.ya?ml$/.test(file)).flatMap((file) => jobsOf(readFileSync11(join11(dir, file), "utf8"))).map((job) => job.title ?? job.name);
+function workflowChecks(root2) {
+  const dir = join14(root2, ".github", "workflows");
+  if (!existsSync14(dir)) return null;
+  const names = readdirSync9(dir).filter((file) => /\.ya?ml$/.test(file)).flatMap((file) => jobsOf(readFileSync14(join14(dir, file), "utf8"))).map((job) => job.title ?? job.name);
   const patterns = names.map(
     (name) => new RegExp(
       `^${name.split(/\$\{\{[^}]*\}\}/).map(escapeRegExp).join(".*")}(?: \\(.*\\)| / .*)?$`
@@ -3775,20 +4540,20 @@ function workflowChecks(root) {
   );
   return (check) => patterns.some((pattern) => pattern.test(check));
 }
-function readJson2(path) {
+function readJson3(path) {
   try {
-    return JSON.parse(readFileSync11(path, "utf8"));
+    return JSON.parse(readFileSync14(path, "utf8"));
   } catch {
     return {};
   }
 }
-function identify(root) {
-  const pluginsDir = join11(root, "plugins");
-  const plugins = existsSync11(pluginsDir) ? readdirSync8(pluginsDir).filter((n) => n !== ".DS_Store") : [];
+function identify(root2) {
+  const pluginsDir = join14(root2, "plugins");
+  const plugins = existsSync14(pluginsDir) ? readdirSync9(pluginsDir).filter((n) => n !== ".DS_Store") : [];
   const only = plugins.length === 1 ? plugins[0] ?? "" : "";
-  const manifest = readJson2(join11(pluginsDir, only, ".claude-plugin", "plugin.json"));
-  const pkg = readJson2(join11(root, "package.json"));
-  const settings = repoSettings(root);
+  const manifest = readJson3(join14(pluginsDir, only, ".claude-plugin", "plugin.json"));
+  const pkg = readJson3(join14(root2, "package.json"));
+  const settings = repoSettings(root2);
   const owner = settings.org ? escapeRegExp(settings.org) : "[\\w.-]+";
   const repo = new RegExp(`^https:\\/\\/github\\.com\\/${owner}\\/([\\w.-]+)$`).exec(
     String(manifest.repository ?? "")
@@ -3808,8 +4573,8 @@ function identify(root) {
   const scope = !only ? `Checked ${plugins.length} plugins only: the repo holds ${plugins.length === 0 ? "none" : "more than one"}.` : `Checked the plugin only: its manifest points at ${repo || `no ${settings.org || "GitHub"} repo`}, not a repo that exists only for ${only}.`;
   return { plugins, id: null, plugin: only || null, repo, scope, keep };
 }
-function reportSync(root, vars, report2) {
-  for (const change of planSync(root, { ...vars, version: ownVersion })) {
+function reportSync(root2, vars, report2) {
+  for (const change of planSync(root2, { ...vars, version: ownVersion })) {
     if (change.code) continue;
     report2.add(
       "REPO_SYNC",
@@ -3820,9 +4585,31 @@ function reportSync(root, vars, report2) {
     );
   }
 }
-function checkRepo(root, report2) {
-  const pluginsDir = join11(root, "plugins");
-  if (!existsSync11(pluginsDir)) {
+function checkRepo(root2, report2, options = {}) {
+  useSettings(repoSettings(root2));
+  const pluginsDir = join14(root2, "plugins");
+  const { plugins, id: only, plugin, repo: repoName2, scope, keep } = identify(root2);
+  const fleet = readFleet(root2);
+  const { kind, how } = repoKind(root2, fleet, Boolean(only), report2);
+  const said = {
+    declared: "declared in package.json",
+    listed: "from the fleet's repo index",
+    inferred: "guessed from its files"
+  }[how];
+  if (kind !== "plugin" || options.fast) {
+    report2.scope = `Checked the whole repo as ${/^[aeiou]/.test(kind) ? "an" : "a"} ${kind} repo (${said})${plugins.length && !options.fast ? `, with ${plugins.join(", ")}` : ""}${options.fast ? ", fast rules only" : ""}.`;
+    if (!options.fast) {
+      for (const id2 of plugins) checkPlugin(join14(pluginsDir, id2), root2, report2, null);
+      if (plugin)
+        reportSync(root2, { id: plugin, repo: repoName2, scope: only ? "whole" : "beside" }, report2);
+      checkTestGitEnv(root2, report2);
+    }
+    if (kind !== "plugin") checkShape(root2, kind, report2);
+    checkDocs(root2, kind, fleet, report2);
+    report2.applyKeep(keep);
+    return;
+  }
+  if (!existsSync14(pluginsDir)) {
     report2.add(
       "REPO_NO_PLUGINS",
       "plugins",
@@ -3832,39 +4619,38 @@ function checkRepo(root, report2) {
     );
     return;
   }
-  useSettings(repoSettings(root));
-  const { plugins, id: only, plugin, repo: repoName, scope, keep } = identify(root);
   report2.scope = scope;
   if (!only) {
-    for (const id2 of plugins) checkPlugin(join11(pluginsDir, id2), root, report2, null);
-    if (plugin) reportSync(root, { id: plugin, repo: repoName, scope: "beside" }, report2);
-    checkTestGitEnv(root, report2);
+    for (const id2 of plugins) checkPlugin(join14(pluginsDir, id2), root2, report2, null);
+    if (plugin) reportSync(root2, { id: plugin, repo: repoName2, scope: "beside" }, report2);
+    checkTestGitEnv(root2, report2);
+    checkDocs(root2, kind, fleet, report2);
     report2.applyKeep(keep);
     return;
   }
   const id = only;
-  const pluginDir = join11(pluginsDir, id);
-  if (repoName !== id && id !== `${current().prefix}${repoName}`)
+  const pluginDir = join14(pluginsDir, id);
+  if (repoName2 !== id && id !== `${current().prefix}${repoName2}`)
     report2.add(
       "REPO_PLUGIN_ID",
       "package.json",
       void 0,
-      `Plugin ${id} retains the repository name ${repoName}.`,
+      `Plugin ${id} retains the repository name ${repoName2}.`,
       "Keep REPO_PLUGIN_ID with the reason for retaining the repository name."
     );
-  const { version } = checkPlugin(pluginDir, root, report2, repoName);
-  checkTopLevel(root, report2);
-  checkLicense(root, report2);
-  const scripts = checkPackage(root, id, version, report2);
-  checkCheckerVersion(root, report2);
-  checkAgents(root, id, scripts, report2);
-  checkCi(root, report2);
-  checkInstallSource(root, id, repoName, report2);
-  checkSolo(root, report2);
+  const { version } = checkPlugin(pluginDir, root2, report2, repoName2);
+  checkTopLevel(root2, report2);
+  checkLicense(root2, report2);
+  const scripts = checkPackage(root2, id, version, report2);
+  checkCheckerVersion(root2, report2);
+  checkAgents(root2, id, scripts, report2);
+  checkCi(root2, report2);
+  checkInstallSource(root2, id, repoName2, report2);
+  checkSolo(root2, report2);
   for (const name of ["README.md", "LICENSE", "CHANGELOG.md"]) {
-    const a = join11(root, name);
-    const b = join11(pluginDir, name);
-    if (existsSync11(a) && existsSync11(b) && readFileSync11(a, "utf8") !== readFileSync11(b, "utf8")) {
+    const a = join14(root2, name);
+    const b = join14(pluginDir, name);
+    if (existsSync14(a) && existsSync14(b) && readFileSync14(a, "utf8") !== readFileSync14(b, "utf8")) {
       report2.add(
         "REPO_COPY",
         name,
@@ -3874,35 +4660,111 @@ function checkRepo(root, report2) {
       );
     }
   }
-  reportSync(root, { id, repo: repoName, scope: "whole" }, report2);
-  checkTestGitEnv(root, report2);
-  const security = join11(root, "SECURITY.md");
-  if (existsSync11(security)) {
-    const text = readFileSync11(security, "utf8");
-    checkMarkdown(parseMarkdown(security, text), text, root, report2);
+  reportSync(root2, { id, repo: repoName2, scope: "whole" }, report2);
+  checkTestGitEnv(root2, report2);
+  const security = join14(root2, "SECURITY.md");
+  if (existsSync14(security)) {
+    const text = readFileSync14(security, "utf8");
+    checkMarkdown(parseMarkdown(security, text), text, root2, report2);
   }
+  checkDocs(root2, kind, fleet, report2);
   report2.applyKeep(keep);
 }
 
 // scripts/check.ts
-var usage = `Usage: sidecut-check [<repo>] [--json]
+var usage = `Usage: sidecut-check [<repo>] [--json] [--fast] [--links] [--annotate] [--base <ref>]
 
-Checks a plugin repo against the Sidecut house style. Exits 1 when it finds a problem.`;
+Checks a repo of any kind against the Sidecut house style. Exits 1 when it finds a problem.
+
+  --fast      only the quick rules over text and shape, for a pre-push hook
+  --links     also check external links (uses the network; run it on a schedule)
+  --annotate  print GitHub annotations: problems everywhere, advisories on lines changed since
+              the base. On by default in GitHub Actions.
+  --base      the ref to compare with (default: the pull request's base, or the previous commit)`;
 var { positionals, values } = parseArgs({
   allowPositionals: true,
-  options: { json: { type: "boolean" }, help: { type: "boolean" } }
+  options: {
+    json: { type: "boolean" },
+    fast: { type: "boolean" },
+    links: { type: "boolean" },
+    annotate: { type: "boolean" },
+    base: { type: "string" },
+    help: { type: "boolean" }
+  }
 });
 if (values.help) {
   console.log(usage);
   process.exit(0);
 }
+var root = resolve2(positionals[0] ?? ".");
 var report = new Report();
-checkRepo(resolve(positionals[0] ?? "."), report);
+checkRepo(root, report, { fast: values.fast });
+if (values.links) await checkExternalLinks(root, report);
+function changedLines(base) {
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_"))
+  );
+  const diff = spawnSync5(
+    "git",
+    ["diff", "--unified=0", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", `${base}...HEAD`],
+    {
+      cwd: root,
+      env,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024
+    }
+  );
+  if (diff.status !== 0) return null;
+  const changed = /* @__PURE__ */ new Map();
+  let file = "";
+  for (const line of diff.stdout.split("\n")) {
+    const to = /^\+\+\+ b\/(.+)$/.exec(line);
+    if (to) file = to[1] ?? "";
+    const hunk = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (hunk && file) {
+      const start = Number(hunk[1]);
+      const count = hunk[2] === void 0 ? 1 : Number(hunk[2]);
+      const lines = changed.get(file) ?? /* @__PURE__ */ new Set();
+      for (let n = start; n < start + count; n++) lines.add(n);
+      changed.set(file, lines);
+    }
+  }
+  return changed;
+}
+var escapeData = (text) => text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+var where = (p) => `file=${escapeData(p.file).replaceAll(",", "%2C").replaceAll(":", "%3A")}${p.line ? `,line=${p.line}` : ""}`;
+function annotate(base) {
+  for (const p of report.problems)
+    console.log(`::error ${where(p)},title=${p.code}::${escapeData(`${p.message} Fix: ${p.fix}`)}`);
+  const changed = changedLines(base);
+  if (!changed && report.advisories.length)
+    console.log(
+      `::notice title=Advisories::${escapeData(`Couldn't compare with ${base}, so no advisory is shown on its line; fetch the base branch with enough history.`)}`
+    );
+  const kinds = /* @__PURE__ */ new Map();
+  for (const p of report.advisories) {
+    const kind = kinds.get(p.code) ?? { all: 0, shown: 0, sample: p };
+    kind.all++;
+    const lines = changed?.get(p.file);
+    if (lines && (p.line === void 0 || lines.has(p.line))) {
+      kind.shown++;
+      console.log(
+        `::warning ${where(p)},title=${p.code}::${escapeData(`${p.message} Fix: ${p.fix}`)}`
+      );
+    }
+    kinds.set(p.code, kind);
+  }
+  for (const [code, kind] of kinds)
+    console.log(
+      `::notice title=${code}::${escapeData(`${kind.all} in the repo, ${kind.shown} on changed lines. ${kind.sample.fix}`)}`
+    );
+}
 if (values.json)
   console.log(
     JSON.stringify(
       {
         scope: report.scope,
+        notes: report.notes,
         problems: report.problems,
         advisories: report.advisories,
         kept: report.kept
@@ -3912,9 +4774,28 @@ if (values.json)
     )
   );
 else {
+  const defaultBase = () => process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "HEAD~1";
+  const base = values.annotate || values.base || process.env.GITHUB_ACTIONS === "true" ? values.base ?? defaultBase() : void 0;
   console.log(report.scope);
-  for (const p of report.advisories) console.log("Advisory: " + p.file + ": " + p.message);
-  for (const p of report.kept) console.log(`Kept on purpose: ${p.code} ${p.file} (${p.reason})`);
+  for (const note of report.notes) console.log(`Not checked: ${note}`);
+  if (base !== void 0) annotate(base);
+  else {
+    const kinds = /* @__PURE__ */ new Map();
+    for (const p of report.advisories) kinds.set(p.code, [...kinds.get(p.code) ?? [], p]);
+    for (const [code, found] of kinds) {
+      const first = found[0];
+      if (!first) continue;
+      const files = [...new Set(found.map((p) => p.file))];
+      const more = files.length > 5 ? `, and ${files.length - 5} more` : "";
+      console.log(
+        `Advisory ${code} (${found.length}): ${first.message} ${files.slice(0, 5).join(", ")}${more}.`
+      );
+    }
+  }
+  const kept = new Set(
+    report.kept.map((p) => `Kept on purpose: ${p.code} ${p.file} (${p.reason})`)
+  );
+  for (const line of kept) console.log(line);
   console.log(
     report.problems.length === 0 ? "House style: no problems." : `${report.format()}
 
