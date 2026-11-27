@@ -5,6 +5,12 @@ on:
       checked-sha:
         required: true
         type: string
+      # For a repo whose package.json names an app: the plugin under plugins/ to release. Its
+      # manifests then carry the version. Empty means the package is the plugin.
+      plugin:
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -55,3 +61,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ inputs.checked-sha }}
+          RELEASE_PLUGIN: ${{ inputs.plugin }}

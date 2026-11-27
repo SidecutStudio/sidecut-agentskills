@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.15.0] - 2026-11-27
+
+### Added
+
+- `publish-plugin.yml` takes an optional `plugin` input, so a repo whose `package.json` names an app can release its plugin. The plugin's manifests then carry the version. Callers that leave it out behave as before.
+
 ## [2.14.0] - 2026-11-27
 
 ### Added
