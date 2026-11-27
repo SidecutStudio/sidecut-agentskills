@@ -68,7 +68,9 @@ var TOOLS = {
   Skill: ["read_file", "view_file", "run_command"],
   Read: ["read_file", "view_file"],
   Edit: ["replace_file_content", "multi_replace_file_content"],
-  Write: ["write_to_file"]
+  Write: ["write_to_file"],
+  Grep: ["grep_search"],
+  Glob: ["find_by_name"]
 };
 var PREFIX = /^(?:pre-tool-use|post-tool-use|stop|session-start)-/;
 var SCRIPT = /hooks\/([\w.-]+\.mjs)/g;
@@ -85,10 +87,9 @@ function antigravityMatcher(matcher) {
 }
 function scriptOf(handler) {
   if (!isRecord(handler) || typeof handler.command !== "string") return null;
-  const line = [handler.command, ...Array.isArray(handler.args) ? handler.args : []].join(" ");
-  if (!/^node(?:\s|$)/.test(line)) return null;
-  const found = [...line.matchAll(SCRIPT)];
-  return found.length === 1 ? found[0]?.[1] ?? null : null;
+  const args = Array.isArray(handler.args) ? handler.args : [];
+  const path = args.length === 0 ? /^node\s+"?([^\s"]+)"?$/.exec(handler.command)?.[1] : handler.command === "node" && args.length === 1 && typeof args[0] === "string" ? args[0] : void 0;
+  return path ? /(?:^|\/)hooks\/([\w.-]+\.mjs)$/.exec(path)?.[1] ?? null : null;
 }
 function antigravityHooks(claudeHooks, current2, skillLog = true) {
   const out = {};
@@ -109,12 +110,13 @@ function antigravityHooks(claudeHooks, current2, skillLog = true) {
     if (!shape || !Array.isArray(groups)) continue;
     for (const group of groups) {
       if (!isRecord(group) || !Array.isArray(group.hooks)) continue;
-      const matcher = shape.flat ? null : antigravityMatcher(group.matcher);
-      if (!shape.flat && matcher === null) continue;
+      const matcher = antigravityMatcher(group.matcher);
+      if (matcher === null || shape.flat && matcher !== "*") continue;
       for (const handler of group.hooks) {
         const script = scriptOf(handler);
         if (!script || !chosen.has(script) || !isRecord(handler)) continue;
         const name = script.replace(/\.mjs$/, "").replace(PREFIX, "");
+        if (name === "skill-log") continue;
         const entry = { type: "command", command: `node ./hooks/${script}` };
         if (typeof handler.timeout === "number") entry.timeout = handler.timeout;
         if (!isRecord(out[name])) out[name] = {};

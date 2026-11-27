@@ -366,17 +366,29 @@ test('Antigravity runs the hooks its hooks.json names, written from the Claude C
       { matcher: 'Edit|Write', hooks: [handler('pre-tool-use-edits.mjs')] },
       { matcher: 'mcp__demo__run', hooks: [handler('pre-tool-use-mcp.mjs')] },
       { matcher: 'Bash', hooks: [handler('pre-tool-use-unpicked.mjs')] },
+      {
+        matcher: 'Bash',
+        hooks: [{ ...handler('pre-tool-use-flagged.mjs'), args: ['--strict', 'hooks/x.mjs'] }],
+      },
+      { matcher: 'Bash', hooks: [handler('pre-tool-use-skill-log.mjs')] },
     ],
+    SessionStart: [{ matcher: 'startup', hooks: [handler('session-start-narrow.mjs')] }],
     UserPromptSubmit: [{ hooks: [handler('user-prompt-submit-note.mjs')] }],
     Stop: [{ hooks: [handler('stop-hold.mjs', 10)] }],
   });
   write(root, `${P}/hooks/hooks.json`, JSON.stringify(claude));
   // Naming a script in Antigravity's file, in any shape, opts it in. Sync writes its entries from the
-  // Claude Code ones and leaves out events and tools Antigravity lacks.
+  // Claude Code ones and leaves out events, tools and handlers it can't carry over exactly.
   const current = JSON.parse(read(root, `${P}/hooks.json`));
   current.picked = {
     Stop: ['guard', 'edits', 'mcp'].map((n) => ({ command: `node ./hooks/pre-tool-use-${n}.mjs` })),
-    notes: ['hooks/user-prompt-submit-note.mjs', 'hooks/stop-hold.mjs'],
+    notes: [
+      'hooks/user-prompt-submit-note.mjs',
+      'hooks/stop-hold.mjs',
+      'hooks/pre-tool-use-flagged.mjs',
+      'hooks/pre-tool-use-skill-log.mjs',
+      'hooks/session-start-narrow.mjs',
+    ],
   };
   write(root, `${P}/hooks.json`, JSON.stringify(current));
   applySync(root, planSync(root, vars));
