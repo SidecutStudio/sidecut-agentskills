@@ -6,6 +6,7 @@ import {
   onMain,
   releaseCommit,
   releasePlan,
+  releaseSource,
   requiredChecksPass,
   waitForRelease,
 } from '../scripts/release.ts';
@@ -14,8 +15,39 @@ const changelog =
   '# Changelog\n\n## [1.2.0] - 2026-11-13\n\n### Added\n\n- A thing.\n\n## [1.1.0]\n';
 
 describe('release script', () => {
+  const manifest = (name: string, version: string) => ({ name, version });
+
+  test('by default the package is the plugin and carries the version', () => {
+    const pkg = { name: 'sidecut-solo', version: '0.43.0' };
+    const both = manifest('sidecut-solo', '0.43.0');
+    expect(releaseSource(pkg, both, both)).toEqual({ id: 'sidecut-solo', version: '0.43.0' });
+    expect(() => releaseSource({ name: 'app', version: '0.1.0' }, both, both)).toThrow(
+      'same plugin',
+    );
+  });
+
+  test('an app repo names its plugin, whose manifests carry the version', () => {
+    const pkg = { name: 'pair-board', version: '0.1.0' };
+    const both = manifest('sidecut-pair-board', '0.9.0');
+    expect(releaseSource(pkg, both, both, 'sidecut-pair-board')).toEqual({
+      id: 'sidecut-pair-board',
+      version: '0.9.0',
+    });
+    expect(() =>
+      releaseSource(pkg, manifest('other', '0.9.0'), both, 'sidecut-pair-board'),
+    ).toThrow('same plugin');
+  });
+
   test('plans the tag, archive and notes from matching manifests and CHANGELOG', () => {
-    expect(releasePlan('1.2.0', { version: '1.2.0' }, { version: '1.2.0' }, changelog)).toEqual({
+    expect(
+      releasePlan(
+        '1.2.0',
+        { version: '1.2.0' },
+        { version: '1.2.0' },
+        changelog,
+        'sidecut-agentskills',
+      ),
+    ).toEqual({
       version: '1.2.0',
       tag: 'v1.2.0',
       archive: 'sidecut-agentskills-1.2.0.zip',
@@ -25,13 +57,31 @@ describe('release script', () => {
 
   test('refuses a version the manifests or CHANGELOG do not describe', () => {
     expect(() =>
-      releasePlan('1.2.0', { version: '1.1.0' }, { version: '1.2.0' }, changelog),
+      releasePlan(
+        '1.2.0',
+        { version: '1.1.0' },
+        { version: '1.2.0' },
+        changelog,
+        'sidecut-agentskills',
+      ),
     ).toThrow('both plugin manifests');
     expect(() =>
-      releasePlan('1.3.0', { version: '1.3.0' }, { version: '1.3.0' }, changelog),
+      releasePlan(
+        '1.3.0',
+        { version: '1.3.0' },
+        { version: '1.3.0' },
+        changelog,
+        'sidecut-agentskills',
+      ),
     ).toThrow('first changelog entry');
     expect(() =>
-      releasePlan('v1.2.0', { version: 'v1.2.0' }, { version: 'v1.2.0' }, changelog),
+      releasePlan(
+        'v1.2.0',
+        { version: 'v1.2.0' },
+        { version: 'v1.2.0' },
+        changelog,
+        'sidecut-agentskills',
+      ),
     ).toThrow('stable version');
   });
 
