@@ -1,11 +1,11 @@
 // Loaded before every test file (vitest.config.ts). Keeps tests from writing the usage log, reaching
 // the network or pointing git at the wrong repo.
-process.env.SIDECUT_SKILL_LOG = '0';
+process.env.{{NS}}_SKILL_LOG = '0';
 globalThis.fetch = (() => {
   throw new Error('Tests must not use the network.');
 }) as unknown as typeof fetch;
-// sidecut:start git-env
+// {{ns}}:start git-env
 // A git hook exports GIT_DIR and friends, so a test's git run from one would act on this checkout
 // instead of its fixture repo. Dropping them here covers every test and the processes it starts.
 for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete process.env[key];
-// sidecut:end git-env
+// {{ns}}:end git-env

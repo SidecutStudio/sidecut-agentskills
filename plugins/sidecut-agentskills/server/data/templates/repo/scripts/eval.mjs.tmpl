@@ -18,7 +18,7 @@ if (args.some((arg) => ['--publish', '--publish-report'].includes(arg.split('=')
   throw new Error('Development evals are not published.');
 const output = join(root, 'eval-results', new Date().toISOString().replace(/[:.]/g, '-'));
 mkdirSync(output, { recursive: true });
-const temporary = mkdtempSync(join(tmpdir(), 'sidecut-eval-'));
+const temporary = mkdtempSync(join(tmpdir(), '{{ns}}-eval-'));
 try {
   const plugin = join(temporary, name);
   cpSync(join(root, 'plugins', name), plugin, { recursive: true });

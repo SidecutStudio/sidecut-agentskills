@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { afterAll, expect, test } from 'vitest';
 import { checkRepo } from '../plugins/sidecut-agentskills/server/src/check/repo.ts';
 import { Report } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
+import { mergeBlocks } from '../plugins/sidecut-agentskills/server/src/check/sync.ts';
 import {
   type PluginInput,
   SettingsNeeded,
@@ -21,6 +22,7 @@ import {
 } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 import {
   DEFAULTS,
+  packageConfig,
   REPO_FILE,
   readUserSettings,
   repoSettings,
@@ -89,9 +91,11 @@ test('a scaffold under another owner, with no prefix and hosted CI, passes and n
     files.filter((f) => !f.endsWith('.png')),
   )) {
     for (const [i, line] of text.split('\n').entries()) {
-      // The checker itself is published from SidecutStudio/sidecut-agentskills; that pin is the tool, not the owner.
-      if (line.includes('"sidecut-agentskills":')) continue;
-      expect(line, `${file}:${i + 1}`).not.toMatch(/Sidecut|sidecut-linux|sidecut\.dev/);
+      // The package's own tool names, and the pin that installs them, are the tools, not the owner.
+      const rest = line
+        .replace(/"sidecut-agentskills": "[^"]*"/, '')
+        .replace(/\bsidecut-(check|icon|sync)\b/g, '');
+      expect(rest, `${file}:${i + 1}`).not.toMatch(/sidecut/i);
     }
   }
   writeFileSync(join(out, 'package-lock.json'), '');
@@ -170,8 +174,21 @@ test('with no settings anywhere, scaffolding writes nothing and returns the ques
   expect(caught).toBeInstanceOf(SettingsNeeded);
   const keys = (caught as SettingsNeeded).questions.map((q) => q.key);
   expect(keys).toEqual(
-    expect.arrayContaining(['profile', 'org', 'authorName', 'prefix', 'marketplace', 'ci']),
+    expect.arrayContaining([
+      'org',
+      'authorName',
+      'authorUrl',
+      'prefix',
+      'marketplace',
+      'license',
+      'ci',
+      'houseStyle',
+      'voice',
+    ]),
   );
+  // The Sidecut profile is a choice someone names, never an answer the questions suggest.
+  expect(keys).not.toContain('profile');
+  for (const q of (caught as SettingsNeeded).questions) expect(q.ask).not.toMatch(/sidecut/i);
   expect(existsSync(out)).toBe(false);
 
   // Answering with save: true keeps the answers, so the next scaffold doesn't ask.
@@ -284,4 +301,21 @@ test('a relative XDG_CONFIG_HOME is ignored', () => {
   expect(userSettingsPath({ XDG_CONFIG_HOME: 'relative/dir', HOME: '/home/x' })).not.toContain(
     'relative/dir',
   );
+});
+
+test('a repo that kept the older sidecut markers and keys still reads, and sync moves its blocks over', () => {
+  expect(packageConfig({ sidecut: { keep: { a: 'old' }, kind: 'app' } })).toEqual({
+    keep: { a: 'old' },
+    kind: 'app',
+  });
+  expect(
+    packageConfig({ sidecut: { keep: { a: 'old' } }, agentskills: { keep: { b: 'new' } } }).keep,
+  ).toEqual({ a: 'old', b: 'new' });
+  const old =
+    '# Notes\n\n<!-- sidecut:start house-style -->\n- old\n<!-- sidecut:end house-style -->\n';
+  const template =
+    '# T\n\n<!-- agentskills:start house-style -->\n- new\n<!-- agentskills:end house-style -->\n';
+  expect(mergeBlocks(old, template, 'AGENTS.md')).toEqual({
+    text: '# Notes\n\n<!-- agentskills:start house-style -->\n- new\n<!-- agentskills:end house-style -->\n',
+  });
 });

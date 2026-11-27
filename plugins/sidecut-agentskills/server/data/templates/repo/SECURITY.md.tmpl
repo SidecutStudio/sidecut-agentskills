@@ -1,14 +1,14 @@
 # Security
 
-<!-- sidecut:start house-style -->
+<!-- {{ns}}:start house-style -->
 
 ## Reporting a vulnerability
 
 Report it privately to {{authorName}} through a GitHub security advisory on {{org}}/{{repo}}{{securityAlt}}. Don't open a public issue or pull request for it. Include what you found, how to reproduce it and the plugin version.
 
-<!-- sidecut:end house-style -->
+<!-- {{ns}}:end house-style -->
 
 ## What the plugin runs
 
 - **MCP server:** `node` runs `server/index.mjs` on your machine. It has no dependencies outside the bundle and makes no network calls unless a tool says it does.
-- **Usage log hook:** unless `SIDECUT_SKILL_LOG=0`, `DO_NOT_TRACK=1` or CI is set, a hook writes one line per skill run to `~/.sidecut/skill-log.jsonl`. It sends nothing anywhere.
+- **Usage log hook:** unless `{{NS}}_SKILL_LOG=0`, `DO_NOT_TRACK=1` or CI is set, a hook writes one line per skill run to `~/.{{ns}}/skill-log.jsonl`. It sends nothing anywhere.

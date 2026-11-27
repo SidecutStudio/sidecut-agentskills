@@ -18,7 +18,7 @@ Ask for a plugin and you get a whole repo: manifests for both hosts, a bundled M
 | `agentskills-show-usage` | Shows which plugin skills ran in Claude Code and Codex, from the local skill log. |
 | `agentskills-write-skill` | Writes one skill for a plugin, new or rewritten, that triggers on the right requests and follows the house style. |
 
-The MCP server behind them has five tools: `get_house_style` and `get_patterns` return the rules and the reasons for them, `check_plugin` checks a repo against them, and `scaffold_plugin` and `add_skill` write new plugins and skills from the template.
+The MCP server behind them has seven tools: `get_settings` and `save_settings` hold who your plugins belong to, `get_house_style` and `get_patterns` return the rules and the reasons for them, `check_plugin` checks a repo against them, and `scaffold_plugin` and `add_skill` write new plugins and skills from the template.
 
 ## Install
 
@@ -49,7 +49,7 @@ agy plugin install ./sidecut-agentskills/plugins/sidecut-agentskills
 - "Is my notes plugin ready to publish?"
 - "Bring my old deploy plugin up to the Agentskills template without losing anything."
 
-The repos it makes run these commands from it: `npm exec --no -- sidecut-check` checks a repo against the house style, `npm exec --no -- sidecut-sync` applies the shared files and tool versions from the pinned release, `sidecut-icon` draws a Sidecut-style icon, and `sidecut-version` syncs the version across manifests and changelogs. A repo that ships its plugin beside other work gets the plugin's files, the eval script and the marked blocks from sync, and keeps the rest of its files and tool versions. `sidecut-check` reads a repo of any kind, not only plugin repos: an app, a marketplace, an ops repo, a site or a data repo keeps its kind's AGENTS.md sections, and every repo is checked for broken links, retired names, dated notes, dead and pointer-only files, unsynced copies, facts another repo owns and AGENTS.md past its budget, with weaker signals shown as advice on the lines a pull request changed. `sidecut-sync --fix` fixes what has one right answer. A repo that doesn't run `sidecut-check` can still check its copied evals with `npm exec --no -- sidecut-evals-stamp`. Every plugin it makes also installs in Antigravity: sync writes its `.antigravity-plugin/plugin.json`, `mcp_config.json` and `hooks.json` from the Claude Code and Codex files.
+The repos it makes run these commands from it: `npm exec --no -- sidecut-check` checks a repo against the house style, `npm exec --no -- sidecut-sync` applies the shared files and tool versions from the pinned release, `sidecut-icon` draws a plugin icon in your brand color, and `sidecut-version` syncs the version across manifests and changelogs. A repo that ships its plugin beside other work gets the plugin's files, the eval script and the marked blocks from sync, and keeps the rest of its files and tool versions. `sidecut-check` reads a repo of any kind, not only plugin repos: an app, a marketplace, an ops repo, a site or a data repo keeps its kind's AGENTS.md sections, and every repo is checked for broken links, retired names, dated notes, dead and pointer-only files, unsynced copies, facts another repo owns and AGENTS.md past its budget, with weaker signals shown as advice on the lines a pull request changed. `sidecut-sync --fix` fixes what has one right answer. A repo that doesn't run `sidecut-check` can still check its copied evals with `npm exec --no -- sidecut-evals-stamp`. Every plugin it makes also installs in Antigravity: sync writes its `.antigravity-plugin/plugin.json`, `mcp_config.json` and `hooks.json` from the Claude Code and Codex files.
 
 ## Settings
 
@@ -57,17 +57,19 @@ The repos it makes run these commands from it: `npm exec --no -- sidecut-check` 
 | --- | --- | --- |
 | `SIDECUT_SKILL_LOG` | on | Set to `0` to turn off the local usage log described under Privacy |
 
-The first time you make a plugin, `scaffold_plugin` asks who publishes it and saves the answers to `~/.config/agentskills/settings.json`:
+Before it names or makes anything for the first time, Agentskills asks who your plugins belong to, all in one go, and saves your answers to `~/.config/agentskills/settings.json`. Edit that file, or ask your agent to change a setting, whenever you like. Every skill reads it from then on and says which settings it's applying.
 
 | Setting | Default |
 | --- | --- |
-| GitHub owner and author | Asked once |
+| GitHub owner and author | Asked |
 | Plugin-id prefix, such as `acme-` | None |
 | Marketplace | The plugin's own repo, so anyone can install it from GitHub |
+| Licence | MIT |
 | CI | GitHub-hosted `ubuntu-24.04` |
-| Licence and brand color | MIT, `#3B82F6` |
+| House style and voice | Agentskills' own, adapted, or your own guide |
+| Brand color | `#3B82F6` |
 
-Each new repo records its answers in `.agentskills.json`, which the checker and sync read. Sidecut Studio's own values live in one optional profile, `sidecut`, that nothing uses unless you ask for it.
+Each new repo records its answers in `.agentskills.json`, which the checker and sync read. Its marked blocks, keep list and usage log go under `agentskills`. Sidecut Studio's own values live in one optional profile, `sidecut`, that nothing uses unless you name it.
 
 In Codex, the usage log is a plugin hook, and Codex runs plugin hooks only after you trust them. Codex asks again whenever a hook changes.
 
@@ -77,7 +79,7 @@ Nothing in the plugin makes network calls or sends data anywhere. What it runs o
 
 | Part | Runs | Reads and writes |
 | --- | --- | --- |
-| MCP server | `node` runs `server/index.mjs` locally | `get_house_style`, `get_patterns` and `check_plugin` only read. `scaffold_plugin` and `add_skill` write files only into the folder you name, and refuse one that already has files |
+| MCP server | `node` runs `server/index.mjs` locally | `get_settings`, `get_house_style`, `get_patterns` and `check_plugin` only read. `save_settings` writes only your settings file. `scaffold_plugin` and `add_skill` write files only into the folder you name, and refuse one that already has files |
 | `check_plugin` | Read-only `git` commands in the repo you name, then that repo's own `esbuild` to build its server into a temporary folder, then that server, started with only `PATH`, `HOME`, temp and locale variables so it sees no tokens | Reads the repo; deletes the temporary folder after |
 | Usage log hook | `node` runs `hooks/post-tool-use-skill-log.mjs` after a skill runs | Adds one line to `~/.sidecut/skill-log.jsonl` |
 

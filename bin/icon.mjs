@@ -30,7 +30,9 @@ var SIDECUT_SETTINGS = {
   license: "MIT",
   brandColor: "#FF6B00",
   brand: "Sidecut",
-  workflow: "solo"
+  workflow: "solo",
+  houseStyle: "",
+  voice: ""
 };
 var SIDECUT_OWNER = SIDECUT_SETTINGS.org;
 
@@ -47,7 +49,9 @@ var DEFAULTS = {
   license: "MIT",
   brandColor: "#3B82F6",
   brand: "",
-  workflow: ""
+  workflow: "",
+  houseStyle: "",
+  voice: ""
 };
 var PROFILES = {
   sidecut: SIDECUT_SETTINGS
@@ -145,28 +149,46 @@ function repoSettings(root) {
 var active = mergeSettings();
 var QUESTIONS = [
   {
-    key: "profile",
-    ask: `Start from a saved profile? Answer "sidecut" for Sidecut Studio's values, or leave it empty and answer the rest.`,
+    key: "org",
+    ask: "Which GitHub user or organization will hold your plugin repos?",
     default: ""
   },
-  { key: "org", ask: "Which GitHub user or organization will hold the repo?", default: "" },
   { key: "authorName", ask: "Whose name goes in the manifests and the licence?", default: "" },
   { key: "authorUrl", ask: "The author's web address, if any?", default: "" },
-  { key: "homepage", ask: "The plugin's homepage, if any?", default: "" },
+  {
+    key: "homepage",
+    ask: "Your plugins' homepage, if any? Empty uses each repo's GitHub page.",
+    default: ""
+  },
   {
     key: "prefix",
-    ask: 'A prefix for every plugin id, such as "acme-", or none?',
+    ask: 'A prefix in front of every plugin id, such as "acme-" for acme-notes, or none (the usual answer)?',
     default: DEFAULTS.prefix
   },
   {
     key: "marketplace",
-    ask: "Which marketplace lists the plugin: its own repo (leave empty), or another repo as owner/repo?",
+    ask: "Where do people install your plugins from: each plugin's own repo (leave empty, the usual answer), or a shared marketplace repo, as owner/repo?",
     default: DEFAULTS.marketplace
   },
   {
+    key: "license",
+    ask: "Which licence? The template ships MIT; for another, scaffold with MIT and swap it in after.",
+    default: DEFAULTS.license
+  },
+  {
     key: "ci",
-    ask: `Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04), or "sidecut" for the sidecut profile's own runners?`,
+    ask: 'CI runs on GitHub-hosted ubuntu-24.04 runners ("hosted"). Keep that?',
     default: DEFAULTS.ci
+  },
+  {
+    key: "houseStyle",
+    ask: "Which house style should your plugins follow: Agentskills' own (leave empty), Agentskills' own with your changes, or your own guide (give its path or URL)?",
+    default: DEFAULTS.houseStyle
+  },
+  {
+    key: "voice",
+    ask: "Which voice should their docs and skills be written in: the template's VOICE.md (leave empty), that one adapted, or your own guide (give its path or URL)?",
+    default: DEFAULTS.voice
   }
 ];
 

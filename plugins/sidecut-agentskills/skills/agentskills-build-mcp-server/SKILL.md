@@ -4,6 +4,7 @@ description: "Builds the MCP side of a plugin: the tools in its bundled server, 
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
   - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
+  - mcp__plugin_sidecut-agentskills_agentskills__get_settings
 ---
 
 # Build MCP server
@@ -12,6 +13,7 @@ Produces tools that agents pick correctly, that return data a check can verify, 
 
 ## Before you start
 
+- Call `get_settings` and say in one line which settings you're applying. If it returns `needs: settings`, ask its questions together and once, never answering them yourself, and save the answers with `save_settings` before naming or writing anything. In an existing repo, its `.agentskills.json`, or its manifests without one, says whose it is. "The house style" means the user's: their own guide when the settings name one, starting from Agentskills' own in `get_house_style`.
 - Run `check_plugin` on the repo and note any problems already there, so new ones are easy to tell apart.
 - Read the "MCP servers" section of `get_house_style`.
 - Inspect the existing tools, connection files and host manifests. For a new or changed tool, establish what it returns and what effects it may have before writing it. Ask about material requirements or missing authorization using `server/data/user-input.md` from the loaded plugin root.

@@ -3,6 +3,7 @@ name: agentskills-design-workflow
 description: "Designs what a plugin does on its own: hooks that run at set moments, subagents it hands work to, and the CI jobs that check it. Use when the user wants something to happen automatically, work split across agents, or a plugin check added to CI. Not for a project's own agent rules or a repeated mistake in an app repo, which belong to that repo's own workflow."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
+  - mcp__plugin_sidecut-agentskills_agentskills__get_settings
 ---
 
 # Design workflow
@@ -11,6 +12,7 @@ Produces the smallest mechanism that makes the behavior happen every time, in th
 
 ## Before you start
 
+- Call `get_settings` and say in one line which settings you're applying. If it returns `needs: settings`, ask its questions together and once, never answering them yourself, and save the answers with `save_settings` before naming or writing anything. In an existing repo, its `.agentskills.json`, or its manifests without one, says whose it is. "The house style" means the user's: their own guide when the settings name one, starting from Agentskills' own in `get_house_style`.
 - Identify what should happen, when and what the user sees. Ask only about missing choices that change the workflow or its effects. Follow `server/data/user-input.md` from the loaded plugin root.
 - Read the "Hooks" and "Usage log" sections of `get_house_style`.
 

@@ -326,7 +326,7 @@ var Report = class {
           "KEEP_UNUSED",
           "package.json",
           void 0,
-          `sidecut.keep lists "${key}", which no longer differs.`,
+          `The keep list in package.json names "${key}", which no longer differs.`,
           "Remove it."
         );
       for (const p of hit) this.kept.push({ ...p, reason: String(reason) });
@@ -383,7 +383,9 @@ var SIDECUT_SETTINGS = {
   license: "MIT",
   brandColor: "#FF6B00",
   brand: "Sidecut",
-  workflow: "solo"
+  workflow: "solo",
+  houseStyle: "",
+  voice: ""
 };
 var SIDECUT_OWNER = SIDECUT_SETTINGS.org;
 var SIDECUT_CI_SNIPPETS = {
@@ -493,7 +495,9 @@ var DEFAULTS = {
   license: "MIT",
   brandColor: "#3B82F6",
   brand: "",
-  workflow: ""
+  workflow: "",
+  houseStyle: "",
+  voice: ""
 };
 var PROFILES = {
   sidecut: SIDECUT_SETTINGS
@@ -608,28 +612,46 @@ function useSettings(settings) {
 }
 var QUESTIONS = [
   {
-    key: "profile",
-    ask: `Start from a saved profile? Answer "sidecut" for Sidecut Studio's values, or leave it empty and answer the rest.`,
+    key: "org",
+    ask: "Which GitHub user or organization will hold your plugin repos?",
     default: ""
   },
-  { key: "org", ask: "Which GitHub user or organization will hold the repo?", default: "" },
   { key: "authorName", ask: "Whose name goes in the manifests and the licence?", default: "" },
   { key: "authorUrl", ask: "The author's web address, if any?", default: "" },
-  { key: "homepage", ask: "The plugin's homepage, if any?", default: "" },
+  {
+    key: "homepage",
+    ask: "Your plugins' homepage, if any? Empty uses each repo's GitHub page.",
+    default: ""
+  },
   {
     key: "prefix",
-    ask: 'A prefix for every plugin id, such as "acme-", or none?',
+    ask: 'A prefix in front of every plugin id, such as "acme-" for acme-notes, or none (the usual answer)?',
     default: DEFAULTS.prefix
   },
   {
     key: "marketplace",
-    ask: "Which marketplace lists the plugin: its own repo (leave empty), or another repo as owner/repo?",
+    ask: "Where do people install your plugins from: each plugin's own repo (leave empty, the usual answer), or a shared marketplace repo, as owner/repo?",
     default: DEFAULTS.marketplace
   },
   {
+    key: "license",
+    ask: "Which licence? The template ships MIT; for another, scaffold with MIT and swap it in after.",
+    default: DEFAULTS.license
+  },
+  {
     key: "ci",
-    ask: `Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04), or "sidecut" for the sidecut profile's own runners?`,
+    ask: 'CI runs on GitHub-hosted ubuntu-24.04 runners ("hosted"). Keep that?',
     default: DEFAULTS.ci
+  },
+  {
+    key: "houseStyle",
+    ask: "Which house style should your plugins follow: Agentskills' own (leave empty), Agentskills' own with your changes, or your own guide (give its path or URL)?",
+    default: DEFAULTS.houseStyle
+  },
+  {
+    key: "voice",
+    ask: "Which voice should their docs and skills be written in: the template's VOICE.md (leave empty), that one adapted, or your own guide (give its path or URL)?",
+    default: DEFAULTS.voice
   }
 ];
 function escapeRegExp(text) {
@@ -637,6 +659,23 @@ function escapeRegExp(text) {
 }
 function brandSpace(s = active) {
   return s.brand ? `${s.brand} ` : "";
+}
+function namespaceOf(s = active) {
+  return s.profile === "sidecut" ? "sidecut" : "agentskills";
+}
+function packageConfig(pkg) {
+  const read2 = (key) => {
+    const value = pkg?.[key];
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  };
+  const old = read2("sidecut");
+  const own = read2("agentskills");
+  const keep = { ...old.keep, ...own.keep };
+  const kind = own.kind ?? old.kind;
+  return {
+    ...Object.keys(keep).length > 0 || "keep" in old || "keep" in own ? { keep } : {},
+    ...kind !== void 0 ? { kind } : {}
+  };
 }
 function marketplaceName(id2, s = active) {
   return s.marketplace ? s.marketplace.split("/")[1] ?? s.marketplace : id2;
@@ -810,6 +849,7 @@ function listFiles(dir) {
 function settingsVars(id2, s = current()) {
   const brand = brandSpace(s);
   const market = marketplaceName(id2, s);
+  const ns = namespaceOf(s);
   let host = "";
   try {
     host = s.homepage ? new URL(s.homepage).host : "";
@@ -866,7 +906,11 @@ function settingsVars(id2, s = current()) {
 ${SOLO_START}
 ${SOLO_END}` : "",
     workflowIgnore: s.workflow === "solo" ? `
-${SOLO_LOCAL_FILE}` : ""
+${SOLO_LOCAL_FILE}` : "",
+    // Agentskills' own markers, package.json key and usage log, under the repo's namespace.
+    ns,
+    NS: ns.toUpperCase(),
+    toolOwner: ns === "sidecut" ? "sidecut-agentskills" : "Agentskills"
   };
 }
 function brandColorOf(pluginDir) {
@@ -998,7 +1042,7 @@ function readFleet(root2) {
 // plugins/sidecut-agentskills/server/src/check/markdown.ts
 import { existsSync as existsSync6 } from "node:fs";
 import { dirname as dirname4, join as join6, relative as relative4 } from "node:path";
-var ALLOWED_HTML = /^<!-- sidecut:(start|end)( [\w-]+)? -->$/;
+var ALLOWED_HTML = /^<!-- (?:agentskills|sidecut):(start|end)( [\w-]+)? -->$/;
 var allowedHtml = (line) => ALLOWED_HTML.test(line) || line === SOLO_START || line === SOLO_END;
 function parseMarkdown(path, text) {
   const lines = text.split("\n");
@@ -1025,7 +1069,7 @@ function parseMarkdown(path, text) {
       if (line === SOLO_END) solo = false;
       continue;
     }
-    if (!fence && /^<!-- sidecut:(start|end) [\w-]+ -->$/.test(line)) {
+    if (!fence && /^<!-- (?:agentskills|sidecut):(start|end) [\w-]+ -->$/.test(line)) {
       inCode[i] = true;
       continue;
     }
@@ -1545,14 +1589,14 @@ function readJson(path) {
 var SITE_TOOLS = ["astro", "next", "@docusaurus/core", "vitepress", "@11ty/eleventy"];
 function repoKind(root2, fleet, ships, report) {
   const pkg = readJson(join8(root2, "package.json"));
-  const declared = pkg?.sidecut?.kind;
+  const declared = packageConfig(pkg).kind;
   if (declared !== void 0) {
     if (KINDS.includes(declared)) return { kind: declared, how: "declared" };
     report.add(
       "REPO_KIND",
       "package.json",
       void 0,
-      `sidecut.kind is "${String(declared)}", which isn't a repo kind.`,
+      `The kind in package.json is "${String(declared)}", which isn't a repo kind.`,
       `Use one of ${KINDS.join(", ")}.`
     );
   }
@@ -1740,6 +1784,11 @@ import { existsSync as existsSync9, mkdtempSync, readFileSync as readFileSync9, 
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join as join9, relative as relative6 } from "node:path";
+function requireName(root2) {
+  const script = join9(root2, "scripts", "build-server.ts");
+  const named = existsSync9(script) ? /createRequire as (__[A-Za-z]+Require)\b/.exec(readFileSync9(script, "utf8"))?.[1] : void 0;
+  return named ?? `__${namespaceOf(current())}Require`;
+}
 var ESBUILD = /"esbuild": "([^"]+)"/.exec(
   readFileSync9(join9(templatesRoot, "repo", "package.json.tmpl"), "utf8")
 )?.[1] ?? "";
@@ -1843,7 +1892,7 @@ function checkServer(pluginDir, root2, report) {
         metafile: true,
         logLevel: "silent",
         banner: {
-          js: "import { createRequire as __sidecutRequire } from 'node:module'; const require = __sidecutRequire(import.meta.url);"
+          js: `import { createRequire as ${requireName(root2)} } from 'node:module'; const require = ${requireName(root2)}(import.meta.url);`
         }
       });
       inputs = Object.keys(result.metafile.inputs);
@@ -3401,7 +3450,7 @@ var SHARED_TOOLS = [
   "vitest"
 ];
 var CHECKER = "github:SidecutStudio/sidecut-agentskills#v";
-var MARK = /^(?:<!--|#|\/\/) sidecut:(start|end) ([\w-]+)(?: -->)?$/;
+var MARK = /^(?:<!--|#|\/\/) (?:agentskills|sidecut):(start|end) ([\w-]+)(?: -->)?$/;
 function blocksOf(lines) {
   const blocks = [];
   let open = null;
@@ -3445,7 +3494,7 @@ function mergeBlocks(current2, template, file) {
   for (const block of templateBlocks) {
     const found = blocksOf(have);
     if (typeof found === "string")
-      return { error: `The sidecut markers in ${file} are broken: ${found}.` };
+      return { error: `The block markers in ${file} are broken: ${found}.` };
     const body = want.slice(block.start, block.end + 1);
     const same = found.find((b) => b.name === block.name);
     if (same) {
@@ -4499,7 +4548,7 @@ function checkSolo(root2, report) {
       SOLO_FILE,
       void 0,
       `\`required_checks\` lists "${name}", but no job in .github/workflows/ reports a check by that name, so the merge gate waits for one that never runs.`,
-      "Remove it from required_checks, or add the job. A check another service reports goes under sidecut.keep with its source."
+      "Remove it from required_checks, or add the job. A check another service reports goes under the keep list in package.json with its source."
     );
 }
 function requiredChecks(toml) {
@@ -4537,7 +4586,7 @@ function identify(root2) {
   const repo = new RegExp(`^https:\\/\\/github\\.com\\/${owner}\\/([\\w.-]+)$`).exec(
     String(manifest.repository ?? "")
   )?.[1] ?? "";
-  const keep = pkg.sidecut?.keep ?? {};
+  const keep = packageConfig(pkg).keep ?? {};
   const olderName = Boolean(settings.prefix) && only === `${settings.prefix}${repo}` && pkg.name === only;
   const renamed = pkg.name === only && Object.hasOwn(keep, "REPO_PLUGIN_ID");
   if (only && repo && (repo === only || olderName || renamed))
@@ -4653,9 +4702,10 @@ function checkRepo(root2, report, options = {}) {
 // scripts/sync.ts
 var usage = `Usage: sidecut-sync [<repo>] [--check] [--force] [--fix]
 
-Brings a plugin repo up to date with sidecut-agentskills: the files it owns, the blocks marked
-sidecut:start, and the shared tool versions in package.json. Uses the installed, pinned version of Agentskills. Paths and rules listed under sidecut.keep in
-package.json are left alone.
+Brings a plugin repo up to date with Agentskills: the files it owns, the blocks marked
+agentskills:start (sidecut:start in older and Sidecut repos), and the shared tool versions in
+package.json. Uses the installed, pinned version of Agentskills. Paths and rules listed under
+agentskills.keep (or sidecut.keep) in package.json are left alone.
 
   --check    change nothing; list what would change and exit 1 if anything would
   --force    also overwrite files with uncommitted changes

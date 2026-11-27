@@ -1,9 +1,10 @@
 ---
 name: agentskills-rebuild-plugin
-description: "Rebuilds an existing plugin repo so it follows the house style, keeping everything it does and proving nothing was lost. Use when the user wants an older plugin brought up to the template, cleaned of drift, or moved onto the Sidecut layout. Not for one change to a plugin that already passes `check_plugin` (use `agentskills-write-skill` or `agentskills-build-mcp-server`)."
+description: "Rebuilds an existing plugin repo so it follows the house style, keeping everything it does and proving nothing was lost. Use when the user wants an older plugin brought up to the template, cleaned of drift, or moved onto the Agentskills layout. Not for one change to a plugin that already passes `check_plugin` (use `agentskills-write-skill` or `agentskills-build-mcp-server`)."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
   - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
+  - mcp__plugin_sidecut-agentskills_agentskills__get_settings
 ---
 
 # Rebuild plugin
@@ -12,6 +13,7 @@ Produces the same plugin in the house style on a branch, with a before-and-after
 
 ## Before you start
 
+- Call `get_settings` and say in one line which settings you're applying. If it returns `needs: settings`, ask its questions together and once, never answering them yourself, and save the answers with `save_settings` before naming or writing anything. In an existing repo, its `.agentskills.json`, or its manifests without one, says whose it is. "The house style" means the user's: their own guide when the settings name one, starting from Agentskills' own in `get_house_style`.
 - Work on a new branch. Merge only through the repo's own flow, and only when the comparison holds.
 - Read the "Repo layout" and "Plugin layout" sections of `get_house_style`. A repo that ships a plugin next to other work, such as an app repo, keeps its own top level; only `plugins/<plugin-id>/` changes.
 

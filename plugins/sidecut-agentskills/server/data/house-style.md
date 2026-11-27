@@ -4,7 +4,7 @@ Read this when writing or changing anything in a plugin, skill, MCP server or pl
 
 ## Settings
 
-Who publishes a plugin comes from settings, not from these rules: the GitHub owner (`org`), the author's name and URL, the homepage, a plugin-id `prefix`, the `marketplace` that lists the plugin, the CI mode (`hosted`, or `sidecut` for that profile's own runners), the licence and the brand color. Where a rule below says `<org>`, `<author>`, `<homepage>` or `<prefix>`, it means the value from settings.
+Who publishes a plugin comes from the user's settings, not from these rules: the GitHub owner (`org`), the author's name and URL, the homepage, a plugin-id `prefix`, the `marketplace` that lists the plugin, the CI mode (`hosted`, or `sidecut` for that profile's own runners), the licence, the brand color, and the user's own `houseStyle` and `voice` guides, as a path or URL. These rules are Agentskills' house style: the starting point. Where the user's own guide differs, it wins. Where a rule below says `<org>`, `<author>`, `<homepage>` or `<prefix>`, it means the value from settings.
 
 | Where | Holds | Read by |
 | --- | --- | --- |
@@ -12,7 +12,9 @@ Who publishes a plugin comes from settings, not from these rules: the GitHub own
 | `~/.config/agentskills/settings.json` (or under an absolute `$XDG_CONFIG_HOME`) | The user's answers, saved once | scaffolding, over the defaults |
 | `.agentskills.json` at the repo root | The answers a repo was scaffolded with | check and sync, over what the manifests say |
 
-Scaffolding reads the call's answers, then the user's file, then the defaults; a new repo has no answers file yet. Check and sync read only the repo: its answers file, or, without one, what its manifests say. The defaults are hosted CI, no prefix, MIT, and the plugin's own repo as its marketplace. Owner, author, URLs and brand color are refused if they'd need escaping in JSON or YAML. One optional profile, `sidecut`, holds Sidecut Studio's own values and adds the rules in `profiles/sidecut.md`, which `get_house_style` appends when that profile is in use and returns as the section `Sidecut profile`. Nothing in it applies to a repo made with your own settings. A repo with no answers file is checked with the owner and author its manifest names. Scaffolding with no settings at all writes nothing and returns the questions to ask.
+Scaffolding reads the call's answers, then the user's file, then the defaults; a new repo has no answers file yet. Check and sync read only the repo: its answers file, or, without one, what its manifests say. The defaults are hosted CI, no prefix, MIT, and the plugin's own repo as its marketplace. Owner, author, URLs and brand color are refused if they'd need escaping in JSON or YAML. One optional profile, `sidecut`, holds Sidecut Studio's own values and adds the rules in `profiles/sidecut.md`, which `get_house_style` appends when that profile is in use and returns as the section `Sidecut profile`. Nothing in it applies to a repo made with your own settings. A repo with no answers file is checked with the owner and author its manifest names. With no settings saved, `get_settings` and `scaffold_plugin` return the questions to ask and write nothing. A skill asks them all together, once, before it names or writes anything, never answers them itself, and saves the answers with `save_settings`. The `sidecut` profile is used only when the user names it; nothing falls back to it.
+
+Agentskills' own markers, `package.json` key and usage log sit under one namespace: `agentskills` (`agentskills:start` blocks, `agentskills.keep`, `AGENTSKILLS_SKILL_LOG`, `~/.agentskills/`), or `sidecut` in repos with the `sidecut` profile. The checker reads both, and `sidecut-sync --fix` moves an older repo's blocks to its namespace. Below, `<ns>` stands for it.
 
 ## Names
 
@@ -28,16 +30,16 @@ Scaffolding reads the call's answers, then the user's file, then the defaults; a
 | MCP tool | Verb then object in snake_case: `get_pr_checks`, `scaffold_plugin` | yes |
 | Hook script | `<event>-<what>.mjs` in kebab-case: `post-tool-use-skill-log.mjs` | yes |
 | Script, reference or example file | kebab-case, describing what's inside: `house-style.md`, `list-tools.mjs` | yes |
-| Environment variable | The plugin id then the setting, in upper snake case, such as `ACME_NOTES_DIR` for `acme-notes`; the usage log's shared switch is `SIDECUT_SKILL_LOG` in every plugin | review |
+| Environment variable | The plugin id then the setting, in upper snake case, such as `ACME_NOTES_DIR` for `acme-notes`; the usage log's shared switch is `<NS>_SKILL_LOG` in every plugin | review |
 | Acronyms in prose and headings | Upper case: MCP, CLI, CI, PR, URL | review |
 
 ## Repo layout
 
 A repo exists to ship one plugin when it holds one plugin whose manifest `repository` is `https://github.com/<org>/<plugin-id>`. A repo that kept its older name, the plugin id without `<prefix>`, counts too when `package.json` is named after the plugin. That repo has exactly these top-level entries, plus `node_modules/` when installed, `bin/`, `vitest.config.ts`, `VOICE.md`, and `RELEASING.md` when used, `docs/` for longer documentation, such as a specification, a `.claude/` folder that holds only worktrees Claude Code registered under `.claude/worktrees/` and files `.gitignore` ignores, and a `.codex/` folder that holds only files `.gitignore` ignores, such as the subagent profiles under `.codex/agents/`. A public repo also has its install source, `.claude-plugin/marketplace.json` and `.agents/plugins/marketplace.json`, described under Install source.
 
-A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `sidecut.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
+A renamed plugin can keep its historical repository name by listing `REPO_PLUGIN_ID` with a reason under `<ns>.keep` in `package.json`. When the package names the plugin, that explicit exception retains full repository checks and template sync.
 
-A repo that ships a plugin next to other work, such as an app or a tools repo, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down, whatever its package is called. The rest of it is checked as its kind, under Repo kinds. It can still list deliberate differences under `sidecut.keep`.
+A repo that ships a plugin next to other work, such as an app or a tools repo, keeps its own top level and follows the rules from `plugins/<plugin-id>/` down, whatever its package is called. The rest of it is checked as its kind, under Repo kinds. It can still list deliberate differences under `<ns>.keep`.
 
 ```text
 .github/workflows/check.yml
@@ -74,13 +76,13 @@ tsconfig.json
 
 ## Repo kinds
 
-`sidecut-check` checks a whole repo of any kind: `plugin`, `app`, `marketplace`, `ops`, `site` or `data`. A repo declares its kind as `"sidecut": { "kind": "app" }` in `package.json`. Without one, the checker takes it from the profile's repo index when that is on disk, and otherwise guesses: a repo that exists to ship one plugin is a plugin repo, one with `bundled/` or a multi-plugin marketplace is a marketplace, one with `.github/actions/` is ops, one with no `package.json` is data, one built with a site generator is a site, and anything else is an app. The first line of its output says which kind it used and how it knew.
+`sidecut-check` checks a whole repo of any kind: `plugin`, `app`, `marketplace`, `ops`, `site` or `data`. A repo declares its kind as `"<ns>": { "kind": "app" }` in `package.json`. Without one, the checker takes it from the profile's repo index when that is on disk, and otherwise guesses: a repo that exists to ship one plugin is a plugin repo, one with `bundled/` or a multi-plugin marketplace is a marketplace, one with `.github/actions/` is ops, one with no `package.json` is data, one built with a site generator is a site, and anything else is an app. The first line of its output says which kind it used and how it knew.
 
 A plugin repo follows the rest of this house style. Every other kind keeps the H2 sections of its template in `templates/kinds/<kind>.md.tmpl`, in that order, and may add its own between them. An app's AGENTS.md starts with `## Read this when`, a table from what someone is working on to the doc to read, so it is the map of the repo. `templates/kinds/lefthook.yml.tmpl` is the pre-push guard such a repo adds: `sidecut-check --fast`, the quick exact rules.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Kind | `sidecut.kind`, when set, is one of the six kinds | yes |
+| Kind | `<ns>.kind`, when set, is one of the six kinds | yes |
 | AGENTS.md | Every kind but data has one; data has a README.md | yes |
 | Sections | The kind template's H2 sections, in order, with the repo's own between them | yes |
 | Workflow block | With a workflow profile, AGENTS.md carries the workflow's block word for word; `sidecut-sync --fix` writes it | yes |
@@ -359,9 +361,9 @@ The only telemetry a plugin made with Agentskills has.
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Trigger | `PostToolUse`: matcher `Skill` in Claude Code; matcher `Bash` in Codex, which has no skill tool and opens a skill by reading its `SKILL.md` with a shell command (openai/codex#17132). A skill Codex puts straight into the prompt, without a read, isn't logged. Matcher `read_file|view_file|run_command` in Antigravity, whose CLI reads a skill's `SKILL.md` with `read_file` (`Path`), its app with `view_file` (`AbsolutePath`), or either with a shell command. Those are its ordinary file readers, so only a successful first read of a `SKILL.md` inside the installed plugin's own folder counts | yes |
-| Switch | On by default, because nothing leaves the machine; `SIDECUT_SKILL_LOG=0`, `DO_NOT_TRACK=1` or a CI environment turns it off; tests in the template prove all three | yes |
+| Switch | On by default, because nothing leaves the machine; `<NS>_SKILL_LOG=0`, `DO_NOT_TRACK=1` or a CI environment turns it off; tests in the template prove all three | yes |
 | Record | One JSON line per skill run with `time`, `plugin`, `skill`, `host` (`claude-code`, `codex` or `antigravity`) and nothing else | yes |
-| Location | `~/.sidecut/skill-log.jsonl`, never sent anywhere | yes |
+| Location | `~/.<ns>/skill-log.jsonl`, never sent anywhere | yes |
 | Ownership | Records only this plugin's skills | yes |
 | Mentions in skills | None; skills never ask the agent to log, report or send feedback. A skill that reads usage back to the user, as `agentskills-show-usage` does, is the one exception | review |
 | Reading it | `agentskills-show-usage` reads this log for every plugin that keeps it, so no plugin ships its own reader for it. A plugin with richer usage data of its own may add a `<prefix>-show-usage` skill for that data. It checks recording still works before reporting | review |
@@ -444,7 +446,7 @@ sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecu
 | --- | --- | --- |
 | `CLAUDE.md`, `scripts/build-server.ts`, `scripts/release.ts` | The whole file | Nothing |
 | Starter status evals | Sync refreshes an exact copy of an older starter in a dedicated plugin repo | Edited, missing and stamped cases |
-| `.gitignore`, `AGENTS.md`, `SECURITY.md` | The block between `sidecut:start house-style` and `sidecut:end house-style` | Everything outside it |
+| `.gitignore`, `AGENTS.md`, `SECURITY.md` | The block between `<ns>:start house-style` and `<ns>:end house-style` | Everything outside it |
 | `package.json` | `packageManager` and the versions of Biome, TypeScript, Lefthook, `@types/node` and `sidecut-agentskills`, which sync only ever raises | Everything else |
 | `server/data/visual-reports.md` and `visual-report.css` in a plugin that carries them | The whole file, so every plugin that makes reports reads the same guide | Nothing; the report page itself (`visual-report.html`) carries the plugin's own name |
 | `hooks/post-tool-use-skill-log.mjs`, `.antigravity-plugin/plugin.json`, `mcp_config.json`, `hooks.json` in the plugin | The whole file: the hook is the template's copy, and Antigravity's files are written from the Claude Code and Codex ones. They're reported under their own rules (`HOOK_SKILL_LOG`, `ANTIGRAVITY_*`), and a keep under that rule or the file's path stops sync rewriting them | Nothing |
@@ -453,7 +455,7 @@ sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecu
 | --- | --- | --- |
 | Changing a shared part | Change the template here, release, then sync each repo. Never edit a block or an owned file in one repo only | yes |
 | A repo that got it right | When a repo's own version is better, move it into the template rather than syncing it away | review |
-| Deliberate differences | Listed in `package.json` under `sidecut.keep`, as `"<file, folder, rule code or 'CODE file'>": "<why>"`. The checker lists them as kept; a key with no reason, or one that no longer covers a problem, fails | yes |
+| Deliberate differences | Listed in `package.json` under `<ns>.keep`, as `"<file, folder, rule code or 'CODE file'>": "<why>"`. The checker lists them as kept; a key with no reason, or one that no longer covers a problem, fails | yes |
 | What was checked | The checker's first line says whether it checked the whole repo or only the plugins, and why | yes |
 
 ## AGENTS.md

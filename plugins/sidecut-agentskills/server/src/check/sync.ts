@@ -95,7 +95,7 @@ export type Change = {
  */
 export type SyncVars = { id: string; repo: string; version: string; scope?: 'whole' | 'beside' };
 
-const MARK = /^(?:<!--|#|\/\/) sidecut:(start|end) ([\w-]+)(?: -->)?$/;
+const MARK = /^(?:<!--|#|\/\/) (?:agentskills|sidecut):(start|end) ([\w-]+)(?: -->)?$/;
 
 type Block = { name: string; start: number; end: number };
 
@@ -157,7 +157,7 @@ export function mergeBlocks(
   for (const block of templateBlocks) {
     const found = blocksOf(have);
     if (typeof found === 'string')
-      return { error: `The sidecut markers in ${file} are broken: ${found}.` };
+      return { error: `The block markers in ${file} are broken: ${found}.` };
     const body = want.slice(block.start, block.end + 1);
     const same = found.find((b) => b.name === block.name);
     if (same) {

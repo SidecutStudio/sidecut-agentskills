@@ -40,6 +40,8 @@ export const SIDECUT_SETTINGS = {
   brandColor: '#FF6B00',
   brand: 'Sidecut',
   workflow: 'solo',
+  houseStyle: '',
+  voice: '',
 };
 
 /** The GitHub owner whose repos, with no answers file, are checked with this profile. */

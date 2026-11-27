@@ -4,6 +4,7 @@ description: "Publishes a new version of a plugin through its marketplace, with 
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
   - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
+  - mcp__plugin_sidecut-agentskills_agentskills__get_settings
 ---
 
 # Publish plugin
@@ -16,6 +17,7 @@ Produces a new version of the plugin that its marketplace serves to Claude Code 
 
 ## Before you start
 
+- Call `get_settings` and say in one line which settings you're applying. If it returns `needs: settings`, ask its questions together and once, never answering them yourself, and save the answers with `save_settings` before naming or writing anything. In an existing repo, its `.agentskills.json`, or its manifests without one, says whose it is. "The house style" means the user's: their own guide when the settings name one, starting from Agentskills' own in `get_house_style`.
 - `check_plugin` reports no problems on the plugin.
 - Reuse a settled version or apply the release rule: a fix is a patch, a new skill or tool is a minor version, and a renamed or removed skill or tool is a major version once the plugin is past 1.0. Ask only if the correct version is a material unresolved choice. Follow `server/data/user-input.md` from the loaded plugin root.
 - Read the repo's `AGENTS.md` for how it merges: its own flow and its required checks.

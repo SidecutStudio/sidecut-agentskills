@@ -22,6 +22,7 @@ import {
   escapeRegExp,
   marketplaceName,
   mergeSettings,
+  namespaceOf,
   PROFILES,
   QUESTIONS,
   type Question,
@@ -301,6 +302,7 @@ export function answersFile(settings: Settings): string {
 export function settingsVars(id: string, s: Settings = current()): Record<string, string> {
   const brand = brandSpace(s);
   const market = marketplaceName(id, s);
+  const ns = namespaceOf(s);
   let host = '';
   try {
     host = s.homepage ? new URL(s.homepage).host : '';
@@ -356,6 +358,10 @@ export function settingsVars(id: string, s: Settings = current()): Record<string
     installBlock,
     workflowMarkers: s.workflow === 'solo' ? `\n\n${SOLO_START}\n${SOLO_END}` : '',
     workflowIgnore: s.workflow === 'solo' ? `\n${SOLO_LOCAL_FILE}` : '',
+    // Agentskills' own markers, package.json key and usage log, under the repo's namespace.
+    ns,
+    NS: ns.toUpperCase(),
+    toolOwner: ns === 'sidecut' ? 'sidecut-agentskills' : 'Agentskills',
   };
 }
 

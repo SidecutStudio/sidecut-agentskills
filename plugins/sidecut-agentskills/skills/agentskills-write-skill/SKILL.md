@@ -4,6 +4,7 @@ description: "Writes one skill for a plugin, new or rewritten, that triggers on 
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__check_plugin
   - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
+  - mcp__plugin_sidecut-agentskills_agentskills__get_settings
 ---
 
 # Write skill
@@ -12,6 +13,7 @@ Produces one skill folder that passes `check_plugin` and has trigger evals that 
 
 ## Before you start
 
+- Call `get_settings` and say in one line which settings you're applying. If it returns `needs: settings`, ask its questions together and once, never answering them yourself, and save the answers with `save_settings` before naming or writing anything. In an existing repo, its `.agentskills.json`, or its manifests without one, says whose it is. "The house style" means the user's: their own guide when the settings name one, starting from Agentskills' own in `get_house_style`.
 - Derive the outcome, three triggers, two near misses and the acceptance check from the request and existing materials. Ask only about gaps that would change the skill or its checks. Follow `server/data/user-input.md` from the loaded plugin root.
 - Read the "Skill folder", "Skill frontmatter" and "SKILL.md layout" sections of `get_house_style`.
 - For a rewrite, read the old skill only to list what it covers. Write the new text from that list; don't copy sentences, headings or layout.

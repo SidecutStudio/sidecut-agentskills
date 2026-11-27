@@ -10,8 +10,8 @@ Count the plugin skills that ran over a period, by plugin, skill and host, and s
 
 ## Steps
 
-1. Check the switch in this host: the log is on unless `SIDECUT_SKILL_LOG=0`, `DO_NOT_TRACK=1` or a CI variable is set. You can't see the other host's settings.
-2. Read `~/.sidecut/skill-log.jsonl`. Each line has `time`, `plugin`, `skill` and `host`, and nothing else. Use the last seven days unless the user names a period.
+1. Check the switch in this host: the log is on unless `AGENTSKILLS_SKILL_LOG=0` (`SIDECUT_SKILL_LOG=0` for Sidecut-profile plugins), `DO_NOT_TRACK=1` or a CI variable is set. You can't see the other host's settings.
+2. Read `~/.agentskills/skill-log.jsonl`, and `~/.sidecut/skill-log.jsonl` too when it exists: Sidecut-profile plugins, this one included, log there. Each line has `time`, `plugin`, `skill` and `host`, and nothing else. Use the last seven days unless the user names a period.
 3. When the switch is on, look for this run's own line: an `agentskills-show-usage` line for this host from the last few minutes. If it's there, recording works in this host; leave it out of every count. If it isn't, recording here is unconfirmed. In Codex that's expected for a skill started by a `$` mention; in Claude Code it means the hook didn't run, unless the user typed the skill as a slash command, which may skip it.
 4. For each host, give the newest other line. If one host's newest is days older than the other's, say recording may be off there. A missing file or a host with no lines only means nothing was recorded, not that the log is off.
 5. Count runs per plugin, per skill and per host.
