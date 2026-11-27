@@ -55,13 +55,19 @@ var SIDECUT_FLEET = {
   owners: "owners.toml"
 };
 var SIDECUT_RETIRED = [
-  { re: /\bVeyla[ -]?Labs\b/gi, name: "Veyla Labs", use: "Sidecut Studio", autofix: true },
+  // Only the written name: a URL, path or package name that still carries it is an identifier.
   {
-    re: /\bSidecut Workflows\b|\bsidecut-workflows\b/gi,
+    re: /(?<![\w/.@-])Veyla Labs(?![\w/-])/g,
+    name: "Veyla Labs",
+    use: "Sidecut Studio",
+    autofix: true
+  },
+  {
+    re: /(?<![\w/.@-])Sidecut Workflows(?![\w/-])/g,
     name: "Sidecut Workflows",
     use: "Sidecut Solo"
   },
-  { re: /\bShip Properly\b|\bship-properly\b/gi, name: "Ship Properly", use: "Sidecut Solo" }
+  { re: /(?<![\w/.@-])Ship Properly(?![\w/-])/g, name: "Ship Properly", use: "Sidecut Solo" }
 ];
 
 // plugins/sidecut-agentskills/server/src/settings.ts
@@ -266,16 +272,28 @@ function siblingCheckout(root2, name) {
   }
   return null;
 }
+function withoutComment(line) {
+  let quote = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === "#") return line.slice(0, i);
+  }
+  return line;
+}
 function readToml(text) {
   const tables = { "": {} };
   let at = "";
-  const lines = text.split("\n").map((raw) => raw.replace(/\s+#.*$|^#.*$/, "").trim());
+  const lines = text.split("\n").map((raw) => withoutComment(raw).trim());
   for (let n = 0; n < lines.length; n++) {
     let line = lines[n] ?? "";
     if (/=\s*\[/.test(line) && !line.includes("]"))
       while (n + 1 < lines.length && !line.includes("]")) line += ` ${lines[++n] ?? ""}`;
     if (!line) continue;
-    const header = /^\[([^\]]+)\]$/.exec(line);
+    const header = /^\[\[?([^\]]+)\]\]?$/.exec(line);
     if (header) {
       at = (header[1] ?? "").trim();
       tables[at] ??= {};
@@ -486,13 +504,13 @@ function read(root2, file) {
     return null;
   }
 }
-var MONTH = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?";
+var MONTH = "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?";
 var DATED = new RegExp(
   `\\b(?:(?:accurate )?as of|read on|checked on|verified on|last (?:checked|verified|updated|reviewed|read)(?: on)?)\\s+(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2} ${MONTH} \\d{4}|${MONTH} (?:\\d{1,2},? )?\\d{4})`,
   "i"
 );
 var WEAK_COPY = /\b(seamless(?:ly)?|leverag(?:e|es|ing)|robust|cutting[- ]edge|game[- ]chang\w*|unlock(?:s|ing)? the|empower\w*|best[- ]in[- ]class|world[- ]class|effortless(?:ly)?|supercharg\w*|next[- ]level|harness(?:es|ing)? the power|in today's fast[- ]paced|delv(?:e|es|ing) into|revolutioni[sz]\w*|it(?:'s| is) worth noting|might potentially|arguably|please note that|needless to say|rest assured)\b/i;
-var OWNER_DESCRIBED = /\b(solo (?:maker|founder|developer|dev|builder)|one[- ](?:person|man|woman) (?:team|studio|shop|company)|not a (?:trained|professional|real) developer|isn't a (?:trained |professional )?developer|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker|built by one person)\b/i;
+var OWNER_DESCRIBED = /\b((?:by|from|I'm|I am|as) (?:a |an |one )?(?:solo (?:maker|founder|developer|dev|builder)|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker|person)|(?:I'm|I am|who is|who's) not a (?:trained |professional |real )?developer|built by one person|one[- ](?:person|man|woman) (?:studio|shop|company) behind)\b/i;
 function hostLoaded(file) {
   const name = basename2(file);
   return !file.includes("/") || /^(SKILL|AGENTS|CLAUDE|GEMINI|README|CHANGELOG|LICENSE|SECURITY|CONTRIBUTING)(\.[\w-]+)?\.mdx?$/i.test(
@@ -509,7 +527,8 @@ function checkDocs(root2, kind, fleet, report2) {
   });
   const markdown = texts.filter((t) => MARKDOWN.test(t.file));
   for (const t of markdown)
-    checkLinks(parseMarkdown(join4(root2, t.file), t.text), t.file, root2, report2);
+    if (!isHistoryOrTest(t.file))
+      checkLinks(parseMarkdown(join4(root2, t.file), t.text), t.file, root2, report2);
   if (kind !== "data") {
     checkRetired(texts, report2);
     checkDated(markdown, report2);
@@ -743,15 +762,16 @@ function detectors(root2, fleet, me, report2) {
     } catch {
       unread.push("runners (its file is not JSON)");
     }
-    const re = labels.length ? new RegExp(
-      `(?:\`|\\[[^\\]\\n]*|runs-on:\\s*)(${labels.map(escapeRegExp).join("|")})(?=\`|[^\\[\\n]*\\]|\\s*$)`
-    ) : null;
+    const names = labels.map(escapeRegExp).join("|");
+    const inList = labels.length ? new RegExp(`\\[[^\\]\\n]*\\b(${names})\\b[^\\[\\n]*\\]`) : null;
+    const inCode = labels.length ? new RegExp(`\`(${names})\``) : null;
+    const runsOn = labels.length ? new RegExp(`runs-on:\\s*(${names})\\b`) : null;
     found.push({
       fact: "runners",
       owner: runners.repo,
       path: runners.path,
       find: (line) => {
-        const m = re?.exec(line);
+        const m = inList?.exec(line) ?? runsOn?.exec(line) ?? (/\brunners?\b|\blabels?\b|self-hosted|\blanes?\b/i.test(line) ? inCode?.exec(line) : null);
         return m ? `the runner label "${m[1]}"` : null;
       }
     });
@@ -848,7 +868,7 @@ function checkOwnedFacts(root2, markdown, fleet, report2) {
         if (!what) continue;
         const where2 = d.owner === me ? d.path : `${d.path} in ${d.owner}`;
         report2.add(
-          "OWNED_FACT",
+          d.fact === "ports" ? "OWNED_PORT" : "OWNED_FACT",
           t.file,
           i + 1,
           `Writes out ${what}, which ${where2} owns, so this copy goes stale when it changes.`,
@@ -1186,7 +1206,8 @@ var ADVISORY_CODES = [
   "DEAD_ORPHAN",
   "BLOAT_LINES",
   "BLOAT_SMALL_REF",
-  "COPY_WEAK"
+  "COPY_WEAK",
+  "OWNED_PORT"
 ];
 function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
@@ -1236,7 +1257,12 @@ var Report = class {
   }
   add(code, file, line, message, fix, autoFix) {
     const target = ADVISORY_CODES.includes(code) ? this.advisories : this.problems;
-    target.push({ code, file: toPosix(file), line, message, fix });
+    const path = toPosix(file);
+    if (target.some(
+      (p) => p.code === code && p.file === path && p.line === line && p.message === message
+    ))
+      return;
+    target.push({ code, file: path, line, message, fix });
     if (autoFix) this.fixes.push({ ...autoFix, code, file: toPosix(file) });
   }
   format() {
@@ -4644,22 +4670,23 @@ function checkRepo(root2, report2, options = {}) {
 }
 
 // scripts/check.ts
-var usage = `Usage: sidecut-check [<repo>] [--json] [--fast] [--links] [--annotate[=<base>]]
+var usage = `Usage: sidecut-check [<repo>] [--json] [--fast] [--links] [--annotate] [--base <ref>]
 
 Checks a repo of any kind against the Sidecut house style. Exits 1 when it finds a problem.
 
   --fast      only the quick rules over text and shape, for a pre-push hook
   --links     also check external links (uses the network; run it on a schedule)
   --annotate  print GitHub annotations: problems everywhere, advisories on lines changed since
-              <base> (default: the pull request's base, or the previous commit). On by default
-              in GitHub Actions.`;
+              the base. On by default in GitHub Actions.
+  --base      the ref to compare with (default: the pull request's base, or the previous commit)`;
 var { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
     json: { type: "boolean" },
     fast: { type: "boolean" },
     links: { type: "boolean" },
-    annotate: { type: "string" },
+    annotate: { type: "boolean" },
+    base: { type: "string" },
     help: { type: "boolean" }
   }
 });
@@ -4675,12 +4702,16 @@ function changedLines(base) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_"))
   );
-  const diff = spawnSync5("git", ["diff", "--unified=0", "--no-color", `${base}...HEAD`], {
-    cwd: root,
-    env,
-    encoding: "utf8",
-    maxBuffer: 64 * 1024 * 1024
-  });
+  const diff = spawnSync5(
+    "git",
+    ["diff", "--unified=0", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", `${base}...HEAD`],
+    {
+      cwd: root,
+      env,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024
+    }
+  );
   if (diff.status !== 0) return null;
   const changed = /* @__PURE__ */ new Map();
   let file = "";
@@ -4699,16 +4730,21 @@ function changedLines(base) {
   return changed;
 }
 var escapeData = (text) => text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
-var where = (p) => `file=${escapeData(p.file).replaceAll(",", "%2C")}${p.line ? `,line=${p.line}` : ""}`;
+var where = (p) => `file=${escapeData(p.file).replaceAll(",", "%2C").replaceAll(":", "%3A")}${p.line ? `,line=${p.line}` : ""}`;
 function annotate(base) {
   for (const p of report.problems)
     console.log(`::error ${where(p)},title=${p.code}::${escapeData(`${p.message} Fix: ${p.fix}`)}`);
   const changed = changedLines(base);
+  if (!changed && report.advisories.length)
+    console.log(
+      `::notice title=Advisories::${escapeData(`Couldn't compare with ${base}, so no advisory is shown on its line; fetch the base branch with enough history.`)}`
+    );
   const kinds = /* @__PURE__ */ new Map();
   for (const p of report.advisories) {
     const kind = kinds.get(p.code) ?? { all: 0, shown: 0, sample: p };
     kind.all++;
-    if (p.line !== void 0 && changed?.get(p.file)?.has(p.line)) {
+    const lines = changed?.get(p.file);
+    if (lines && (p.line === void 0 || lines.has(p.line))) {
       kind.shown++;
       console.log(
         `::warning ${where(p)},title=${p.code}::${escapeData(`${p.message} Fix: ${p.fix}`)}`
@@ -4736,8 +4772,8 @@ if (values.json)
     )
   );
 else {
-  const inActions = process.env.GITHUB_ACTIONS === "true";
-  const base = values.annotate !== void 0 ? values.annotate || "HEAD~1" : inActions ? process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "HEAD~1" : void 0;
+  const defaultBase = () => process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : "HEAD~1";
+  const base = values.annotate || values.base || process.env.GITHUB_ACTIONS === "true" ? values.base ?? defaultBase() : void 0;
   console.log(report.scope);
   for (const note of report.notes) console.log(`Not checked: ${note}`);
   if (base !== void 0) annotate(base);

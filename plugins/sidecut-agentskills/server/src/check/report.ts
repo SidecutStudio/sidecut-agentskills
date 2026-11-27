@@ -36,6 +36,7 @@ export const ADVISORY_CODES = [
   'BLOAT_LINES',
   'BLOAT_SMALL_REF',
   'COPY_WEAK',
+  'OWNED_PORT',
 ];
 
 /** Whether a sidecut.keep key covers a problem: its code, its file, a folder holding it, or "CODE file". */
@@ -97,7 +98,15 @@ export class Report {
     autoFix?: AutoFix,
   ): void {
     const target = ADVISORY_CODES.includes(code) ? this.advisories : this.problems;
-    target.push({ code, file: toPosix(file), line, message, fix });
+    const path = toPosix(file);
+    // Two checks can read the same file, such as a skill's links; say each problem once.
+    if (
+      target.some(
+        (p) => p.code === code && p.file === path && p.line === line && p.message === message,
+      )
+    )
+      return;
+    target.push({ code, file: path, line, message, fix });
     if (autoFix) this.fixes.push({ ...autoFix, code, file: toPosix(file) });
   }
 

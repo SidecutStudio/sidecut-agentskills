@@ -70,11 +70,17 @@ export const SIDECUT_FLEET = {
  * them; runtime identifiers aren't prose, so only text people read is checked.
  */
 export const SIDECUT_RETIRED: { re: RegExp; name: string; use: string; autofix?: boolean }[] = [
-  { re: /\bVeyla[ -]?Labs\b/gi, name: 'Veyla Labs', use: 'Sidecut Studio', autofix: true },
+  // Only the written name: a URL, path or package name that still carries it is an identifier.
   {
-    re: /\bSidecut Workflows\b|\bsidecut-workflows\b/gi,
+    re: /(?<![\w/.@-])Veyla Labs(?![\w/-])/g,
+    name: 'Veyla Labs',
+    use: 'Sidecut Studio',
+    autofix: true,
+  },
+  {
+    re: /(?<![\w/.@-])Sidecut Workflows(?![\w/-])/g,
     name: 'Sidecut Workflows',
     use: 'Sidecut Solo',
   },
-  { re: /\bShip Properly\b|\bship-properly\b/gi, name: 'Ship Properly', use: 'Sidecut Solo' },
+  { re: /(?<![\w/.@-])Ship Properly(?![\w/-])/g, name: 'Ship Properly', use: 'Sidecut Solo' },
 ];

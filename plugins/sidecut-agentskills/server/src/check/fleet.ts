@@ -65,6 +65,20 @@ export function siblingCheckout(root: string, name: string): string | null {
   return null;
 }
 
+/** The line without a `#` comment, leaving a `#` inside a quoted string alone. */
+function withoutComment(line: string): string {
+  let quote = '';
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === '\\') i++;
+      else if (c === quote) quote = '';
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === '#') return line.slice(0, i);
+  }
+  return line;
+}
+
 export type TomlValue = string | number | boolean | string[];
 export type TomlTable = Record<string, Record<string, TomlValue>>;
 
@@ -75,14 +89,14 @@ export type TomlTable = Record<string, Record<string, TomlValue>>;
 export function readToml(text: string): TomlTable {
   const tables: TomlTable = { '': {} };
   let at = '';
-  const lines = text.split('\n').map((raw) => raw.replace(/\s+#.*$|^#.*$/, '').trim());
+  const lines = text.split('\n').map((raw) => withoutComment(raw).trim());
   for (let n = 0; n < lines.length; n++) {
     let line = lines[n] ?? '';
     // An array may run over several lines until its closing bracket.
     if (/=\s*\[/.test(line) && !line.includes(']'))
       while (n + 1 < lines.length && !line.includes(']')) line += ` ${lines[++n] ?? ''}`;
     if (!line) continue;
-    const header = /^\[([^\]]+)\]$/.exec(line);
+    const header = /^\[\[?([^\]]+)\]\]?$/.exec(line);
     if (header) {
       at = (header[1] ?? '').trim();
       tables[at] ??= {};

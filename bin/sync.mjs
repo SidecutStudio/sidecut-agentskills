@@ -288,7 +288,8 @@ var ADVISORY_CODES = [
   "DEAD_ORPHAN",
   "BLOAT_LINES",
   "BLOAT_SMALL_REF",
-  "COPY_WEAK"
+  "COPY_WEAK",
+  "OWNED_PORT"
 ];
 function keepCovers(key, code, file) {
   return key === code || key === file || file.startsWith(`${key}/`) || key === `${code} ${file}`;
@@ -338,7 +339,12 @@ var Report = class {
   }
   add(code, file, line, message, fix, autoFix) {
     const target = ADVISORY_CODES.includes(code) ? this.advisories : this.problems;
-    target.push({ code, file: toPosix(file), line, message, fix });
+    const path = toPosix(file);
+    if (target.some(
+      (p) => p.code === code && p.file === path && p.line === line && p.message === message
+    ))
+      return;
+    target.push({ code, file: path, line, message, fix });
     if (autoFix) this.fixes.push({ ...autoFix, code, file: toPosix(file) });
   }
   format() {
@@ -393,13 +399,19 @@ var SIDECUT_FLEET = {
   owners: "owners.toml"
 };
 var SIDECUT_RETIRED = [
-  { re: /\bVeyla[ -]?Labs\b/gi, name: "Veyla Labs", use: "Sidecut Studio", autofix: true },
+  // Only the written name: a URL, path or package name that still carries it is an identifier.
   {
-    re: /\bSidecut Workflows\b|\bsidecut-workflows\b/gi,
+    re: /(?<![\w/.@-])Veyla Labs(?![\w/-])/g,
+    name: "Veyla Labs",
+    use: "Sidecut Studio",
+    autofix: true
+  },
+  {
+    re: /(?<![\w/.@-])Sidecut Workflows(?![\w/-])/g,
     name: "Sidecut Workflows",
     use: "Sidecut Solo"
   },
-  { re: /\bShip Properly\b|\bship-properly\b/gi, name: "Ship Properly", use: "Sidecut Solo" }
+  { re: /(?<![\w/.@-])Ship Properly(?![\w/-])/g, name: "Ship Properly", use: "Sidecut Solo" }
 ];
 
 // plugins/sidecut-agentskills/server/src/ci-snippets.ts
@@ -910,16 +922,28 @@ function siblingCheckout(root2, name) {
   }
   return null;
 }
+function withoutComment(line) {
+  let quote = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+    } else if (c === '"' || c === "'") quote = c;
+    else if (c === "#") return line.slice(0, i);
+  }
+  return line;
+}
 function readToml(text) {
   const tables = { "": {} };
   let at = "";
-  const lines = text.split("\n").map((raw) => raw.replace(/\s+#.*$|^#.*$/, "").trim());
+  const lines = text.split("\n").map((raw) => withoutComment(raw).trim());
   for (let n = 0; n < lines.length; n++) {
     let line = lines[n] ?? "";
     if (/=\s*\[/.test(line) && !line.includes("]"))
       while (n + 1 < lines.length && !line.includes("]")) line += ` ${lines[++n] ?? ""}`;
     if (!line) continue;
-    const header = /^\[([^\]]+)\]$/.exec(line);
+    const header = /^\[\[?([^\]]+)\]\]?$/.exec(line);
     if (header) {
       at = (header[1] ?? "").trim();
       tables[at] ??= {};
@@ -1130,13 +1154,13 @@ function read(root2, file) {
     return null;
   }
 }
-var MONTH = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?";
+var MONTH = "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?";
 var DATED = new RegExp(
   `\\b(?:(?:accurate )?as of|read on|checked on|verified on|last (?:checked|verified|updated|reviewed|read)(?: on)?)\\s+(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2} ${MONTH} \\d{4}|${MONTH} (?:\\d{1,2},? )?\\d{4})`,
   "i"
 );
 var WEAK_COPY = /\b(seamless(?:ly)?|leverag(?:e|es|ing)|robust|cutting[- ]edge|game[- ]chang\w*|unlock(?:s|ing)? the|empower\w*|best[- ]in[- ]class|world[- ]class|effortless(?:ly)?|supercharg\w*|next[- ]level|harness(?:es|ing)? the power|in today's fast[- ]paced|delv(?:e|es|ing) into|revolutioni[sz]\w*|it(?:'s| is) worth noting|might potentially|arguably|please note that|needless to say|rest assured)\b/i;
-var OWNER_DESCRIBED = /\b(solo (?:maker|founder|developer|dev|builder)|one[- ](?:person|man|woman) (?:team|studio|shop|company)|not a (?:trained|professional|real) developer|isn't a (?:trained |professional )?developer|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker|built by one person)\b/i;
+var OWNER_DESCRIBED = /\b((?:by|from|I'm|I am|as) (?:a |an |one )?(?:solo (?:maker|founder|developer|dev|builder)|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker|person)|(?:I'm|I am|who is|who's) not a (?:trained |professional |real )?developer|built by one person|one[- ](?:person|man|woman) (?:studio|shop|company) behind)\b/i;
 function hostLoaded(file) {
   const name = basename3(file);
   return !file.includes("/") || /^(SKILL|AGENTS|CLAUDE|GEMINI|README|CHANGELOG|LICENSE|SECURITY|CONTRIBUTING)(\.[\w-]+)?\.mdx?$/i.test(
@@ -1153,7 +1177,8 @@ function checkDocs(root2, kind, fleet, report) {
   });
   const markdown = texts.filter((t) => MARKDOWN.test(t.file));
   for (const t of markdown)
-    checkLinks(parseMarkdown(join7(root2, t.file), t.text), t.file, root2, report);
+    if (!isHistoryOrTest(t.file))
+      checkLinks(parseMarkdown(join7(root2, t.file), t.text), t.file, root2, report);
   if (kind !== "data") {
     checkRetired(texts, report);
     checkDated(markdown, report);
@@ -1387,15 +1412,16 @@ function detectors(root2, fleet, me, report) {
     } catch {
       unread.push("runners (its file is not JSON)");
     }
-    const re = labels.length ? new RegExp(
-      `(?:\`|\\[[^\\]\\n]*|runs-on:\\s*)(${labels.map(escapeRegExp).join("|")})(?=\`|[^\\[\\n]*\\]|\\s*$)`
-    ) : null;
+    const names = labels.map(escapeRegExp).join("|");
+    const inList = labels.length ? new RegExp(`\\[[^\\]\\n]*\\b(${names})\\b[^\\[\\n]*\\]`) : null;
+    const inCode = labels.length ? new RegExp(`\`(${names})\``) : null;
+    const runsOn = labels.length ? new RegExp(`runs-on:\\s*(${names})\\b`) : null;
     found.push({
       fact: "runners",
       owner: runners.repo,
       path: runners.path,
       find: (line) => {
-        const m = re?.exec(line);
+        const m = inList?.exec(line) ?? runsOn?.exec(line) ?? (/\brunners?\b|\blabels?\b|self-hosted|\blanes?\b/i.test(line) ? inCode?.exec(line) : null);
         return m ? `the runner label "${m[1]}"` : null;
       }
     });
@@ -1492,7 +1518,7 @@ function checkOwnedFacts(root2, markdown, fleet, report) {
         if (!what) continue;
         const where = d.owner === me ? d.path : `${d.path} in ${d.owner}`;
         report.add(
-          "OWNED_FACT",
+          d.fact === "ports" ? "OWNED_PORT" : "OWNED_FACT",
           t.file,
           i + 1,
           `Writes out ${what}, which ${where} owns, so this copy goes stale when it changes.`,

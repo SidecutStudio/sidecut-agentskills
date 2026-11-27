@@ -68,7 +68,8 @@ function read(root: string, file: string): string | null {
   }
 }
 
-const MONTH = '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?';
+const MONTH =
+  '(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?';
 /** A note that pins guidance to the day someone looked, which goes stale the day after. */
 export const DATED = new RegExp(
   `\\b(?:(?:accurate )?as of|read on|checked on|verified on|last (?:checked|verified|updated|reviewed|read)(?: on)?)\\s+(?:\\d{4}-\\d{2}-\\d{2}|\\d{1,2} ${MONTH} \\d{4}|${MONTH} (?:\\d{1,2},? )?\\d{4})`,
@@ -81,7 +82,7 @@ export const WEAK_COPY =
 
 /** Lines that describe the person behind the work, which public copy never does. */
 export const OWNER_DESCRIBED =
-  /\b(solo (?:maker|founder|developer|dev|builder)|one[- ](?:person|man|woman) (?:team|studio|shop|company)|not a (?:trained|professional|real) developer|isn't a (?:trained |professional )?developer|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker|built by one person)\b/i;
+  /\b((?:by|from|I'm|I am|as) (?:a |an |one )?(?:solo (?:maker|founder|developer|dev|builder)|non[- ]technical founder|self[- ]taught (?:developer|maker|founder)|indie hacker|person)|(?:I'm|I am|who is|who's) not a (?:trained |professional |real )?developer|built by one person|one[- ](?:person|man|woman) (?:studio|shop|company) behind)\b/i;
 
 /** Files a host loads by name, which nothing else needs to link to. */
 function hostLoaded(file: string): boolean {
@@ -109,7 +110,8 @@ export function checkDocs(root: string, kind: Kind, fleet: Fleet | null, report:
     });
   const markdown = texts.filter((t) => MARKDOWN.test(t.file));
   for (const t of markdown)
-    checkLinks(parseMarkdown(join(root, t.file), t.text), t.file, root, report);
+    if (!isHistoryOrTest(t.file))
+      checkLinks(parseMarkdown(join(root, t.file), t.text), t.file, root, report);
   // A data repo's notes and records are its history.
   if (kind !== 'data') {
     checkRetired(texts, report);
@@ -401,17 +403,22 @@ function detectors(root: string, fleet: Fleet, me: string, report: Report): Dete
     }
     // A label is written as one: in code, in a label list or after runs-on. The same word in a
     // path or a product name is something else.
-    const re = labels.length
-      ? new RegExp(
-          `(?:\`|\\[[^\\]\\n]*|runs-on:\\s*)(${labels.map(escapeRegExp).join('|')})(?=\`|[^\\[\\n]*\\]|\\s*$)`,
-        )
-      : null;
+    const names = labels.map(escapeRegExp).join('|');
+    const inList = labels.length ? new RegExp(`\\[[^\\]\\n]*\\b(${names})\\b[^\\[\\n]*\\]`) : null;
+    const inCode = labels.length ? new RegExp(`\`(${names})\``) : null;
+    const runsOn = labels.length ? new RegExp(`runs-on:\\s*(${names})\\b`) : null;
     found.push({
       fact: 'runners',
       owner: runners.repo,
       path: runners.path,
       find: (line) => {
-        const m = re?.exec(line);
+        // The same word as a plugin or repo name isn't a label, so code needs runner words around it.
+        const m =
+          inList?.exec(line) ??
+          runsOn?.exec(line) ??
+          (/\brunners?\b|\blabels?\b|self-hosted|\blanes?\b/i.test(line)
+            ? inCode?.exec(line)
+            : null);
         return m ? `the runner label "${m[1]}"` : null;
       },
     });
@@ -521,7 +528,7 @@ function checkOwnedFacts(
         if (!what) continue;
         const where = d.owner === me ? d.path : `${d.path} in ${d.owner}`;
         report.add(
-          'OWNED_FACT',
+          d.fact === 'ports' ? 'OWNED_PORT' : 'OWNED_FACT',
           t.file,
           i + 1,
           `Writes out ${what}, which ${where} owns, so this copy goes stale when it changes.`,

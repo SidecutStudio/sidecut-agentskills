@@ -1959,7 +1959,9 @@ describe('facts another repo owns', () => {
       expect(report.notes).toEqual([]);
       // A declared kind wins over the fleet's index.
       expect(report.scope).toContain('declared in package.json');
-      return report.problems.filter((p) => p.code === 'OWNED_FACT').map((p) => p.message);
+      return [...report.problems, ...report.advisories]
+        .filter((p) => p.code.startsWith('OWNED_'))
+        .map((p) => `${p.code} ${p.message}`);
     } finally {
       if (before === undefined) delete process.env.SIDECUT_REPOS;
       else process.env.SIDECUT_REPOS = before;
@@ -1982,10 +1984,17 @@ describe('facts another repo owns', () => {
   test('a runner label written out blocks', () => {
     expect(factsIn('Check runs on the `sidecut-light` runner.')[0]).toContain('sidecut-light');
     expect(factsIn('The sidecut-light plugin is unrelated.')).toEqual([]);
+    // The same word as a plugin name, in code, with no runner words around it.
+    expect(factsIn('Bump a plugin such as `sidecut-ci` from sidecut-ops.')).toEqual([]);
+    expect(
+      factsIn('The light lane, `[self-hosted, Linux, sidecut-light]`, runs check.'),
+    ).toHaveLength(1);
   });
 
-  test("another repo's port blocks; the repo's own doesn't", () => {
-    expect(factsIn('Open http://localhost:3100.')[0]).toContain('reserved for other-app');
+  test("another repo's port is an advisory, since ports clash with defaults; the repo's own isn't", () => {
+    expect(factsIn('Open http://localhost:3100.')[0]).toMatch(
+      /^OWNED_PORT .*reserved for other-app/,
+    );
     expect(factsIn('Open http://localhost:3000.')).toEqual([]);
   });
 
@@ -2029,4 +2038,61 @@ test('in GitHub Actions, advisories show on changed lines only, each kind summar
   expect(out.match(/^::notice title=COPY_WEAK::2 in the repo, 1 on changed lines/gm)).toHaveLength(
     1,
   );
+});
+
+describe('what the review of the whole-repo rules found', () => {
+  test('a retired name inside a URL or package name is an identifier, not prose', () => {
+    const repo = appFolder();
+    repo.append(
+      'docs/architecture.md',
+      '\nSee https://github.com/Veyla-Labs/x and `@veyla-labs/ui` and sidecut-workflows.\n',
+    );
+    expect(found(run(repo.root))).toEqual([]);
+    repo.append(
+      'docs/architecture.md',
+      '\nMade by Veyla Labs, see https://example.com/Veyla Labs.\n',
+    );
+    const report = run(repo.root);
+    expect(
+      report.fixes[0]?.apply('Made by Veyla Labs, see https://example.com/Veyla Labs/x.'),
+    ).toBe('Made by Sidecut Studio, see https://example.com/Veyla Labs/x.');
+  });
+
+  test('a problem two checks find is reported once', () => {
+    const report = new Report();
+    for (let i = 0; i < 2; i++) report.add('MD_LINK_TARGET', 'a.md', 3, 'Gone.', 'Fix it.');
+    expect(report.problems).toHaveLength(1);
+  });
+
+  test('links in tests and history are left as they were', () => {
+    const repo = appFolder({ 'tests/fixtures/broken.md': '# Broken\n\n[gone](nope.md)\n' });
+    expect(found(run(repo.root))).toEqual([]);
+  });
+
+  test('describing the audience is fine; describing the maker blocks', () => {
+    const repo = appFolder();
+    repo.append('README.md', '\nA planner for a solo developer or a one-person team.\n');
+    expect(found(run(repo.root))).toEqual([]);
+    repo.append('README.md', '\nBuilt by a solo maker.\n');
+    expect(found(run(repo.root))).toEqual(['COPY_OWNER README.md']);
+  });
+
+  test('a word that starts like a month is not a date', () => {
+    const repo = appFolder();
+    repo.append(
+      'docs/shipping.md',
+      '\nAs of Decision 2024 the flow changed. Read on Market 2025.\n',
+    );
+    expect(found(run(repo.root))).toEqual([]);
+  });
+
+  test('--annotate works without a value', () => {
+    const repo = appFolder();
+    const out = spawnSync(process.execPath, ['scripts/check.ts', repo.root, '--annotate'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    expect(out.stderr).not.toContain('ERR_PARSE_ARGS');
+    expect(out.status).toBe(0);
+  });
 });

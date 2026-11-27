@@ -94,11 +94,12 @@ Exact rules block a merge. Heuristic rules can't tell intent, so they are adviso
 
 | Item | Rule | Checked |
 | --- | --- | --- |
-| Internal links | Every relative link in Markdown resolves inside the repo | yes |
+| Internal links | Every relative link in Markdown outside history and tests resolves inside the repo | yes |
 | External links | Answer, checked with `sidecut-check --links` on a schedule, since the result depends on other sites | scheduled |
 | Copies | The same Markdown in two places either has one copy generated (listed under `protected_paths` in the workflow settings) or becomes a link | yes |
-| Owned facts | A fact the profile's ownership map gives to one file (runner labels, reserved ports, plugin and CI action versions, the repo's merge gate) isn't written out elsewhere; point to the owning file. A repo may say its own port and version | yes |
-| Retired names | None of the profile's retired names in text people read; `sidecut-sync --fix` replaces a retired studio name | yes |
+| Owned facts | A fact the profile's ownership map gives to one file (runner labels, plugin and CI action versions, the repo's merge gate) isn't written out elsewhere; point to the owning file. A repo may say its own version | yes |
+| Reserved ports | Another repo's reserved port written out is an advisory (`OWNED_PORT`), since reservations share numbers with framework defaults; a repo may say its own | advisory |
+| Retired names | None of the profile's retired names written as names in text people read; a URL, path or package name that still carries one is an identifier and stays. `sidecut-sync --fix` replaces a retired studio name | yes |
 | Dated notes | No "as of", "read on" or "last checked" note with a date; say what is true and link the source | yes |
 | Pointer-only files | No Markdown file that only sends the reader to another | yes |
 | AGENTS.md budget | 200 lines and 32 KiB at most: it loads on every task, and Codex stops reading at 32 KiB | yes |
@@ -106,7 +107,7 @@ Exact rules block a merge. Heuristic rules can't tell intent, so they are adviso
 | Long docs | A doc over 500 lines is split by what readers come for | advisory |
 | Small references | A reference file under 30 lines that only one skill reads goes into that SKILL.md | advisory |
 | Stock phrases and hedges | Say the specific thing instead ("seamless", "robust", "it's worth noting") | advisory |
-| The owner in public copy | READMEs and a site's pages never describe the person behind the work | yes |
+| The owner in public copy | READMEs and a site's pages never describe the person behind the work, such as "built by a solo maker"; describing who it's for is fine | yes |
 
 ## Install source
 
