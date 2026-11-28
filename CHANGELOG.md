@@ -4,7 +4,7 @@
 
 ### Added
 
-- `sidecut-check` blocks hard-coded home-directory paths (`LEAK_PATH`), local machine and runner hostnames (`LEAK_HOSTNAME`), and links to private repositories or private sites in shipped or public files (`LEAK_LINK`).
+- `sidecut-check` blocks hard-coded home-directory paths (`LEAK_PATH`) in shipped or public files, local machine and runner hostnames (`LEAK_HOSTNAME`) excluding `.orb.local` and examples, and links to private repositories or private sites in shipped or public files (`LEAK_LINK`).
 
 ### Changed
 

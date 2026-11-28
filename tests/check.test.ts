@@ -13,8 +13,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { antigravityFiles } from '../plugins/sidecut-agentskills/server/src/antigravity.ts';
-import { checkExternalLinks } from '../plugins/sidecut-agentskills/server/src/check/docs.ts';
+import {
+  checkExternalLinks,
+  repoFiles,
+} from '../plugins/sidecut-agentskills/server/src/check/docs.ts';
 import { treeHash } from '../plugins/sidecut-agentskills/server/src/check/evals-stamp.ts';
+import { ignoredBy } from '../plugins/sidecut-agentskills/server/src/check/fleet.ts';
 import { kindTemplate, repoKind } from '../plugins/sidecut-agentskills/server/src/check/kinds.ts';
 import {
   bunlessToolSteps,
@@ -2138,7 +2142,7 @@ describe('trustworthy blocking vs warning checks', () => {
     const leaked = appFolder();
     leaked.write(
       'plugins/demo/skills/demo-run/SKILL.md',
-      '---\nname: demo-run\ndescription: "Runs the thing."\n---\n\n# Demo Run\n\nRead `/Users/alice/projects/app` or `~/Developer/secret-app`.\n',
+      '---\nname: demo-run\ndescription: "Runs the thing."\n---\n\n# Demo Run\n\nRead `/Users/pat/projects/app` or `~/Developer/secret-app`.\n',
     );
     const blocked = spawnSync(process.execPath, ['scripts/check.ts', leaked.root, '--fast'], {
       cwd: repoRoot,
@@ -2162,17 +2166,55 @@ describe('trustworthy blocking vs warning checks', () => {
     expect(found(report)).not.toContain(`SKILL_DESCRIPTION_SHAPE ${skillMd}`);
 
     const clean = appFolder({
-      'docs/architecture.md':
-        '# Architecture\n\nUse `/Users/<you>/Documents/repos` and `~/Developer` as the base.\n',
+      'src/examples.ts': [
+        'export const samples = [',
+        '  "/Users/<you>/Documents/repos",',
+        '  "/Users/you/Projects/my-app",',
+        '  "/home/user/after-nine",',
+        '  "/home/user/*",',
+        '  "/home/myuser/storage",',
+        '  "/home/username/app",',
+        '  "/Users/name/work",',
+        '  "/Users/me/work",',
+        '  "/Users/example/work",',
+        '  "/Users/alice/work",',
+        '  "~/Developer",',
+        '];',
+      ].join('\n'),
     });
     expect(found(run(clean.root))).toEqual([]);
   });
 
-  test('local machine and runner hostnames block while .env.local, bare .local prose and property access pass', () => {
+  test('home paths do not block in non-shipped files, history dirs, or data repos', () => {
+    const internal = appFolder({
+      'AGENTS.md': `${kindTemplate('app')}\n\nClone into ~/Developer/pair-board.\n`,
+      'README.md':
+        '# Demo\n\n```bash\ngit clone https://github.com/SidecutStudio/pair-board.git ~/Developer/pair-board\n```\n\nConnect to `https://my-mac.tail1234.ts.net`.\n',
+      'docs/product-history/session.md': '# Session\n\nRan from `/Users/pat/repo`.\n',
+    });
+    expect(found(run(internal.root))).toEqual([]);
+
+    const privateSite = appFolder({
+      'package.json': `${JSON.stringify({ name: 'demo-site', private: true, sidecut: { kind: 'site' } })}\n`,
+      'AGENTS.md': `${kindTemplate('site')}\n\nApply settings from \`~/Developer/sidecut-ops\`.\n`,
+    });
+    expect(found(run(privateSite.root))).toEqual([]);
+
+    const dataRepo = appFolder({
+      'package.json': `${JSON.stringify({ name: 'demo-data', private: true, sidecut: { kind: 'data' } })}\n`,
+      'AGENTS.md': `${kindTemplate('data')}\n`,
+      'README.md': '# Demo data\n\nRecords.\n',
+      'records/2026-11-27-run/scenario.json': '{"cwd": "~/Developer/sidecut-home"}\n',
+      'runs/run-1.json': '{"home": "/Users/pat", "runner": "sidecut-linux-x64-5"}\n',
+    });
+    expect(found(run(dataRepo.root))).toEqual([]);
+  });
+
+  test('local machine and runner hostnames block while .env.local, bare .local prose, .orb.local, examples and property access pass', () => {
     const repo = appFolder({
       'src/app.ts': 'export const flag = state.local;\nexport const envFile = ".env.local";\n',
       'docs/shipping.md':
-        '# Shipping\n\nCopy settings.local or configure app.local and solo-workflow.local here.\n',
+        '# Shipping\n\nCopy settings.local or configure app.local and solo-workflow.local.\nConnect to `sidecut-builder-local-db.orb.local` or `https://my-mac.tail1234.ts.net`.\n',
     });
     expect(found(run(repo.root))).toEqual([]);
 
@@ -2181,7 +2223,9 @@ describe('trustworthy blocking vs warning checks', () => {
     });
     expect(found(run(mdns.root))).toEqual(['LEAK_HOSTNAME docs/shipping.md']);
 
-    const ts = appFolder({ 'docs/shipping.md': '# Shipping\n\nSSH to `mac.tail1234.ts.net`.\n' });
+    const ts = appFolder({
+      'docs/shipping.md': '# Shipping\n\nSSH to `workstation.tail83b1c.ts.net`.\n',
+    });
     expect(found(run(ts.root))).toEqual(['LEAK_HOSTNAME docs/shipping.md']);
 
     const runner = appFolder({
@@ -2245,12 +2289,12 @@ describe('trustworthy blocking vs warning checks', () => {
 
   test('shipped CHANGELOG and skill examples still fail on leaks while real test fixtures are skipped', () => {
     const changelogLeak = appFolder({
-      'CHANGELOG.md': '# Changelog\n\n## 1.0.0\n\n- Fixed `/Users/alex/src/demo` path handling.\n',
+      'CHANGELOG.md': '# Changelog\n\n## 1.0.0\n\n- Fixed `/Users/pat/src/demo` path handling.\n',
       'plugins/demo/CHANGELOG.md':
-        '# Changelog\n\n## 1.0.0\n\n- Fixed `/Users/alex/src/demo` path handling.\n',
+        '# Changelog\n\n## 1.0.0\n\n- Fixed `/Users/pat/src/demo` path handling.\n',
     });
     const changelogFindings = found(run(changelogLeak.root));
-    expect(changelogFindings).toContain('LEAK_PATH CHANGELOG.md');
+    expect(changelogFindings).not.toContain('LEAK_PATH CHANGELOG.md');
     expect(changelogFindings).toContain('LEAK_PATH plugins/demo/CHANGELOG.md');
 
     const exampleLeak = appFolder({
@@ -2263,9 +2307,24 @@ describe('trustworthy blocking vs warning checks', () => {
 
     const realTest = appFolder({
       'tests/fixtures/leak.md':
-        '# Test fixture\n\nSample `/Users/alex/src/demo` and https://github.com/SidecutStudio/pair-board.\n',
+        '# Test fixture\n\nSample `/Users/pat/src/demo` and https://github.com/SidecutStudio/pair-board.\n',
     });
     expect(found(run(realTest.root))).toEqual([]);
+  });
+
+  test('anchored .gitignore pattern skips root folder without dropping nested folder', () => {
+    expect(ignoredBy(['/build'], 'build')).toBe(true);
+    expect(ignoredBy(['/build'], 'src/build')).toBe(false);
+
+    const repo = appFolder({
+      '.gitignore': '/cache\n',
+      'cache/ignored.ts': 'export const skipped = 1;\n',
+      'src/cache/kept.ts': 'export const leak = "/Users/pat/repo";\n',
+    });
+    const walked = repoFiles(repo.root);
+    expect(walked).not.toContain('cache/ignored.ts');
+    expect(walked).toContain('src/cache/kept.ts');
+    expect(found(run(repo.root))).toEqual(['LEAK_PATH src/cache/kept.ts']);
   });
 
   test('repo-kind detection handles web/ sites and sitemaps on a clean checkout', () => {

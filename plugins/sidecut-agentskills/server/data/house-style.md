@@ -98,8 +98,8 @@ Exact rules block a merge. Heuristic rules can't tell intent, so they are adviso
 | --- | --- | --- |
 | Internal links | Every relative link in Markdown outside history and tests resolves inside the repo | yes |
 | External links | Answer, checked with `sidecut-check --links` on a schedule, since the result depends on other sites | scheduled |
-| Home paths | No hard-coded home-directory paths (`/Users/<name>/`, `/home/<name>/`, Windows user folders, or `~/<folder>/...` pointing at Desktop, Documents, Downloads or Developer) outside history, tests and placeholders | yes |
-| Machine and runner hostnames | No local machine (`.local`, `.ts.net`, `.home.arpa`) or runner hostnames outside history, tests and ops repos | yes |
+| Home paths | No hard-coded home-directory paths (`/Users/<name>/`, `/home/<name>/`, Windows user folders, or `~/<folder>/...` pointing at Desktop, Documents, Downloads or Developer) in files that ship or are public, outside history, tests and placeholders | yes |
+| Machine and runner hostnames | No local machine (`.local` other than `.orb.local`, `.ts.net`, `.home.arpa`) or runner hostnames outside data repos, history, tests, placeholders and ops repos | yes |
 | Private links | No links to private repos or private sites in files that ship or are public | yes |
 | Copies | The same Markdown in two places either has one copy generated (listed under `protected_paths` in the workflow settings) or becomes a link | yes |
 | Owned facts | A fact the profile's ownership map gives to one file (runner labels, plugin and CI action versions, the repo's merge gate) isn't written out elsewhere; point to the owning file. A repo may say its own version | yes |

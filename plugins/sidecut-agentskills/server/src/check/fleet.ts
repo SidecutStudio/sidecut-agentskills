@@ -21,9 +21,10 @@ export function readGitignore(root: string): string[] {
 export function ignoredBy(patterns: string[], path: string): boolean {
   const name = basename(path);
   return patterns.some((p) => {
+    const anchored = p.startsWith('/');
     const clean = p.replace(/^\//, '').replace(/\/$/, '');
     if (!clean) return false;
-    const target = clean.includes('/') ? path : name;
+    const target = anchored || clean.includes('/') ? path : name;
     if (clean.includes('*'))
       return new RegExp(
         `^${clean.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`,

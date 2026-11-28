@@ -414,21 +414,47 @@ function isGeneratedBundleOrLock(file: string, generated: Set<string>): boolean 
   );
 }
 
-const HOME_PATH_PATTERNS = [
-  /(?:^|[\s"'`(=:,]|file:\/\/)(\/Users\/(?!<|(?:Shared|runner)(?:\/|[\s"'`),;:]|$))[A-Za-z0-9._-]+)(?=\/|[\s"'`),;:]|$)/g,
-  /(?:^|[\s"'`(=:,])(~\/(?:Developer|Desktop|Documents|Downloads)\/(?!<)[^\s"'`),;]+)/g,
-  /(?:^|[\s"'`(=:,]|file:\/\/)(\/home\/(?!<|runner\/)[a-z][a-z0-9._-]*\/[^\s"'`),;]*)/g,
-  /(?:^|[\s"'`(=:,])([A-Za-z]:\\{1,2}Users\\{1,2}(?!<)[A-Za-z0-9._-]+\\{1,2}[^\s"'`),;]*)/g,
+const PLACEHOLDER_HOME_USERS = new Set([
+  'you',
+  'user',
+  'username',
+  'name',
+  'me',
+  'example',
+  'alice',
+  'myuser',
+]);
+
+const HOME_PATH_PATTERNS: { re: RegExp; kind: 'mac' | 'linux' | 'win' | 'tilde' }[] = [
+  {
+    kind: 'mac',
+    re: /(?:^|[\s"'`(=:,]|file:\/\/)(\/Users\/([^/\s"'`),;:]+))(?=\/|[\s"'`),;:]|$)/g,
+  },
+  {
+    kind: 'tilde',
+    re: /(?:^|[\s"'`(=:,])(~\/(?:Developer|Desktop|Documents|Downloads)\/([^\s"'`),;]+))/g,
+  },
+  {
+    kind: 'linux',
+    re: /(?:^|[\s"'`(=:,]|file:\/\/)(\/home\/([a-z][a-z0-9._-]*)\/[^\s"'`),;]*)/g,
+  },
+  {
+    kind: 'win',
+    re: /(?:^|[\s"'`(=:,])([A-Za-z]:\\{1,2}Users\\{1,2}([^\\\s"'`),;]+)\\{1,2}[^\s"'`),;]*)/g,
+  },
 ];
 
 const LOCAL_HOST_PATTERNS = [
   /(?:^|[\s"'`(=:@/])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.(?:ts\.net|home\.arpa))(?![.\w-])/gi,
   /(?:https?:\/\/|wss?:\/\/|ssh:\/\/|[\w-]+@)([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=[:/\s"'`),;]|$)/gi,
   /(?<![.\w-])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=:\d+\b)/gi,
-  /(?<![.\w-])((?!solo-workflow\.local\b|docker-compose\.local\b)[a-z0-9]+(?:-[a-z0-9]+)+\.local|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.orb\.local)(?![.\w-])/gi,
+  /(?<![.\w-])((?!solo-workflow\.local\b|docker-compose\.local\b)[a-z0-9]+(?:-[a-z0-9]+)+\.local)(?![.\w-])/gi,
 ];
+const EXAMPLE_HOST =
+  /^(?:example|my-?(?:host|server|device|laptop|computer)|your-?[\w-]+)(?:\.|$)|\.(?:tail(?:0000|1234|xxxx)|example)\.(?:ts\.net|home\.arpa)$/i;
 const REAL_TEST_FILE =
   /(?:^|\/)(?:tests?|__tests__|e2e)\/|^fixtures\/|\.(?:test|spec)\.[cm]?[jt]sx?$/i;
+const HISTORY_DIR = /(^|\/)(archive|records|[\w-]*history)\//i;
 
 const PRIVATE_SITE_PATTERNS = [
   ...SIDECUT_PRIVATE_SITE_PATTERNS,
@@ -482,6 +508,22 @@ function runnerHostnames(fleet: Fleet | null): { owner: string; names: string[] 
   }
 }
 
+function isAllowedHomePath(
+  hit: string,
+  segment: string,
+  pathKind: 'mac' | 'linux' | 'win' | 'tilde',
+  repoKind: Kind,
+): boolean {
+  if (segment.startsWith('<')) return true;
+  if (pathKind === 'tilde') return false;
+  const lower = segment.toLowerCase();
+  if (PLACEHOLDER_HOME_USERS.has(lower)) return true;
+  if (pathKind === 'mac') return lower === 'shared' || lower === 'runner';
+  if (pathKind === 'linux')
+    return lower === 'runner' || (repoKind === 'ops' && /^\/home\/ci-(?:admin|runner)\//.test(hit));
+  return lower === 'public' || lower === 'default';
+}
+
 function checkLeaks(
   root: string,
   kind: Kind,
@@ -489,6 +531,7 @@ function checkLeaks(
   fleet: Fleet | null,
   report: Report,
 ): void {
+  if (kind === 'data') return;
   const generated = generatedFiles(root);
   const isPublicRepo = isPublicRepository(root);
   const me = effectiveRepoName(root);
@@ -500,25 +543,33 @@ function checkLeaks(
       : null;
 
   for (const t of texts) {
-    if (REAL_TEST_FILE.test(t.file) || isGeneratedBundleOrLock(t.file, generated)) continue;
+    if (
+      REAL_TEST_FILE.test(t.file) ||
+      HISTORY_DIR.test(t.file) ||
+      isGeneratedBundleOrLock(t.file, generated)
+    )
+      continue;
     const profileFile = isSidecutProfileFile(t.file);
     const shippedOrPublic = isShippedOrPublic(t.file, kind, isPublicRepo);
     const meLower = me.toLowerCase();
 
     t.text.split('\n').forEach((line, i) => {
-      for (const re of HOME_PATH_PATTERNS) {
-        re.lastIndex = 0;
-        for (const m of line.matchAll(re)) {
-          const hit = m[1] ?? m[0];
-          if (kind === 'ops' && /^\/home\/ci-(?:admin|runner)\//.test(hit)) continue;
-          report.add(
-            'LEAK_PATH',
-            t.file,
-            i + 1,
-            `Hard-coded home-directory path "${hit}" only works on one machine.`,
-            'Use a relative path, environment variable or placeholder instead.',
-          );
-          break;
+      if (shippedOrPublic && !profileFile) {
+        for (const { re, kind: pathKind } of HOME_PATH_PATTERNS) {
+          re.lastIndex = 0;
+          for (const m of line.matchAll(re)) {
+            const hit = m[1] ?? m[0];
+            const segment = m[2] ?? '';
+            if (isAllowedHomePath(hit, segment, pathKind, kind)) continue;
+            report.add(
+              'LEAK_PATH',
+              t.file,
+              i + 1,
+              `Hard-coded home-directory path "${hit}" only works on one machine.`,
+              'Use a relative path, environment variable or placeholder instead.',
+            );
+            break;
+          }
         }
       }
 
@@ -529,17 +580,21 @@ function checkLeaks(
       ];
       for (const re of hostPatterns) {
         re.lastIndex = 0;
-        const m = re.exec(line);
-        if (m) {
+        let blocked = false;
+        for (const m of line.matchAll(re)) {
+          const host = m[1] ?? m[0];
+          if (/\.orb\.local$/i.test(host) || EXAMPLE_HOST.test(host)) continue;
           report.add(
             'LEAK_HOSTNAME',
             t.file,
             i + 1,
-            `Names local machine or runner hostname "${m[1] ?? m[0]}".`,
+            `Names local machine or runner hostname "${host}".`,
             'Remove the machine or runner hostname from committed files.',
           );
+          blocked = true;
           break;
         }
+        if (blocked) break;
       }
 
       if (!shippedOrPublic || profileFile) return;
