@@ -2120,9 +2120,11 @@ describe('trustworthy blocking vs warning checks', () => {
       'docs/architecture.md',
       '\nThis seamless layer leverages cutting-edge caching. As of 2026-11-12 it runs fast.\n',
     );
+    const localEnv = { ...process.env, GITHUB_ACTIONS: '', GITHUB_BASE_REF: '' };
     const warnOnly = spawnSync(process.execPath, ['scripts/check.ts', wording.root, '--fast'], {
       cwd: repoRoot,
       encoding: 'utf8',
+      env: localEnv,
     });
     expect(warnOnly.status).toBe(0);
     expect(warnOnly.stdout).toContain('Advisory COPY_WEAK');
@@ -2137,6 +2139,7 @@ describe('trustworthy blocking vs warning checks', () => {
     const blocked = spawnSync(process.execPath, ['scripts/check.ts', leaked.root, '--fast'], {
       cwd: repoRoot,
       encoding: 'utf8',
+      env: localEnv,
     });
     expect(blocked.status).toBe(1);
     expect(blocked.stdout).toContain('LEAK_PATH plugins/demo/skills/demo-run/SKILL.md');
