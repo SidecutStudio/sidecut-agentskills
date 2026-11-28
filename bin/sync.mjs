@@ -292,6 +292,7 @@ var ADVISORY_CODES = [
   "AGENTS_BUDGET",
   "STALE_DATED",
   "COPY_WEAK",
+  "COPY_OWNER",
   "OWNED_PORT"
 ];
 function keepCovers(key, code, file) {
@@ -424,7 +425,7 @@ var SIDECUT_RUNNER_HOST_PATTERNS = [
   /\bsidecut-linux-x64-\d+\b/g,
   /\bafter[-]nine-mac-ci\b/g
 ];
-var SIDECUT_PRIVATE_GITHUB_LINK = /(?:https?:\/\/(?:raw\.githubusercontent\.com|github\.com)\/|git@github\.com:)(SidecutStudio|SidecutDev)\/([A-Za-z0-9._-]+)/gi;
+var SIDECUT_PRIVATE_GITHUB_LINK = /(?:https?:\/\/(?:raw\.githubusercontent\.com|api\.github\.com\/repos|github\.com)\/|(?:ssh:\/\/)?git@github\.com[:/]|github:)(SidecutStudio|SidecutDev)\/([A-Za-z0-9._-]+)/gi;
 var SIDECUT_PRIVATE_SITE_PATTERNS = [
   /https?:\/\/linear\.app\/sidecutstudio(?:\/[^\s"'`),;]*)?/gi
 ];
@@ -1268,7 +1269,6 @@ var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build"
 var TEXT = /\.(md|mdx|markdown|txt|html?|astro|ts|tsx|js|mjs|cjs|jsx|json|toml|ya?ml|css|sh)$/i;
 var MARKDOWN = /\.(md|mdx|markdown)$/i;
 var PROSE = /\.(md|mdx|markdown|txt|html?|astro)$/i;
-var CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/i;
 function repoFiles(root2) {
   const tracked = trackedFiles(root2);
   if (tracked) return tracked.filter((file) => lstatSync2(join7(root2, file)).isFile());
@@ -1548,7 +1548,7 @@ function isGeneratedBundleOrLock(file, generated) {
   return generated.has(file) || file === "package-lock.json" || /^plugins\/[^/]+\/server\/(?:index\.mjs|THIRD_PARTY_LICENSES\.txt)$/.test(file) || /^plugins\/[^/]+\/codex\/agents\//.test(file);
 }
 var HOME_PATH_PATTERNS = [
-  /(?:^|[\s"'`(=:,]|file:\/\/)(\/Users\/(?!<)[A-Za-z0-9._-]+)(?=\/|[\s"'`),;:]|$)/g,
+  /(?:^|[\s"'`(=:,]|file:\/\/)(\/Users\/(?!<|(?:Shared|runner)(?:\/|[\s"'`),;:]|$))[A-Za-z0-9._-]+)(?=\/|[\s"'`),;:]|$)/g,
   /(?:^|[\s"'`(=:,])(~\/(?:Developer|Desktop|Documents|Downloads)\/(?!<)[^\s"'`),;]+)/g,
   /(?:^|[\s"'`(=:,]|file:\/\/)(\/home\/(?!<|runner\/)[a-z][a-z0-9._-]*\/[^\s"'`),;]*)/g,
   /(?:^|[\s"'`(=:,])([A-Za-z]:\\{1,2}Users\\{1,2}(?!<)[A-Za-z0-9._-]+\\{1,2}[^\s"'`),;]*)/g
@@ -1556,9 +1556,10 @@ var HOME_PATH_PATTERNS = [
 var LOCAL_HOST_PATTERNS = [
   /(?:^|[\s"'`(=:@/])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.(?:ts\.net|home\.arpa))(?![.\w-])/gi,
   /(?:https?:\/\/|wss?:\/\/|ssh:\/\/|[\w-]+@)([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=[:/\s"'`),;]|$)/gi,
-  /(?<![.\w-])([a-z0-9]+(?:-[a-z0-9]+)+\.local|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.orb\.local)(?![.\w-])/gi
+  /(?<![.\w-])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=:\d+\b)/gi,
+  /(?<![.\w-])((?!solo-workflow\.local\b|docker-compose\.local\b)[a-z0-9]+(?:-[a-z0-9]+)+\.local|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.orb\.local)(?![.\w-])/gi
 ];
-var PROSE_LOCAL_HOST = /(?<![.\w-])([a-z0-9][a-z0-9-]*\.local)(?![.\w-])/gi;
+var REAL_TEST_FILE = /(?:^|\/)(?:tests?|__tests__|e2e)\/|^fixtures\/|\.(?:test|spec)\.[cm]?[jt]sx?$/i;
 var PRIVATE_SITE_PATTERNS = [
   ...SIDECUT_PRIVATE_SITE_PATTERNS,
   /https?:\/\/lovable\.dev\/projects\/[^\s"'`),;]+/gi,
@@ -1613,10 +1614,10 @@ function checkLeaks(root2, kind, texts, fleet, report) {
   const checkRunnerHosts = kind !== "ops" && me !== runners.owner;
   const fleetRunnerRe = checkRunnerHosts && runners.names.length > 0 ? new RegExp(`\\b(${runners.names.map(escapeRegExp).join("|")})\\b`, "g") : null;
   for (const t of texts) {
-    if (isHistoryOrTest(t.file) || isGeneratedBundleOrLock(t.file, generated)) continue;
+    if (REAL_TEST_FILE.test(t.file) || isGeneratedBundleOrLock(t.file, generated)) continue;
     const profileFile = isSidecutProfileFile(t.file);
     const shippedOrPublic = isShippedOrPublic(t.file, kind, isPublicRepo);
-    const checkProseLocal = !CODE_FILE.test(t.file);
+    const meLower = me.toLowerCase();
     t.text.split("\n").forEach((line, i) => {
       for (const re of HOME_PATH_PATTERNS) {
         re.lastIndex = 0;
@@ -1635,7 +1636,6 @@ function checkLeaks(root2, kind, texts, fleet, report) {
       }
       const hostPatterns = [
         ...LOCAL_HOST_PATTERNS,
-        ...checkProseLocal ? [PROSE_LOCAL_HOST] : [],
         ...checkRunnerHosts && !profileFile ? SIDECUT_RUNNER_HOST_PATTERNS : [],
         ...fleetRunnerRe && !profileFile ? [fleetRunnerRe] : []
       ];
@@ -1656,10 +1656,11 @@ function checkLeaks(root2, kind, texts, fleet, report) {
       if (!shippedOrPublic || profileFile) return;
       SIDECUT_PRIVATE_GITHUB_LINK.lastIndex = 0;
       for (const m of line.matchAll(SIDECUT_PRIVATE_GITHUB_LINK)) {
-        const repo = (m[2] ?? "").replace(/\.git$/i, "");
-        if (!repo || PUBLIC_SIDECUT_REPOS.has(repo)) continue;
-        if (isPublicRepo && repo === me) continue;
-        if (!isPublicRepo && kind !== "site" && repo === me) continue;
+        const repo = (m[2] ?? "").replace(/[.,;:!?]+$/, "").replace(/\.git$/i, "").replace(/[.,;:!?]+$/, "");
+        const lowerRepo = repo.toLowerCase();
+        if (!lowerRepo || PUBLIC_SIDECUT_REPOS.has(lowerRepo)) continue;
+        if (isPublicRepo && lowerRepo === meLower) continue;
+        if (!isPublicRepo && kind !== "site" && lowerRepo === meLower) continue;
         report.add(
           "LEAK_LINK",
           t.file,

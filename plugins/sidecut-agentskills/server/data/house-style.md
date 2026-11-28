@@ -112,7 +112,7 @@ Exact rules block a merge. Heuristic rules can't tell intent, so they are adviso
 | Long docs | A doc over 500 lines is split by what readers come for | advisory |
 | Small references | A reference file under 30 lines that only one skill reads goes into that SKILL.md | advisory |
 | Stock phrases and hedges | Say the specific thing instead ("seamless", "robust", "it's worth noting") | advisory |
-| The owner in public copy | READMEs and a site's pages (`src/`, `web/src/`, `public/`, `content/`, `pages/`) never describe the person behind the work, such as "built by a solo maker"; describing who it's for is fine | yes |
+| The owner in public copy | READMEs and a site's pages (`src/`, `web/src/`, `public/`, `content/`, `pages/`) never describe the person behind the work, such as "built by a solo maker"; describing who it's for is fine | advisory |
 
 ## Install source
 

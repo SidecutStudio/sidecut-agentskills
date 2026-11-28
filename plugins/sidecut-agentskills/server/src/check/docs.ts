@@ -30,7 +30,6 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.o
 const TEXT = /\.(md|mdx|markdown|txt|html?|astro|ts|tsx|js|mjs|cjs|jsx|json|toml|ya?ml|css|sh)$/i;
 const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const PROSE = /\.(md|mdx|markdown|txt|html?|astro)$/i;
-const CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/i;
 
 /** Every file in the repo: git's tracked and unignored files, or a walk when it isn't a checkout. */
 export function repoFiles(root: string): string[] {
@@ -416,7 +415,7 @@ function isGeneratedBundleOrLock(file: string, generated: Set<string>): boolean 
 }
 
 const HOME_PATH_PATTERNS = [
-  /(?:^|[\s"'`(=:,]|file:\/\/)(\/Users\/(?!<)[A-Za-z0-9._-]+)(?=\/|[\s"'`),;:]|$)/g,
+  /(?:^|[\s"'`(=:,]|file:\/\/)(\/Users\/(?!<|(?:Shared|runner)(?:\/|[\s"'`),;:]|$))[A-Za-z0-9._-]+)(?=\/|[\s"'`),;:]|$)/g,
   /(?:^|[\s"'`(=:,])(~\/(?:Developer|Desktop|Documents|Downloads)\/(?!<)[^\s"'`),;]+)/g,
   /(?:^|[\s"'`(=:,]|file:\/\/)(\/home\/(?!<|runner\/)[a-z][a-z0-9._-]*\/[^\s"'`),;]*)/g,
   /(?:^|[\s"'`(=:,])([A-Za-z]:\\{1,2}Users\\{1,2}(?!<)[A-Za-z0-9._-]+\\{1,2}[^\s"'`),;]*)/g,
@@ -425,9 +424,11 @@ const HOME_PATH_PATTERNS = [
 const LOCAL_HOST_PATTERNS = [
   /(?:^|[\s"'`(=:@/])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.(?:ts\.net|home\.arpa))(?![.\w-])/gi,
   /(?:https?:\/\/|wss?:\/\/|ssh:\/\/|[\w-]+@)([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=[:/\s"'`),;]|$)/gi,
-  /(?<![.\w-])([a-z0-9]+(?:-[a-z0-9]+)+\.local|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.orb\.local)(?![.\w-])/gi,
+  /(?<![.\w-])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=:\d+\b)/gi,
+  /(?<![.\w-])((?!solo-workflow\.local\b|docker-compose\.local\b)[a-z0-9]+(?:-[a-z0-9]+)+\.local|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.orb\.local)(?![.\w-])/gi,
 ];
-const PROSE_LOCAL_HOST = /(?<![.\w-])([a-z0-9][a-z0-9-]*\.local)(?![.\w-])/gi;
+const REAL_TEST_FILE =
+  /(?:^|\/)(?:tests?|__tests__|e2e)\/|^fixtures\/|\.(?:test|spec)\.[cm]?[jt]sx?$/i;
 
 const PRIVATE_SITE_PATTERNS = [
   ...SIDECUT_PRIVATE_SITE_PATTERNS,
@@ -499,10 +500,10 @@ function checkLeaks(
       : null;
 
   for (const t of texts) {
-    if (isHistoryOrTest(t.file) || isGeneratedBundleOrLock(t.file, generated)) continue;
+    if (REAL_TEST_FILE.test(t.file) || isGeneratedBundleOrLock(t.file, generated)) continue;
     const profileFile = isSidecutProfileFile(t.file);
     const shippedOrPublic = isShippedOrPublic(t.file, kind, isPublicRepo);
-    const checkProseLocal = !CODE_FILE.test(t.file);
+    const meLower = me.toLowerCase();
 
     t.text.split('\n').forEach((line, i) => {
       for (const re of HOME_PATH_PATTERNS) {
@@ -523,7 +524,6 @@ function checkLeaks(
 
       const hostPatterns = [
         ...LOCAL_HOST_PATTERNS,
-        ...(checkProseLocal ? [PROSE_LOCAL_HOST] : []),
         ...(checkRunnerHosts && !profileFile ? SIDECUT_RUNNER_HOST_PATTERNS : []),
         ...(fleetRunnerRe && !profileFile ? [fleetRunnerRe] : []),
       ];
@@ -545,10 +545,14 @@ function checkLeaks(
       if (!shippedOrPublic || profileFile) return;
       SIDECUT_PRIVATE_GITHUB_LINK.lastIndex = 0;
       for (const m of line.matchAll(SIDECUT_PRIVATE_GITHUB_LINK)) {
-        const repo = (m[2] ?? '').replace(/\.git$/i, '');
-        if (!repo || PUBLIC_SIDECUT_REPOS.has(repo)) continue;
-        if (isPublicRepo && repo === me) continue;
-        if (!isPublicRepo && kind !== 'site' && repo === me) continue;
+        const repo = (m[2] ?? '')
+          .replace(/[.,;:!?]+$/, '')
+          .replace(/\.git$/i, '')
+          .replace(/[.,;:!?]+$/, '');
+        const lowerRepo = repo.toLowerCase();
+        if (!lowerRepo || PUBLIC_SIDECUT_REPOS.has(lowerRepo)) continue;
+        if (isPublicRepo && lowerRepo === meLower) continue;
+        if (!isPublicRepo && kind !== 'site' && lowerRepo === meLower) continue;
         report.add(
           'LEAK_LINK',
           t.file,

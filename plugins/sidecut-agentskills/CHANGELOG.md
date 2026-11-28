@@ -8,7 +8,7 @@
 
 ### Changed
 
-- Heuristic copy, staleness, pointer, bloat and skill-description phrasing checks (`STALE_DATED`, `DEAD_POINTER`, `AGENTS_BUDGET`, `SKILL_DESCRIPTION_SHAPE`, `COPY_WEAK`) report as advisories and warnings and never fail `sidecut-check`.
+- Heuristic copy, owner-mention, staleness, pointer, bloat and skill-description phrasing checks (`COPY_WEAK`, `COPY_OWNER`, `STALE_DATED`, `DEAD_POINTER`, `AGENTS_BUDGET`, `SKILL_DESCRIPTION_SHAPE`) report as advisories and warnings and never fail `sidecut-check`.
 - Repo-kind detection on a clean checkout reads `web/package.json` alongside root `package.json` and detects sites kept under `web/` or marked by `sitemap.xml`.
 - Both the text scanner and `TEST_GIT_ENV` skip nested git repositories ignored by `.gitignore`.
 - `sidecut-sync` supports Bun repositories (`bun.lock` with no `package-lock.json`), protecting `bun.lock`, keeping `packageManager`, and running `bun install` when `package.json` changes.

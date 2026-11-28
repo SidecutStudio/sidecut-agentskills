@@ -1887,16 +1887,18 @@ describe('text across the repo', () => {
     expect(found(run(repo.root))).toEqual([]);
   });
 
-  test('stock phrases are advisories; describing the owner in public copy blocks', () => {
+  test('stock phrases and owner copy are advisories', () => {
     const repo = appFolder();
     repo.append('docs/architecture.md', '\nA robust, seamless layer.\nWe avoid "game changer".\n');
     expect(advised(run(repo.root))).toEqual(['COPY_WEAK docs/architecture.md']);
     repo.append('README.md', '\nMade by a solo maker.\n');
-    expect(found(run(repo.root))).toEqual(['COPY_OWNER README.md']);
-    // Agent docs may say who the owner is; public copy may not.
+    expect(found(run(repo.root))).toEqual([]);
+    expect(advised(run(repo.root))).toContain('COPY_OWNER README.md');
+    // Agent docs may say who the owner is without an advisory.
     repo.edit('README.md', (t) => t.replace('Made by a solo maker.\n', ''));
     repo.append('AGENTS.md', '\nThe owner is a solo maker.\n');
     expect(found(run(repo.root))).toEqual([]);
+    expect(advised(run(repo.root))).toEqual(['COPY_WEAK docs/architecture.md']);
   });
 
   test('external links are checked only when asked, and a dead one is a problem', async () => {
@@ -2082,15 +2084,17 @@ describe('what the review of the whole-repo rules found', () => {
     expect(found(run(repo.root))).toEqual([]);
   });
 
-  test('describing the audience is fine; describing the maker blocks', () => {
+  test('describing the audience passes; describing the maker warns', () => {
     const repo = appFolder();
     repo.append(
       'README.md',
       '\nA planner for a solo developer or a one-person team. Sorted by person.\n',
     );
     expect(found(run(repo.root))).toEqual([]);
+    expect(advised(run(repo.root))).toEqual([]);
     repo.append('README.md', '\nBuilt by a solo maker.\n');
-    expect(found(run(repo.root))).toEqual(['COPY_OWNER README.md']);
+    expect(found(run(repo.root))).toEqual([]);
+    expect(advised(run(repo.root))).toEqual(['COPY_OWNER README.md']);
   });
 
   test('a word that starts like a month is not a date', () => {
@@ -2164,14 +2168,16 @@ describe('trustworthy blocking vs warning checks', () => {
     expect(found(run(clean.root))).toEqual([]);
   });
 
-  test('local machine and runner hostnames block while .env.local and property access pass', () => {
+  test('local machine and runner hostnames block while .env.local, bare .local prose and property access pass', () => {
     const repo = appFolder({
       'src/app.ts': 'export const flag = state.local;\nexport const envFile = ".env.local";\n',
+      'docs/shipping.md':
+        '# Shipping\n\nCopy settings.local or configure app.local and solo-workflow.local here.\n',
     });
     expect(found(run(repo.root))).toEqual([]);
 
     const mdns = appFolder({
-      'docs/shipping.md': '# Shipping\n\nConnect to `my-mac.local:3000`.\n',
+      'docs/shipping.md': '# Shipping\n\nConnect to `my-mac.local:3000` or `app.local:3000`.\n',
     });
     expect(found(run(mdns.root))).toEqual(['LEAK_HOSTNAME docs/shipping.md']);
 
@@ -2192,12 +2198,20 @@ describe('trustworthy blocking vs warning checks', () => {
     expect(found(run(ops.root))).toEqual([]);
   });
 
+  test('/Users/Shared and /Users/runner do not block as home paths', () => {
+    const repo = appFolder({
+      'docs/shipping.md':
+        '# Shipping\n\nShared data lives under `/Users/Shared/cache` and `/Users/runner/work/app`.\n',
+    });
+    expect(found(run(repo.root))).toEqual([]);
+  });
+
   test('links to private repos and private sites block in shipped or public files', () => {
     const site = appFolder({
       'package.json': `${JSON.stringify({ name: 'demo-site', private: true, sidecut: { kind: 'site' } })}\n`,
       'AGENTS.md': `${kindTemplate('site')}\n`,
       'web/src/links.ts':
-        'export const repo = "https://github.com/SidecutStudio/sidecut-agentskills";\nexport const solo = "https://github.com/SidecutStudio/sidecut-solo";\n',
+        'export const repo = "https://github.com/SidecutStudio/sidecut-agentskills";\nexport const solo = "Source: https://github.com/SidecutStudio/sidecut-solo.";\nexport const upper = "https://github.com/SidecutStudio/Sidecut-Solo";\n',
       'docs/internal.md':
         '# Internal\n\nTracked in https://github.com/SidecutStudio/pair-board and https://linear.app/sidecutstudio/issue/PAI-1.\n',
     });
@@ -2209,6 +2223,15 @@ describe('trustworthy blocking vs warning checks', () => {
     );
     expect(found(run(site.root))).toEqual(['LEAK_LINK web/src/links.ts']);
 
+    for (const form of [
+      'ssh://git@github.com/SidecutStudio/pair-board',
+      'github:SidecutStudio/sidecut-ops',
+      'https://api.github.com/repos/SidecutStudio/sidecut-home/issues',
+    ]) {
+      const alt = appFolder({ 'plugins/demo/README.md': `# Demo\n\nSee ${form}.\n` });
+      expect(found(run(alt.root))).toContain('LEAK_LINK plugins/demo/README.md');
+    }
+
     const preview = appFolder({
       'src/app.ts': 'export const url = "https://linear.app/sidecutstudio/issue/PAI-74";\n',
     });
@@ -2218,6 +2241,31 @@ describe('trustworthy blocking vs warning checks', () => {
       'plugins/demo/README.md': '# Demo\n\nEdit at https://lovable.dev/projects/abc123.\n',
     });
     expect(found(run(lovable.root))).toContain('LEAK_LINK plugins/demo/README.md');
+  });
+
+  test('shipped CHANGELOG and skill examples still fail on leaks while real test fixtures are skipped', () => {
+    const changelogLeak = appFolder({
+      'CHANGELOG.md': '# Changelog\n\n## 1.0.0\n\n- Fixed `/Users/alex/src/demo` path handling.\n',
+      'plugins/demo/CHANGELOG.md':
+        '# Changelog\n\n## 1.0.0\n\n- Fixed `/Users/alex/src/demo` path handling.\n',
+    });
+    const changelogFindings = found(run(changelogLeak.root));
+    expect(changelogFindings).toContain('LEAK_PATH CHANGELOG.md');
+    expect(changelogFindings).toContain('LEAK_PATH plugins/demo/CHANGELOG.md');
+
+    const exampleLeak = appFolder({
+      'plugins/demo/skills/demo-run/examples/sample.md':
+        '# Example\n\nSee https://github.com/SidecutStudio/pair-board/pull/12.\n',
+    });
+    expect(found(run(exampleLeak.root))).toContain(
+      'LEAK_LINK plugins/demo/skills/demo-run/examples/sample.md',
+    );
+
+    const realTest = appFolder({
+      'tests/fixtures/leak.md':
+        '# Test fixture\n\nSample `/Users/alex/src/demo` and https://github.com/SidecutStudio/pair-board.\n',
+    });
+    expect(found(run(realTest.root))).toEqual([]);
   });
 
   test('repo-kind detection handles web/ sites and sitemaps on a clean checkout', () => {

@@ -40,6 +40,7 @@ export const ADVISORY_CODES = [
   'AGENTS_BUDGET',
   'STALE_DATED',
   'COPY_WEAK',
+  'COPY_OWNER',
   'OWNED_PORT',
 ];
 

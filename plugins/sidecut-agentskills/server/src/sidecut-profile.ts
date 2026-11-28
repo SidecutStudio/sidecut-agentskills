@@ -99,7 +99,7 @@ export const SIDECUT_RUNNER_HOST_PATTERNS = [
 
 /** Links to private Sidecut GitHub repositories or internal Sidecut workspaces. */
 export const SIDECUT_PRIVATE_GITHUB_LINK =
-  /(?:https?:\/\/(?:raw\.githubusercontent\.com|github\.com)\/|git@github\.com:)(SidecutStudio|SidecutDev)\/([A-Za-z0-9._-]+)/gi;
+  /(?:https?:\/\/(?:raw\.githubusercontent\.com|api\.github\.com\/repos|github\.com)\/|(?:ssh:\/\/)?git@github\.com[:/]|github:)(SidecutStudio|SidecutDev)\/([A-Za-z0-9._-]+)/gi;
 export const SIDECUT_PRIVATE_SITE_PATTERNS = [
   /https?:\/\/linear\.app\/sidecutstudio(?:\/[^\s"'`),;]*)?/gi,
 ];
