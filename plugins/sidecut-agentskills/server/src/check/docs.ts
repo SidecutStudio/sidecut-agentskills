@@ -451,10 +451,10 @@ const LOCAL_HOST_PATTERNS = [
   /(?<![.\w-])((?!solo-workflow\.local\b|docker-compose\.local\b)[a-z0-9]+(?:-[a-z0-9]+)+\.local)(?![.\w-])/gi,
 ];
 const EXAMPLE_HOST =
-  /^(?:example|my-?(?:host|server|device|laptop|computer)|your-?[\w-]+)(?:\.|$)|\.(?:tail(?:0000|1234|xxxx)|example)\.(?:ts\.net|home\.arpa)$/i;
+  /(?:\.(?:example|invalid|test)|(?:^|\.)(?:tail(?:0000|1234|xxxx)|example)\.(?:ts\.net|home\.arpa|local))$/i;
 const REAL_TEST_FILE =
   /(?:^|\/)(?:tests?|__tests__|e2e)\/|^fixtures\/|\.(?:test|spec)\.[cm]?[jt]sx?$/i;
-const HISTORY_DIR = /(^|\/)(archive|records|[\w-]*history)\//i;
+const HISTORY_DIR = /^(?:docs\/)?(?:archive|records|[\w-]*history)\//i;
 
 const PRIVATE_SITE_PATTERNS = [
   ...SIDECUT_PRIVATE_SITE_PATTERNS,
@@ -545,7 +545,7 @@ function checkLeaks(
   for (const t of texts) {
     if (
       REAL_TEST_FILE.test(t.file) ||
-      HISTORY_DIR.test(t.file) ||
+      (!t.file.startsWith('plugins/') && HISTORY_DIR.test(t.file)) ||
       isGeneratedBundleOrLock(t.file, generated)
     )
       continue;

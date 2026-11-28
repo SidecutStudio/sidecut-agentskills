@@ -1582,9 +1582,9 @@ var LOCAL_HOST_PATTERNS = [
   /(?<![.\w-])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=:\d+\b)/gi,
   /(?<![.\w-])((?!solo-workflow\.local\b|docker-compose\.local\b)[a-z0-9]+(?:-[a-z0-9]+)+\.local)(?![.\w-])/gi
 ];
-var EXAMPLE_HOST = /^(?:example|my-?(?:host|server|device|laptop|computer)|your-?[\w-]+)(?:\.|$)|\.(?:tail(?:0000|1234|xxxx)|example)\.(?:ts\.net|home\.arpa)$/i;
+var EXAMPLE_HOST = /(?:\.(?:example|invalid|test)|(?:^|\.)(?:tail(?:0000|1234|xxxx)|example)\.(?:ts\.net|home\.arpa|local))$/i;
 var REAL_TEST_FILE = /(?:^|\/)(?:tests?|__tests__|e2e)\/|^fixtures\/|\.(?:test|spec)\.[cm]?[jt]sx?$/i;
-var HISTORY_DIR = /(^|\/)(archive|records|[\w-]*history)\//i;
+var HISTORY_DIR = /^(?:docs\/)?(?:archive|records|[\w-]*history)\//i;
 var PRIVATE_SITE_PATTERNS = [
   ...SIDECUT_PRIVATE_SITE_PATTERNS,
   /https?:\/\/lovable\.dev\/projects\/[^\s"'`),;]+/gi,
@@ -1650,7 +1650,7 @@ function checkLeaks(root2, kind, texts, fleet, report) {
   const checkRunnerHosts = kind !== "ops" && me !== runners.owner;
   const fleetRunnerRe = checkRunnerHosts && runners.names.length > 0 ? new RegExp(`\\b(${runners.names.map(escapeRegExp).join("|")})\\b`, "g") : null;
   for (const t of texts) {
-    if (REAL_TEST_FILE.test(t.file) || HISTORY_DIR.test(t.file) || isGeneratedBundleOrLock(t.file, generated))
+    if (REAL_TEST_FILE.test(t.file) || !t.file.startsWith("plugins/") && HISTORY_DIR.test(t.file) || isGeneratedBundleOrLock(t.file, generated))
       continue;
     const profileFile = isSidecutProfileFile(t.file);
     const shippedOrPublic = isShippedOrPublic(t.file, kind, isPublicRepo);

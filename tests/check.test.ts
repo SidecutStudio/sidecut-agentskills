@@ -2228,6 +2228,16 @@ describe('trustworthy blocking vs warning checks', () => {
     });
     expect(found(run(ts.root))).toEqual(['LEAK_HOSTNAME docs/shipping.md']);
 
+    for (const host of [
+      'my-laptop.tail83b1c.ts.net',
+      'your-mac.tail83b1c.ts.net',
+      'my-server.local',
+      'your-nas.home.arpa',
+    ]) {
+      const prefixed = appFolder({ 'docs/shipping.md': `# Shipping\n\nConnect to \`${host}\`.\n` });
+      expect(found(run(prefixed.root))).toEqual(['LEAK_HOSTNAME docs/shipping.md']);
+    }
+
     const runner = appFolder({
       'docs/shipping.md': '# Shipping\n\nRuns on `sidecut-linux-x64-5` or `after-nine-mac-ci`.\n',
     });
@@ -2303,6 +2313,14 @@ describe('trustworthy blocking vs warning checks', () => {
     });
     expect(found(run(exampleLeak.root))).toContain(
       'LEAK_LINK plugins/demo/skills/demo-run/examples/sample.md',
+    );
+
+    const historyNamedSkillLeak = appFolder({
+      'plugins/x/skills/chat-history/SKILL.md':
+        '---\nname: chat-history\ndescription: "Use when reading chat history."\n---\n\n# Chat history\n\nRead `/Users/pat/chat-logs`.\n',
+    });
+    expect(found(run(historyNamedSkillLeak.root))).toContain(
+      'LEAK_PATH plugins/x/skills/chat-history/SKILL.md',
     );
 
     const realTest = appFolder({
