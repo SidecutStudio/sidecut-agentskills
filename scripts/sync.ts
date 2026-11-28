@@ -9,6 +9,8 @@ import {
   applySync,
   BLOCK_FILES,
   guideMoveFiles,
+  installCommand,
+  lockfileOf,
   OWNED_FILES,
   planSync,
   pluginOwnedFile,
@@ -144,7 +146,7 @@ guard([
   ...guideMoveFiles(root, id),
   ...changes.filter(({ file }) => file.startsWith('evals/')).map(({ file }) => file),
   'package.json',
-  'package-lock.json',
+  lockfileOf(root),
   ...(values.fix ? planFixes().map((f) => f.file) : []),
 ]);
 
@@ -162,7 +164,12 @@ if (values.fix) runFixes(true);
 for (const change of changes)
   if (change.next !== null) console.log(`Changed ${change.file}: ${change.what}`);
 if (changes.some((c) => c.file === 'package.json')) {
-  const install = spawnSync('npm', ['install'], { cwd: root, stdio: 'inherit' });
+  const [cmd, args] = installCommand(root);
+  const install = spawnSync(cmd, args, { cwd: root, stdio: 'inherit' });
+  if (install.error) {
+    console.error(`Could not run ${cmd} ${args.join(' ')}: ${install.error.message}`);
+    process.exit(1);
+  }
   if (install.status !== 0) process.exit(install.status ?? 1);
 }
 if (left.length > 0) {

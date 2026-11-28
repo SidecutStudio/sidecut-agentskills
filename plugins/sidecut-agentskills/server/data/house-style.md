@@ -76,7 +76,7 @@ tsconfig.json
 
 ## Repo kinds
 
-`sidecut-check` checks a whole repo of any kind: `plugin`, `app`, `marketplace`, `ops`, `site` or `data`. A repo declares its kind as `"<ns>": { "kind": "app" }` in `package.json`. Without one, the checker takes it from the profile's repo index when that is on disk, and otherwise guesses: a repo that exists to ship one plugin is a plugin repo, one with `bundled/` or a multi-plugin marketplace is a marketplace, one with `.github/actions/` is ops, one with no `package.json` is data, one built with a site generator is a site, and anything else is an app. The first line of its output says which kind it used and how it knew.
+`sidecut-check` checks a whole repo of any kind: `plugin`, `app`, `marketplace`, `ops`, `site` or `data`. A repo declares its kind as `"<ns>": { "kind": "app" }` in `package.json` (or `web/package.json` when the package lives under `web/`). Without one, the checker takes it from the profile's repo index when that is on disk, and otherwise guesses: a repo that exists to ship one plugin is a plugin repo, one with `bundled/` or a multi-plugin marketplace is a marketplace, one with `.github/actions/` is ops, one with a site generator, `sitemap.xml` under `public/` or `web/public/`, or a `web/`-only frontend package is a site, one with no `package.json` is data, and anything else is an app. The first line of its output says which kind it used and how it knew.
 
 A plugin repo follows the rest of this house style. Every other kind keeps the H2 sections of its template in `templates/kinds/<kind>.md.tmpl`, in that order, and may add its own between them. An app's AGENTS.md starts with `## Read this when`, a table from what someone is working on to the doc to read, so it is the map of the repo. `templates/kinds/lefthook.yml.tmpl` is the pre-push guard such a repo adds: `sidecut-check --fast`, the quick exact rules.
 
@@ -90,26 +90,29 @@ A plugin repo follows the rest of this house style. Every other kind keeps the H
 
 ## Whole-repo text
 
-These rules read every file in the repo that git tracks, in every kind. CHANGELOG history and tests keep old names, dates and facts as they were. Skills a skills manager installs into a host folder (`.claude/skills/`, `.agents/skills/` and the like) and an app builder's own folders are checked where they come from.
+These rules read every file in the repo that git tracks, in every kind, skipping ignored nested git repos. CHANGELOG history and tests keep old names, dates and facts as they were. Skills a skills manager installs into a host folder (`.claude/skills/`, `.agents/skills/` and the like) and an app builder's own folders are checked where they come from.
 
-Exact rules block a merge. Heuristic rules can't tell intent, so they are advisories: the output names each kind once with where it shows up, and in GitHub Actions they appear as annotations on the lines a pull request changed. An advisory becomes blocking in a later checker version once a sweep of every repo shows none left.
+Exact rules block a merge. Heuristic rules can't tell intent, so they are advisories: the output names each kind once with where it shows up, and in GitHub Actions they appear as warnings on the lines a pull request changed. An advisory becomes blocking in a later checker version once a sweep of every repo shows none left.
 
 | Item | Rule | Checked |
 | --- | --- | --- |
 | Internal links | Every relative link in Markdown outside history and tests resolves inside the repo | yes |
 | External links | Answer, checked with `sidecut-check --links` on a schedule, since the result depends on other sites | scheduled |
+| Home paths | No hard-coded home-directory paths (`/Users/<name>/`, `/home/<name>/`, Windows user folders, or `~/<folder>/...` pointing at Desktop, Documents, Downloads or Developer) in files that ship or are public, outside history, tests and placeholders | yes |
+| Machine and runner hostnames | No local machine (`.local` other than `.orb.local`, `.ts.net`, `.home.arpa`) or runner hostnames outside data repos, history, tests, placeholders and ops repos | yes |
+| Private links | No links to private repos or private sites in files that ship or are public | yes |
 | Copies | The same Markdown in two places either has one copy generated (listed under `protected_paths` in the workflow settings) or becomes a link | yes |
 | Owned facts | A fact the profile's ownership map gives to one file (runner labels, plugin and CI action versions, the repo's merge gate) isn't written out elsewhere; point to the owning file. A repo may say its own version | yes |
 | Reserved ports | Another repo's reserved port written out is an advisory (`OWNED_PORT`), since reservations share numbers with framework defaults; a repo may say its own | advisory |
 | Retired names | None of the profile's retired names written as names in text people read; a URL, path or package name that still carries one is an identifier and stays. `sidecut-sync --fix` replaces a retired studio name | yes |
-| Dated notes | No "as of", "read on" or "last checked" note with a date; say what is true and link the source | yes |
-| Pointer-only files | No Markdown file that only sends the reader to another | yes |
-| AGENTS.md budget | 200 lines and 32 KiB at most: it loads on every task, and Codex stops reading at 32 KiB | yes |
+| Dated notes | No "as of", "read on" or "last checked" note with a date; say what is true and link the source | advisory |
+| Pointer-only files | No Markdown file that only sends the reader to another | advisory |
+| AGENTS.md budget | 200 lines and 32 KiB at most: it loads on every task, and Codex stops reading at 32 KiB | advisory |
 | Unlinked Markdown | Every Markdown file is linked or named somewhere, unless a host loads it by name | advisory |
 | Long docs | A doc over 500 lines is split by what readers come for | advisory |
 | Small references | A reference file under 30 lines that only one skill reads goes into that SKILL.md | advisory |
 | Stock phrases and hedges | Say the specific thing instead ("seamless", "robust", "it's worth noting") | advisory |
-| The owner in public copy | READMEs and a site's pages never describe the person behind the work, such as "built by a solo maker"; describing who it's for is fine | yes |
+| The owner in public copy | READMEs and a site's pages (`src/`, `web/src/`, `public/`, `content/`, `pages/`) never describe the person behind the work, such as "built by a solo maker"; describing who it's for is fine | advisory |
 
 ## Install source
 
@@ -287,7 +290,7 @@ Fields appear in this order and no others are used: `name`, `description`, `argu
 | --- | --- | --- |
 | `name` | The folder name | yes |
 | `description` | One line in double quotes; prefer at most 400 characters | yes / advisory |
-| Description | State the capability and concrete trigger. Include exclusions only when they disambiguate the request. | yes |
+| Description | State the capability and concrete trigger. Include exclusions only when they disambiguate the request. | advisory |
 | First sentence | One main verb, so Codex's starter prompt reads correctly | review |
 | `allowed-tools` | A YAML list, narrowest patterns that work: `Bash(gh pr view *)` | yes |
 | Own MCP tools | Every read-only tool of the plugin's own server that the skill calls is listed, as `mcp__plugin_<plugin id>_<server key>__<tool>`; tools that write stay unlisted so Claude Code asks first. An entry naming a tool the server doesn't have fails, and so does a read-only tool the skill names but doesn't list | yes |
@@ -440,7 +443,7 @@ Sections in this order:
 
 ## Shared files
 
-sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecut-sync` keeps it current. Update the pinned dependency explicitly, then run the installed version. Sync never upgrades itself. The checker reports anything out of date as `REPO_SYNC`. In a repo that ships its plugin beside other work, sync keeps only the plugin's hook, Antigravity files and packaged guide, `scripts/eval.mjs` once the repo has `evals/`, the blocks in files that already carry the markers, and the checker pin; the repo's other files and tool versions are its own.
+sidecut-agentskills owns part of every plugin repo, and `npm exec --no -- sidecut-sync` keeps it current. Update the pinned dependency explicitly, then run the installed version. Sync never upgrades itself. The checker reports anything out of date as `REPO_SYNC`. In a repo that ships its plugin beside other work, sync keeps only the plugin's hook, Antigravity files and packaged guide, `scripts/eval.mjs` once the repo has `evals/`, the blocks in files that already carry the markers, and the checker pin; the repo's other files and tool versions are its own. In a Bun repo (`bun.lock`, no `package-lock.json`), sync guards `bun.lock` and runs `bun install` when `package.json` changes.
 
 | What | Owned by sidecut-agentskills | Belongs to the repo |
 | --- | --- | --- |

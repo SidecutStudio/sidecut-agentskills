@@ -235,6 +235,25 @@ export function newer(a: string, b: string): boolean {
   return false;
 }
 
+/** Whether the repo uses Bun as its package manager (`bun.lock`, no `package-lock.json`). */
+export function usesBun(root: string): boolean {
+  return (
+    (existsSync(join(root, 'bun.lock')) || existsSync(join(root, 'bun.lockb'))) &&
+    !existsSync(join(root, 'package-lock.json'))
+  );
+}
+
+/** The lockfile name `sidecut-sync` protects against uncommitted edits. */
+export function lockfileOf(root: string): string {
+  if (!usesBun(root)) return 'package-lock.json';
+  return existsSync(join(root, 'bun.lock')) ? 'bun.lock' : 'bun.lockb';
+}
+
+/** The install command `sidecut-sync` runs when `package.json` changes. */
+export function installCommand(root: string): [string, string[]] {
+  return usesBun(root) ? ['bun', ['install']] : ['npm', ['install']];
+}
+
 /** The package.json raise. Beside other work the tools are the app's, so only the checker pin moves. */
 function planPackage(root: string, vars: SyncVars, pinOnly: boolean): Change | null {
   const path = join(root, 'package.json');
@@ -251,7 +270,7 @@ function planPackage(root: string, vars: SyncVars, pinOnly: boolean): Change | n
   ) as { packageManager: string; devDependencies: Record<string, string> };
   const raised: string[] = [];
   const npm = (s: unknown) => String(s ?? '').replace(/^npm@/, '');
-  if (!pinOnly && newer(npm(template.packageManager), npm(pkg.packageManager))) {
+  if (!pinOnly && !usesBun(root) && newer(npm(template.packageManager), npm(pkg.packageManager))) {
     pkg.packageManager = template.packageManager;
     raised.push(template.packageManager);
   }

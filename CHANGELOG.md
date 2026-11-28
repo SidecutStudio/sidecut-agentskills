@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.18.0] - 2026-11-27
+
+### Added
+
+- `sidecut-check` blocks hard-coded home-directory paths (`LEAK_PATH`) in shipped or public files, local machine and runner hostnames (`LEAK_HOSTNAME`) excluding `.orb.local` and examples, and links to private repositories or private sites in shipped or public files (`LEAK_LINK`).
+
+### Changed
+
+- Heuristic copy, owner-mention, staleness, pointer, bloat and skill-description phrasing checks (`COPY_WEAK`, `COPY_OWNER`, `STALE_DATED`, `DEAD_POINTER`, `AGENTS_BUDGET`, `SKILL_DESCRIPTION_SHAPE`) report as advisories and warnings and never fail `sidecut-check`.
+- Repo-kind detection on a clean checkout reads `web/package.json` alongside root `package.json` and detects sites kept under `web/` or marked by `sitemap.xml`.
+- Both the text scanner and `TEST_GIT_ENV` skip nested git repositories ignored by `.gitignore`.
+- `sidecut-sync` supports Bun repositories (`bun.lock` with no `package-lock.json`), protecting `bun.lock`, keeping `packageManager`, and running `bun install` when `package.json` changes.
+
 ## [2.17.0] - 2026-11-27
 
 ### Added

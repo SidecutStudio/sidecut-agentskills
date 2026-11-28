@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { ownVersion } from '../scaffold.ts';
@@ -20,13 +19,15 @@ import {
   SOLO_START,
 } from '../sidecut-profile.ts';
 import { checkDocs } from './docs.ts';
-import { readFleet } from './fleet.ts';
+import { git, ignoredBy, isHostedOnly, jobsOf, readFleet, readGitignore } from './fleet.ts';
 import { checkShape, repoKind } from './kinds.ts';
 import { checkMarkdown, parseMarkdown, sections, tableAfter } from './markdown.ts';
 import { checkPlugin } from './plugin.ts';
 import type { Report } from './report.ts';
 import { planSync } from './sync.ts';
 import { checkTestGitEnv } from './test-git-env.ts';
+
+export { jobsOf };
 
 const REQUIRED_ENTRIES = [
   '.github',
@@ -78,24 +79,6 @@ function inOrder(script: string, steps: string[]): boolean {
   return at === steps.length;
 }
 const AGENTS_SECTIONS = ['Commands', 'Layout', 'Rules'];
-
-function ignoredBy(patterns: string[], name: string): boolean {
-  return patterns.some((p) => {
-    const clean = p.replace(/\/$/, '');
-    if (clean.includes('*'))
-      return new RegExp(`^${clean.replace(/\./g, '\\.').replace(/\*/g, '.*')}$`).test(name);
-    return clean === name;
-  });
-}
-
-/** Runs git in `root` without a hook's GIT_* overrides; undefined when it fails. */
-function git(root: string, ...args: string[]): string | undefined {
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
-  );
-  const result = spawnSync('git', args, { cwd: root, env, encoding: 'utf8' });
-  return result.status === 0 ? result.stdout : undefined;
-}
 
 const isRealDir = (path: string) => {
   const stat = lstatSync(path);
@@ -167,11 +150,14 @@ function checkCheckerVersion(root: string, report: Report): void {
 }
 
 function checkTopLevel(root: string, report: Report): void {
-  const gitignore = existsSync(join(root, '.gitignore'))
-    ? readFileSync(join(root, '.gitignore'), 'utf8').split('\n').filter(Boolean)
-    : [];
+  const gitignore = readGitignore(root);
+  const top = git(root, 'rev-parse', '--show-toplevel')?.trim();
+  const inGit = Boolean(top && realpathSync(top) === realpathSync(root));
   const entries = readdirSync(root).filter(
-    (n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n)),
+    (n) =>
+      !ignoredBy(gitignore, n) &&
+      !(inGit && git(root, 'check-ignore', '-q', '--', n) !== undefined) &&
+      !(HOST_FOLDERS.includes(n) && onlyHostState(root, n)),
   );
   for (const name of entries) {
     if (!REQUIRED_ENTRIES.includes(name) && !OPTIONAL_ENTRIES.includes(name)) {
@@ -494,12 +480,6 @@ export function bunlessToolSteps(workflow: string): number[] {
   return found;
 }
 
-/** Whether every job in a workflow runs on GitHub-hosted Linux, which marks a public repo. */
-function isHostedOnly(workflow: string): boolean {
-  const jobs = jobsOf(workflow);
-  return jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
-}
-
 /** Every file under `dir`, relative to `root`, leaving out names `.gitignore` ignores. */
 function filesUnder(root: string, dir: string, ignored: string[]): string[] {
   const path = join(root, dir);
@@ -527,9 +507,7 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
   const hostedOnly = existsSync(check) && isHostedOnly(readFileSync(check, 'utf8'));
   const hasOwn = MARKETPLACES.some((file) => existsSync(join(root, file)));
   const isPublic = !s.marketplace || hostedOnly;
-  const gitignore = existsSync(join(root, '.gitignore'))
-    ? readFileSync(join(root, '.gitignore'), 'utf8').split('\n').filter(Boolean)
-    : [];
+  const gitignore = readGitignore(root);
   const found = ['.claude-plugin', '.agents'].flatMap((dir) => filesUnder(root, dir, gitignore));
   const extra = found.filter((f) => !MARKETPLACES.includes(f));
   for (const file of extra)
@@ -640,42 +618,6 @@ function checkInstallSource(root: string, id: string, repo: string, report: Repo
       `The Install section is missing ${missing.map((step) => `\`${step}\``).join(', ')}.`,
       "Use the public install steps from the house style's Install source section.",
     );
-}
-
-/**
- * Each job in a workflow and its `runs-on` value, read from the indentation of the `jobs:` block.
- * Only a `runs-on` directly under the job counts, so one inside a called workflow's `with:` doesn't.
- */
-export function jobsOf(
-  workflow: string,
-): { name: string; runsOn: string | undefined; title?: string }[] {
-  const lines = workflow.split('\n').map((line) => line.replace(/(^|\s+)#.*$/, ''));
-  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
-  if (start < 0) return [];
-  const jobs: { name: string; runsOn: string | undefined; title?: string }[] = [];
-  let jobIndent = -1;
-  let keyIndent = -1;
-  for (const line of lines.slice(start + 1)) {
-    if (line.trim() === '') continue;
-    const indent = line.length - line.trimStart().length;
-    if (indent === 0) break;
-    if (jobIndent < 0) jobIndent = indent;
-    const key = /^\s*(["']?)([A-Za-z0-9_-]+)\1:\s*(.*)$/.exec(line);
-    if (indent === jobIndent) {
-      jobs.push({ name: key?.[2] ?? line.trim(), runsOn: undefined });
-      keyIndent = -1;
-    } else if (indent > jobIndent) {
-      if (keyIndent < 0) keyIndent = indent;
-      const job = jobs.at(-1);
-      if (indent === keyIndent && key?.[2] === 'runs-on' && job) {
-        job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, '');
-      }
-      if (indent === keyIndent && key?.[2] === 'name' && job) {
-        job.title = key[3]?.trim().replace(/^['"]|['"]$/g, '');
-      }
-    }
-  }
-  return jobs;
 }
 
 /** The sidecut profile's merge gate: Solo's `required_checks` has to include the check job. */
@@ -790,7 +732,9 @@ export function identify(root: string): Identity {
     : [];
   const only = plugins.length === 1 ? (plugins[0] ?? '') : '';
   const manifest = readJson(join(pluginsDir, only, '.claude-plugin', 'plugin.json'));
-  const pkg = readJson(join(root, 'package.json'));
+  const pkg = existsSync(join(root, 'package.json'))
+    ? readJson(join(root, 'package.json'))
+    : readJson(join(root, 'web', 'package.json'));
   const settings = repoSettings(root);
   const owner = settings.org ? escapeRegExp(settings.org) : '[\\w.-]+';
   const repo =

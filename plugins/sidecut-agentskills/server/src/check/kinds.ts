@@ -26,8 +26,8 @@ function readJson(path: string): Record<string, unknown> | null {
 const SITE_TOOLS = ['astro', 'next', '@docusaurus/core', 'vitepress', '@11ty/eleventy'];
 
 /**
- * The repo's kind: what `package.json` `sidecut.kind` declares, else the fleet's repo index, else a
- * guess from its files. `ships` says the repo exists to ship one plugin.
+ * The repo's kind: what `package.json` (or `web/package.json`) declares, else the fleet's repo
+ * index, else a guess from its files. `ships` says the repo exists to ship one plugin.
  */
 export function repoKind(
   root: string,
@@ -35,15 +35,20 @@ export function repoKind(
   ships: boolean,
   report: Report,
 ): KindFound {
-  const pkg = readJson(join(root, 'package.json'));
-  const declared = packageConfig(pkg).kind;
-  if (declared !== undefined) {
+  const rootPkg = readJson(join(root, 'package.json'));
+  const webPkg = readJson(join(root, 'web', 'package.json'));
+  for (const [file, pkg] of [
+    ['package.json', rootPkg],
+    ['web/package.json', webPkg],
+  ] as const) {
+    const declared = packageConfig(pkg).kind;
+    if (declared === undefined) continue;
     if (KINDS.includes(declared as Kind)) return { kind: declared as Kind, how: 'declared' };
     report.add(
       'REPO_KIND',
-      'package.json',
+      file,
       undefined,
-      `The kind in package.json is "${String(declared)}", which isn't a repo kind.`,
+      `The kind in ${file} is "${String(declared)}", which isn't a repo kind.`,
       `Use one of ${KINDS.join(', ')}.`,
     );
   }
@@ -54,9 +59,26 @@ export function repoKind(
   if (existsSync(join(root, 'bundled')) || ((market?.plugins as unknown[]) ?? []).length > 1)
     return { kind: 'marketplace', how: 'inferred' };
   if (existsSync(join(root, '.github', 'actions'))) return { kind: 'ops', how: 'inferred' };
-  if (!pkg) return { kind: 'data', how: 'inferred' };
+  const hasSitemap =
+    existsSync(join(root, 'public', 'sitemap.xml')) ||
+    existsSync(join(root, 'web', 'public', 'sitemap.xml'));
+  const pkg = rootPkg ?? webPkg;
+  if (!pkg) {
+    if (hasSitemap || existsSync(join(root, 'web', 'index.html')))
+      return { kind: 'site', how: 'inferred' };
+    return { kind: 'data', how: 'inferred' };
+  }
   const deps = { ...(pkg.dependencies as object), ...(pkg.devDependencies as object) };
-  if (SITE_TOOLS.some((tool) => tool in deps)) return { kind: 'site', how: 'inferred' };
+  if (SITE_TOOLS.some((tool) => tool in deps) || hasSitemap)
+    return { kind: 'site', how: 'inferred' };
+  if (
+    !rootPkg &&
+    webPkg &&
+    !existsSync(join(root, 'backend')) &&
+    !existsSync(join(root, 'server')) &&
+    !existsSync(join(root, 'api'))
+  )
+    return { kind: 'site', how: 'inferred' };
   return { kind: 'app', how: 'inferred' };
 }
 
