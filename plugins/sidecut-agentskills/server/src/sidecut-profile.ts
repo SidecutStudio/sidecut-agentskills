@@ -87,3 +87,19 @@ export const SIDECUT_RETIRED: { re: RegExp; name: string; use: string; autofix?:
   },
   { re: /(?<![\w/.@-])Ship Properly(?![\w/-])/g, name: 'Ship Properly', use: 'Sidecut Solo' },
 ];
+
+/** Sidecut Studio repositories that are intentionally public. */
+export const PUBLIC_SIDECUT_REPOS = new Set(['sidecut-agentskills', 'sidecut-solo']);
+
+/** Runner hostnames belonging to Sidecut Studio's private CI pool. */
+export const SIDECUT_RUNNER_HOST_PATTERNS = [
+  /\bsidecut-linux-x64-\d+\b/g,
+  /\bafter[-]nine-mac-ci\b/g,
+];
+
+/** Links to private Sidecut GitHub repositories or internal Sidecut workspaces. */
+export const SIDECUT_PRIVATE_GITHUB_LINK =
+  /(?:https?:\/\/(?:raw\.githubusercontent\.com|github\.com)\/|git@github\.com:)(SidecutStudio|SidecutDev)\/([A-Za-z0-9._-]+)/gi;
+export const SIDECUT_PRIVATE_SITE_PATTERNS = [
+  /https?:\/\/linear\.app\/sidecutstudio(?:\/[^\s"'`),;]*)?/gi,
+];

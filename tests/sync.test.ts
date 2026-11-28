@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   cpSync,
   existsSync,
   mkdtempSync,
@@ -15,9 +16,12 @@ import { checkRepo } from '../plugins/sidecut-agentskills/server/src/check/repo.
 import { Report } from '../plugins/sidecut-agentskills/server/src/check/report.ts';
 import {
   applySync,
+  installCommand,
+  lockfileOf,
   mergeBlocks,
   newer,
   planSync,
+  usesBun,
 } from '../plugins/sidecut-agentskills/server/src/check/sync.ts';
 import { ownVersion, scaffoldPlugin } from '../plugins/sidecut-agentskills/server/src/scaffold.ts';
 
@@ -669,5 +673,54 @@ test("the git-env block goes after a preload's imports, which have to come first
   applySync(root, planSync(root, vars));
   expect(read(root, 'tests/setup.ts')).toMatch(
     /^\/\/ Loaded before every test file\.\nimport \{\n {2}quietGitEnv,\n\} from '\.\/git-env\.ts';\nimport '\.\/other\.ts';\n\n\/\/ sidecut:start git-env\n[\s\S]*\/\/ sidecut:end git-env\n\nquietGitEnv\(\);\nimport\.meta\.x = 1;\n$/,
+  );
+});
+
+test('sidecut-sync protects bun.lock, keeps packageManager, and runs bun install in Bun repos', () => {
+  const root = besideRepo();
+  rmSync(join(root, 'package-lock.json'), { force: true });
+  write(root, 'bun.lock', '{ "lockfileVersion": 1 }\n');
+  pkg(root, (v) => {
+    v.packageManager = 'bun@1.4.5';
+    v.devDependencies['sidecut-agentskills'] = 'github:SidecutStudio/sidecut-agentskills#v0.1.0';
+  });
+  expect(usesBun(root)).toBe(true);
+  expect(lockfileOf(root)).toBe('bun.lock');
+  expect(installCommand(root)).toEqual(['bun', ['install']]);
+
+  git(root, 'add', '-A');
+  git(root, 'commit', '-qm', 'bun setup');
+
+  // Uncommitted bun.lock edits block sync so user work is not overwritten.
+  write(root, 'bun.lock', '{ "lockfileVersion": 1, "dirty": true }\n');
+  const dirty = cli(root);
+  expect(dirty.status).toBe(1);
+  expect(dirty.stderr).toContain('bun.lock');
+
+  git(root, 'checkout', '--', 'bun.lock');
+
+  // Provide a fake bun executable on PATH so the test verifies `bun install` without network.
+  const binDir = mkdtempSync(join(tmpdir(), 'sidecut-bun-bin-'));
+  scratch.push(binDir);
+  const log = join(binDir, 'calls.log');
+  const bunBin = join(binDir, 'bun');
+  writeFileSync(bunBin, `#!/bin/sh\necho "bun:$*" >> "${log}"\n`);
+  chmodSync(bunBin, 0o755);
+
+  const synced = spawnSync(
+    process.execPath,
+    [join(import.meta.dirname, '..', 'scripts', 'sync.ts'), root],
+    {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ''}` },
+    },
+  );
+  expect(synced.status, synced.stderr).toBe(0);
+  expect(readFileSync(log, 'utf8').trim()).toBe('bun:install');
+  expect(existsSync(join(root, 'package-lock.json'))).toBe(false);
+  const updatedPkg = JSON.parse(read(root, 'package.json'));
+  expect(updatedPkg.packageManager).toBe('bun@1.4.5');
+  expect(updatedPkg.devDependencies['sidecut-agentskills']).toBe(
+    `github:SidecutStudio/sidecut-agentskills#v${ownVersion}`,
   );
 });

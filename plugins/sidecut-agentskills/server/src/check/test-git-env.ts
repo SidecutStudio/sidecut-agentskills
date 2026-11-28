@@ -4,6 +4,7 @@
 // neither the code, what it imports, nor the test preload drops those variables first.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
+import { repoFiles } from './docs.ts';
 import type { Report } from './report.ts';
 
 const SKIP = new Set([
@@ -113,15 +114,10 @@ function isTest(path: string): boolean {
   );
 }
 
-function codeFiles(root: string, dir = ''): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(join(root, dir), { withFileTypes: true })) {
-    if (SKIP.has(entry.name)) continue;
-    const path = dir ? `${dir}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) out.push(...codeFiles(root, path));
-    else if (entry.isFile() && CODE.test(entry.name)) out.push(path);
-  }
-  return out;
+function codeFiles(root: string): string[] {
+  return repoFiles(root).filter(
+    (file) => CODE.test(file) && !file.split('/').some((part) => SKIP.has(part)),
+  );
 }
 
 /** The repo files `file` imports by a relative path. */

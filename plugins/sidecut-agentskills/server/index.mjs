@@ -21589,7 +21589,6 @@ var StdioServerTransport = class {
 };
 
 // plugins/sidecut-agentskills/server/src/check/repo.ts
-import { spawnSync as spawnSync4 } from "node:child_process";
 import { existsSync as existsSync14, lstatSync as lstatSync4, readdirSync as readdirSync9, readFileSync as readFileSync14, realpathSync as realpathSync3 } from "node:fs";
 import { join as join14 } from "node:path";
 
@@ -21864,12 +21863,16 @@ var ADVISORY_CODES = [
   "SKILL_LENGTH",
   "REF_LENGTH",
   "SKILL_DESCRIPTION_LENGTH",
+  "SKILL_DESCRIPTION_SHAPE",
   "SCAN_TEXT",
   "SKILL_LONG_STEP",
   "SKILL_REPEATED_TEXT",
   "DEAD_ORPHAN",
+  "DEAD_POINTER",
   "BLOAT_LINES",
   "BLOAT_SMALL_REF",
+  "AGENTS_BUDGET",
+  "STALE_DATED",
   "COPY_WEAK",
   "OWNED_PORT"
 ];
@@ -21997,6 +22000,15 @@ var SIDECUT_RETIRED = [
     use: "Sidecut Solo"
   },
   { re: /(?<![\w/.@-])Ship Properly(?![\w/-])/g, name: "Ship Properly", use: "Sidecut Solo" }
+];
+var PUBLIC_SIDECUT_REPOS = /* @__PURE__ */ new Set(["sidecut-agentskills", "sidecut-solo"]);
+var SIDECUT_RUNNER_HOST_PATTERNS = [
+  /\bsidecut-linux-x64-\d+\b/g,
+  /\bafter[-]nine-mac-ci\b/g
+];
+var SIDECUT_PRIVATE_GITHUB_LINK = /(?:https?:\/\/(?:raw\.githubusercontent\.com|github\.com)\/|git@github\.com:)(SidecutStudio|SidecutDev)\/([A-Za-z0-9._-]+)/gi;
+var SIDECUT_PRIVATE_SITE_PATTERNS = [
+  /https?:\/\/linear\.app\/sidecutstudio(?:\/[^\s"'`),;]*)?/gi
 ];
 
 // plugins/sidecut-agentskills/server/src/ci-snippets.ts
@@ -22890,6 +22902,57 @@ import { basename as basename3, join as join7 } from "node:path";
 import { spawnSync as spawnSync2 } from "node:child_process";
 import { existsSync as existsSync5, readFileSync as readFileSync5, realpathSync as realpathSync2 } from "node:fs";
 import { basename as basename2, dirname as dirname3, isAbsolute as isAbsolute3, join as join5, resolve } from "node:path";
+function readGitignore(root) {
+  const path = join5(root, ".gitignore");
+  if (!existsSync5(path)) return [];
+  return readFileSync5(path, "utf8").split("\n").map((line) => line.trim()).filter((line) => line !== "" && !line.startsWith("#") && !line.startsWith("!"));
+}
+function ignoredBy(patterns, path) {
+  const name = basename2(path);
+  return patterns.some((p) => {
+    const clean = p.replace(/^\//, "").replace(/\/$/, "");
+    if (!clean) return false;
+    const target = clean.includes("/") ? path : name;
+    if (clean.includes("*"))
+      return new RegExp(
+        `^${clean.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`
+      ).test(target);
+    return clean === target;
+  });
+}
+function jobsOf(workflow) {
+  const lines = workflow.split("\n").map((line) => line.replace(/(^|\s+)#.*$/, ""));
+  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  if (start < 0) return [];
+  const jobs = [];
+  let jobIndent = -1;
+  let keyIndent = -1;
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === "") continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) break;
+    if (jobIndent < 0) jobIndent = indent;
+    const key = /^\s*(["']?)([A-Za-z0-9_-]+)\1:\s*(.*)$/.exec(line);
+    if (indent === jobIndent) {
+      jobs.push({ name: key?.[2] ?? line.trim(), runsOn: void 0 });
+      keyIndent = -1;
+    } else if (indent > jobIndent) {
+      if (keyIndent < 0) keyIndent = indent;
+      const job = jobs.at(-1);
+      if (indent === keyIndent && key?.[2] === "runs-on" && job) {
+        job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, "");
+      }
+      if (indent === keyIndent && key?.[2] === "name" && job) {
+        job.title = key[3]?.trim().replace(/^['"]|['"]$/g, "");
+      }
+    }
+  }
+  return jobs;
+}
+function isHostedOnly(workflow) {
+  const jobs = jobsOf(workflow);
+  return jobs.length > 0 && jobs.every((job) => job.runsOn === "ubuntu-24.04");
+}
 function git(root, ...args) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_"))
@@ -22906,6 +22969,10 @@ function repoName(root) {
   const url2 = git(root, "remote", "get-url", "origin")?.trim() ?? "";
   const fromUrl = /[/:]([\w.-]+?)(?:\.git)?$/.exec(url2)?.[1];
   return fromUrl ?? basename2(root);
+}
+function repoOwner(root) {
+  const url2 = git(root, "remote", "get-url", "origin")?.trim() ?? "";
+  return /github\.com[/:]([\w.-]+)\//.exec(url2)?.[1] ?? "";
 }
 function repoFolders(root) {
   const found = /* @__PURE__ */ new Set();
@@ -23129,13 +23196,18 @@ var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build"
 var TEXT = /\.(md|mdx|markdown|txt|html?|astro|ts|tsx|js|mjs|cjs|jsx|json|toml|ya?ml|css|sh)$/i;
 var MARKDOWN = /\.(md|mdx|markdown)$/i;
 var PROSE = /\.(md|mdx|markdown|txt|html?|astro)$/i;
+var CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/i;
 function repoFiles(root) {
   const tracked = trackedFiles(root);
   if (tracked) return tracked.filter((file) => lstatSync2(join7(root, file)).isFile());
+  const gitignore = readGitignore(root);
   const walk = (dir) => readdirSync4(join7(root, dir), { withFileTypes: true }).flatMap((entry) => {
     const path = dir ? `${dir}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) return SKIP_DIRS.has(entry.name) ? [] : walk(path);
-    return entry.isFile() ? [path] : [];
+    if (entry.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name) || ignoredBy(gitignore, path)) return [];
+      return walk(path);
+    }
+    return entry.isFile() && !ignoredBy(gitignore, path) ? [path] : [];
   });
   return walk("");
 }
@@ -23148,7 +23220,7 @@ function isHistoryOrTest(file) {
 }
 function isPublicCopy(file, kind) {
   if (/(^|\/)README[^/]*\.mdx?$/i.test(file)) return true;
-  return kind === "site" && /^(src|content|public|pages)\//.test(file) && PROSE.test(file);
+  return kind === "site" && (/^(?:web\/)?(src|content|public|pages|app)\//.test(file) || /^(?:web\/)?index\.html$/.test(file)) && PROSE.test(file);
 }
 function read(root, file) {
   try {
@@ -23193,6 +23265,7 @@ function checkDocs(root, kind, fleet, report) {
   checkSmallRefs(markdown, report);
   checkDuplicates(root, markdown, report);
   checkCopy(texts, kind, report);
+  checkLeaks(root, kind, texts, fleet, report);
   checkOwnedFacts(root, markdown, fleet, report);
 }
 function checkRetired(texts, report) {
@@ -23382,6 +23455,165 @@ function checkCopy(texts, kind, report) {
     });
   }
 }
+function isPublicRepository(root) {
+  const check = join7(root, ".github", "workflows", "check.yml");
+  const hostedOnly = existsSync7(check) && isHostedOnly(readFileSync6(check, "utf8"));
+  const s = current();
+  return s.workflow === "solo" ? hostedOnly : !s.marketplace || hostedOnly;
+}
+function isShippedOrPublic(file, kind, isPublicRepo) {
+  if (isPublicRepo) return true;
+  if (file.startsWith("plugins/")) return true;
+  if (kind === "site")
+    return /^(?:web\/)?(?:src|content|public|pages|app)\//.test(file) || /^(?:web\/)?index\.html$/.test(file) || /(^|\/)README[^/]*\.mdx?$/i.test(file);
+  if (kind === "app") return /^(?:web\/)?(?:src|content|public|pages|app)\//.test(file);
+  return false;
+}
+function isSidecutProfileFile(file) {
+  return file === "plugins/sidecut-agentskills/server/src/sidecut-profile.ts" || file === "plugins/sidecut-agentskills/server/data/profiles/sidecut.md" || file.startsWith("plugins/sidecut-agentskills/server/data/templates/ci/sidecut/") || file.startsWith("plugins/sidecut-agentskills/server/data/templates/solo/");
+}
+function isGeneratedBundleOrLock(file, generated) {
+  return generated.has(file) || file === "package-lock.json" || /^plugins\/[^/]+\/server\/(?:index\.mjs|THIRD_PARTY_LICENSES\.txt)$/.test(file) || /^plugins\/[^/]+\/codex\/agents\//.test(file);
+}
+var HOME_PATH_PATTERNS = [
+  /(?:^|[\s"'`(=:,]|file:\/\/)(\/Users\/(?!<)[A-Za-z0-9._-]+)(?=\/|[\s"'`),;:]|$)/g,
+  /(?:^|[\s"'`(=:,])(~\/(?:Developer|Desktop|Documents|Downloads)\/(?!<)[^\s"'`),;]+)/g,
+  /(?:^|[\s"'`(=:,]|file:\/\/)(\/home\/(?!<|runner\/)[a-z][a-z0-9._-]*\/[^\s"'`),;]*)/g,
+  /(?:^|[\s"'`(=:,])([A-Za-z]:\\{1,2}Users\\{1,2}(?!<)[A-Za-z0-9._-]+\\{1,2}[^\s"'`),;]*)/g
+];
+var LOCAL_HOST_PATTERNS = [
+  /(?:^|[\s"'`(=:@/])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.(?:ts\.net|home\.arpa))(?![.\w-])/gi,
+  /(?:https?:\/\/|wss?:\/\/|ssh:\/\/|[\w-]+@)([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=[:/\s"'`),;]|$)/gi,
+  /(?<![.\w-])([a-z0-9]+(?:-[a-z0-9]+)+\.local|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.orb\.local)(?![.\w-])/gi
+];
+var PROSE_LOCAL_HOST = /(?<![.\w-])([a-z0-9][a-z0-9-]*\.local)(?![.\w-])/gi;
+var PRIVATE_SITE_PATTERNS = [
+  ...SIDECUT_PRIVATE_SITE_PATTERNS,
+  /https?:\/\/lovable\.dev\/projects\/[^\s"'`),;]+/gi,
+  /https?:\/\/[a-z0-9-]+-[a-z0-9]{9}-[a-z0-9-]+\.vercel\.app\b[^\s"'`),;]*/gi,
+  /https?:\/\/[a-z0-9.-]+\.internal\b[^\s"'`),;]*/gi,
+  /https?:\/\/(?:10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+)(?::\d+)?[^\s"'`),;]*/g
+];
+function effectiveRepoName(root) {
+  if (repoOwner(root)) return repoName(root);
+  const pluginsDir = join7(root, "plugins");
+  if (existsSync7(pluginsDir)) {
+    const ids = readdirSync4(pluginsDir).filter((n) => n !== ".DS_Store");
+    if (ids.length === 1 && ids[0]) {
+      try {
+        const manifest2 = JSON.parse(
+          readFileSync6(join7(pluginsDir, ids[0], ".claude-plugin", "plugin.json"), "utf8")
+        );
+        const fromManifest = /\/([\w.-]+?)(?:\.git)?$/.exec(String(manifest2.repository ?? ""))?.[1];
+        if (fromManifest) return fromManifest;
+      } catch {
+      }
+    }
+  }
+  return repoName(root);
+}
+function runnerHostnames(fleet) {
+  const owner = fleet?.owners.get("runners");
+  if (!fleet || !owner || owner.repo === "*") return { owner: "", names: [] };
+  const text2 = fleet.read(owner.repo, owner.path);
+  if (!text2) return { owner: owner.repo, names: [] };
+  try {
+    const data = JSON.parse(text2);
+    const raw = [
+      ...data.host_runners?.names ?? [],
+      ...data.windows_runner?.names ?? [],
+      ...data.windows_runner?.light_runners ?? [],
+      ...(data.repo_runners ?? []).map((r) => r.name)
+    ];
+    return {
+      owner: owner.repo,
+      names: [...new Set(raw.filter((v) => typeof v === "string" && v.length > 0))]
+    };
+  } catch {
+    return { owner: owner.repo, names: [] };
+  }
+}
+function checkLeaks(root, kind, texts, fleet, report) {
+  const generated = generatedFiles(root);
+  const isPublicRepo = isPublicRepository(root);
+  const me = effectiveRepoName(root);
+  const runners = runnerHostnames(fleet);
+  const checkRunnerHosts = kind !== "ops" && me !== runners.owner;
+  const fleetRunnerRe = checkRunnerHosts && runners.names.length > 0 ? new RegExp(`\\b(${runners.names.map(escapeRegExp).join("|")})\\b`, "g") : null;
+  for (const t of texts) {
+    if (isHistoryOrTest(t.file) || isGeneratedBundleOrLock(t.file, generated)) continue;
+    const profileFile = isSidecutProfileFile(t.file);
+    const shippedOrPublic = isShippedOrPublic(t.file, kind, isPublicRepo);
+    const checkProseLocal = !CODE_FILE.test(t.file);
+    t.text.split("\n").forEach((line, i) => {
+      for (const re of HOME_PATH_PATTERNS) {
+        re.lastIndex = 0;
+        for (const m of line.matchAll(re)) {
+          const hit = m[1] ?? m[0];
+          if (kind === "ops" && /^\/home\/ci-(?:admin|runner)\//.test(hit)) continue;
+          report.add(
+            "LEAK_PATH",
+            t.file,
+            i + 1,
+            `Hard-coded home-directory path "${hit}" only works on one machine.`,
+            "Use a relative path, environment variable or placeholder instead."
+          );
+          break;
+        }
+      }
+      const hostPatterns = [
+        ...LOCAL_HOST_PATTERNS,
+        ...checkProseLocal ? [PROSE_LOCAL_HOST] : [],
+        ...checkRunnerHosts && !profileFile ? SIDECUT_RUNNER_HOST_PATTERNS : [],
+        ...fleetRunnerRe && !profileFile ? [fleetRunnerRe] : []
+      ];
+      for (const re of hostPatterns) {
+        re.lastIndex = 0;
+        const m = re.exec(line);
+        if (m) {
+          report.add(
+            "LEAK_HOSTNAME",
+            t.file,
+            i + 1,
+            `Names local machine or runner hostname "${m[1] ?? m[0]}".`,
+            "Remove the machine or runner hostname from committed files."
+          );
+          break;
+        }
+      }
+      if (!shippedOrPublic || profileFile) return;
+      SIDECUT_PRIVATE_GITHUB_LINK.lastIndex = 0;
+      for (const m of line.matchAll(SIDECUT_PRIVATE_GITHUB_LINK)) {
+        const repo = (m[2] ?? "").replace(/\.git$/i, "");
+        if (!repo || PUBLIC_SIDECUT_REPOS.has(repo)) continue;
+        if (isPublicRepo && repo === me) continue;
+        if (!isPublicRepo && kind !== "site" && repo === me) continue;
+        report.add(
+          "LEAK_LINK",
+          t.file,
+          i + 1,
+          `Links to private repository "${m[1]}/${repo}" in a file that ships or is public.`,
+          "Link only to public repositories or move the reference to internal docs."
+        );
+        break;
+      }
+      for (const re of PRIVATE_SITE_PATTERNS) {
+        re.lastIndex = 0;
+        const m = re.exec(line);
+        if (m) {
+          report.add(
+            "LEAK_LINK",
+            t.file,
+            i + 1,
+            `Links to private or internal site "${m[0]}" in a file that ships or is public.`,
+            "Use a public URL or move the link to internal docs."
+          );
+          break;
+        }
+      }
+    });
+  }
+}
 function namesOf(repo, prefix) {
   const short = prefix && repo.startsWith(prefix) ? repo.slice(prefix.length) : repo;
   const title = short.split("-").map((w) => w.length <= 2 ? w.toUpperCase() : `${w[0]?.toUpperCase()}${w.slice(1)}`).join(" ");
@@ -23548,15 +23780,20 @@ function readJson(path) {
 }
 var SITE_TOOLS = ["astro", "next", "@docusaurus/core", "vitepress", "@11ty/eleventy"];
 function repoKind(root, fleet, ships, report) {
-  const pkg = readJson(join8(root, "package.json"));
-  const declared = packageConfig(pkg).kind;
-  if (declared !== void 0) {
+  const rootPkg = readJson(join8(root, "package.json"));
+  const webPkg = readJson(join8(root, "web", "package.json"));
+  for (const [file, pkg2] of [
+    ["package.json", rootPkg],
+    ["web/package.json", webPkg]
+  ]) {
+    const declared = packageConfig(pkg2).kind;
+    if (declared === void 0) continue;
     if (KINDS.includes(declared)) return { kind: declared, how: "declared" };
     report.add(
       "REPO_KIND",
-      "package.json",
+      file,
       void 0,
-      `The kind in package.json is "${String(declared)}", which isn't a repo kind.`,
+      `The kind in ${file} is "${String(declared)}", which isn't a repo kind.`,
       `Use one of ${KINDS.join(", ")}.`
     );
   }
@@ -23567,9 +23804,18 @@ function repoKind(root, fleet, ships, report) {
   if (existsSync8(join8(root, "bundled")) || (market?.plugins ?? []).length > 1)
     return { kind: "marketplace", how: "inferred" };
   if (existsSync8(join8(root, ".github", "actions"))) return { kind: "ops", how: "inferred" };
-  if (!pkg) return { kind: "data", how: "inferred" };
+  const hasSitemap = existsSync8(join8(root, "public", "sitemap.xml")) || existsSync8(join8(root, "web", "public", "sitemap.xml"));
+  const pkg = rootPkg ?? webPkg;
+  if (!pkg) {
+    if (hasSitemap || existsSync8(join8(root, "web", "index.html")))
+      return { kind: "site", how: "inferred" };
+    return { kind: "data", how: "inferred" };
+  }
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-  if (SITE_TOOLS.some((tool) => tool in deps)) return { kind: "site", how: "inferred" };
+  if (SITE_TOOLS.some((tool) => tool in deps) || hasSitemap)
+    return { kind: "site", how: "inferred" };
+  if (!rootPkg && webPkg && !existsSync8(join8(root, "backend")) && !existsSync8(join8(root, "server")) && !existsSync8(join8(root, "api")))
+    return { kind: "site", how: "inferred" };
   return { kind: "app", how: "inferred" };
 }
 function kindTemplate(kind) {
@@ -25505,6 +25751,9 @@ function newer(a, b) {
   for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
   return false;
 }
+function usesBun(root) {
+  return (existsSync12(join12(root, "bun.lock")) || existsSync12(join12(root, "bun.lockb"))) && !existsSync12(join12(root, "package-lock.json"));
+}
 function planPackage(root, vars, pinOnly) {
   const path = join12(root, "package.json");
   if (!existsSync12(path)) return null;
@@ -25520,7 +25769,7 @@ function planPackage(root, vars, pinOnly) {
   );
   const raised = [];
   const npm = (s) => String(s ?? "").replace(/^npm@/, "");
-  if (!pinOnly && newer(npm(template.packageManager), npm(pkg.packageManager))) {
+  if (!pinOnly && !usesBun(root) && newer(npm(template.packageManager), npm(pkg.packageManager))) {
     pkg.packageManager = template.packageManager;
     raised.push(template.packageManager);
   }
@@ -25809,15 +26058,10 @@ function isTest(path) {
   const parts = path.split("/");
   return parts.slice(0, -1).some((p) => p === "test" || p === "tests" || p === "__tests__") || /\.(?:test|spec)\.[^/]+$/.test(path);
 }
-function codeFiles(root, dir = "") {
-  const out = [];
-  for (const entry of readdirSync8(join13(root, dir), { withFileTypes: true })) {
-    if (SKIP.has(entry.name)) continue;
-    const path = dir ? `${dir}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) out.push(...codeFiles(root, path));
-    else if (entry.isFile() && CODE.test(entry.name)) out.push(path);
-  }
-  return out;
+function codeFiles(root) {
+  return repoFiles(root).filter(
+    (file) => CODE.test(file) && !file.split("/").some((part) => SKIP.has(part))
+  );
 }
 function importsOf(root, file, text2) {
   const specs = [
@@ -25946,21 +26190,6 @@ function inOrder2(script, steps) {
   return at === steps.length;
 }
 var AGENTS_SECTIONS = ["Commands", "Layout", "Rules"];
-function ignoredBy(patterns, name) {
-  return patterns.some((p) => {
-    const clean = p.replace(/\/$/, "");
-    if (clean.includes("*"))
-      return new RegExp(`^${clean.replace(/\./g, "\\.").replace(/\*/g, ".*")}$`).test(name);
-    return clean === name;
-  });
-}
-function git2(root, ...args) {
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_"))
-  );
-  const result = spawnSync4("git", args, { cwd: root, env, encoding: "utf8" });
-  return result.status === 0 ? result.stdout : void 0;
-}
 var isRealDir = (path) => {
   const stat = lstatSync4(path);
   return stat.isDirectory() && !stat.isSymbolicLink();
@@ -25969,11 +26198,11 @@ var HOST_FOLDERS = [".claude", ".codex"];
 function onlyHostState(root, folder) {
   const dir = join14(root, folder);
   if (!isRealDir(dir)) return false;
-  const top = git2(root, "rev-parse", "--show-toplevel")?.trim();
+  const top = git(root, "rev-parse", "--show-toplevel")?.trim();
   if (!top || realpathSync3(top) !== realpathSync3(root)) return false;
-  if (git2(root, "ls-files", "-z", "--", folder) !== "") return false;
+  if (git(root, "ls-files", "-z", "--", folder) !== "") return false;
   const registered = new Set(
-    (git2(root, "worktree", "list", "--porcelain", "-z") ?? "").split("\0").filter((line) => line.startsWith("worktree ")).flatMap((line) => {
+    (git(root, "worktree", "list", "--porcelain", "-z") ?? "").split("\0").filter((line) => line.startsWith("worktree ")).flatMap((line) => {
       const path = line.slice("worktree ".length);
       return existsSync14(path) ? [realpathSync3(path)] : [];
     })
@@ -25984,7 +26213,7 @@ function onlyHostState(root, folder) {
       return readdirSync9(path).every(
         (tree) => isRealDir(join14(path, tree)) && registered.has(realpathSync3(join14(path, tree)))
       );
-    return git2(root, "check-ignore", "-q", "--", `${folder}/${name}`) !== void 0;
+    return git(root, "check-ignore", "-q", "--", `${folder}/${name}`) !== void 0;
   });
 }
 function checkCheckerVersion(root, report) {
@@ -26009,9 +26238,11 @@ function checkCheckerVersion(root, report) {
     );
 }
 function checkTopLevel(root, report) {
-  const gitignore = existsSync14(join14(root, ".gitignore")) ? readFileSync14(join14(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
+  const gitignore = readGitignore(root);
+  const top = git(root, "rev-parse", "--show-toplevel")?.trim();
+  const inGit = Boolean(top && realpathSync3(top) === realpathSync3(root));
   const entries = readdirSync9(root).filter(
-    (n) => !ignoredBy(gitignore, n) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n))
+    (n) => !ignoredBy(gitignore, n) && !(inGit && git(root, "check-ignore", "-q", "--", n) !== void 0) && !(HOST_FOLDERS.includes(n) && onlyHostState(root, n))
   );
   for (const name of entries) {
     if (!REQUIRED_ENTRIES.includes(name) && !OPTIONAL_ENTRIES.includes(name)) {
@@ -26304,10 +26535,6 @@ function bunlessToolSteps(workflow) {
   }
   return found;
 }
-function isHostedOnly(workflow) {
-  const jobs = jobsOf(workflow);
-  return jobs.length > 0 && jobs.every((job) => job.runsOn === "ubuntu-24.04");
-}
 function filesUnder(root, dir, ignored) {
   const path = join14(root, dir);
   if (!existsSync14(path)) return [];
@@ -26322,7 +26549,7 @@ function checkInstallSource(root, id, repo, report) {
   const hostedOnly = existsSync14(check) && isHostedOnly(readFileSync14(check, "utf8"));
   const hasOwn = MARKETPLACES.some((file) => existsSync14(join14(root, file)));
   const isPublic = !s.marketplace || hostedOnly;
-  const gitignore = existsSync14(join14(root, ".gitignore")) ? readFileSync14(join14(root, ".gitignore"), "utf8").split("\n").filter(Boolean) : [];
+  const gitignore = readGitignore(root);
   const found = [".claude-plugin", ".agents"].flatMap((dir) => filesUnder(root, dir, gitignore));
   const extra = found.filter((f) => !MARKETPLACES.includes(f));
   for (const file of extra)
@@ -26423,35 +26650,6 @@ function checkInstallSource(root, id, repo, report) {
       "Use the public install steps from the house style's Install source section."
     );
 }
-function jobsOf(workflow) {
-  const lines = workflow.split("\n").map((line) => line.replace(/(^|\s+)#.*$/, ""));
-  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
-  if (start < 0) return [];
-  const jobs = [];
-  let jobIndent = -1;
-  let keyIndent = -1;
-  for (const line of lines.slice(start + 1)) {
-    if (line.trim() === "") continue;
-    const indent = line.length - line.trimStart().length;
-    if (indent === 0) break;
-    if (jobIndent < 0) jobIndent = indent;
-    const key = /^\s*(["']?)([A-Za-z0-9_-]+)\1:\s*(.*)$/.exec(line);
-    if (indent === jobIndent) {
-      jobs.push({ name: key?.[2] ?? line.trim(), runsOn: void 0 });
-      keyIndent = -1;
-    } else if (indent > jobIndent) {
-      if (keyIndent < 0) keyIndent = indent;
-      const job = jobs.at(-1);
-      if (indent === keyIndent && key?.[2] === "runs-on" && job) {
-        job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, "");
-      }
-      if (indent === keyIndent && key?.[2] === "name" && job) {
-        job.title = key[3]?.trim().replace(/^['"]|['"]$/g, "");
-      }
-    }
-  }
-  return jobs;
-}
 function checkSolo(root, report) {
   if (current().workflow !== "solo") return;
   const path = join14(root, SOLO_FILE);
@@ -26515,7 +26713,7 @@ function identify(root) {
   const plugins = existsSync14(pluginsDir) ? readdirSync9(pluginsDir).filter((n) => n !== ".DS_Store") : [];
   const only = plugins.length === 1 ? plugins[0] ?? "" : "";
   const manifest2 = readJson3(join14(pluginsDir, only, ".claude-plugin", "plugin.json"));
-  const pkg = readJson3(join14(root, "package.json"));
+  const pkg = existsSync14(join14(root, "package.json")) ? readJson3(join14(root, "package.json")) : readJson3(join14(root, "web", "package.json"));
   const settings = repoSettings(root);
   const owner = settings.org ? escapeRegExp(settings.org) : "[\\w.-]+";
   const repo = new RegExp(`^https:\\/\\/github\\.com\\/${owner}\\/([\\w.-]+)$`).exec(

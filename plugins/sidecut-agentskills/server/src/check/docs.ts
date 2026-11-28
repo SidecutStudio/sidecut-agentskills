@@ -4,8 +4,24 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { current, escapeRegExp } from '../settings.ts';
-import { SIDECUT_RETIRED, SOLO_FILE } from '../sidecut-profile.ts';
-import { type Fleet, readToml, repoName, trackedFiles } from './fleet.ts';
+import {
+  PUBLIC_SIDECUT_REPOS,
+  SIDECUT_PRIVATE_GITHUB_LINK,
+  SIDECUT_PRIVATE_SITE_PATTERNS,
+  SIDECUT_RETIRED,
+  SIDECUT_RUNNER_HOST_PATTERNS,
+  SOLO_FILE,
+} from '../sidecut-profile.ts';
+import {
+  type Fleet,
+  ignoredBy,
+  isHostedOnly,
+  readGitignore,
+  readToml,
+  repoName,
+  repoOwner,
+  trackedFiles,
+} from './fleet.ts';
 import type { Kind } from './kinds.ts';
 import { checkLinks, parseMarkdown, prose } from './markdown.ts';
 import type { Report } from './report.ts';
@@ -14,16 +30,21 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', '.o
 const TEXT = /\.(md|mdx|markdown|txt|html?|astro|ts|tsx|js|mjs|cjs|jsx|json|toml|ya?ml|css|sh)$/i;
 const MARKDOWN = /\.(md|mdx|markdown)$/i;
 const PROSE = /\.(md|mdx|markdown|txt|html?|astro)$/i;
+const CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/i;
 
 /** Every file in the repo: git's tracked and unignored files, or a walk when it isn't a checkout. */
 export function repoFiles(root: string): string[] {
   const tracked = trackedFiles(root);
   if (tracked) return tracked.filter((file) => lstatSync(join(root, file)).isFile());
+  const gitignore = readGitignore(root);
   const walk = (dir: string): string[] =>
     readdirSync(join(root, dir), { withFileTypes: true }).flatMap((entry) => {
       const path = dir ? `${dir}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) return SKIP_DIRS.has(entry.name) ? [] : walk(path);
-      return entry.isFile() ? [path] : [];
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name) || ignoredBy(gitignore, path)) return [];
+        return walk(path);
+      }
+      return entry.isFile() && !ignoredBy(gitignore, path) ? [path] : [];
     });
   return walk('');
 }
@@ -54,7 +75,12 @@ export function isHistoryOrTest(file: string): boolean {
 /** Text people read about the product outside the repo: READMEs, and a site's pages. */
 function isPublicCopy(file: string, kind: Kind): boolean {
   if (/(^|\/)README[^/]*\.mdx?$/i.test(file)) return true;
-  return kind === 'site' && /^(src|content|public|pages)\//.test(file) && PROSE.test(file);
+  return (
+    kind === 'site' &&
+    (/^(?:web\/)?(src|content|public|pages|app)\//.test(file) ||
+      /^(?:web\/)?index\.html$/.test(file)) &&
+    PROSE.test(file)
+  );
 }
 
 type Text = { file: string; text: string };
@@ -123,6 +149,7 @@ export function checkDocs(root: string, kind: Kind, fleet: Fleet | null, report:
   checkSmallRefs(markdown, report);
   checkDuplicates(root, markdown, report);
   checkCopy(texts, kind, report);
+  checkLeaks(root, kind, texts, fleet, report);
   checkOwnedFacts(root, markdown, fleet, report);
 }
 
@@ -346,6 +373,205 @@ function checkCopy(texts: Text[], kind: Kind, report: Report): void {
           `"${weak[1]}" is a stock phrase or a hedge.`,
           'Say the specific thing it stands for, or cut it.',
         );
+    });
+  }
+}
+
+function isPublicRepository(root: string): boolean {
+  const check = join(root, '.github', 'workflows', 'check.yml');
+  const hostedOnly = existsSync(check) && isHostedOnly(readFileSync(check, 'utf8'));
+  const s = current();
+  return s.workflow === 'solo' ? hostedOnly : !s.marketplace || hostedOnly;
+}
+
+function isShippedOrPublic(file: string, kind: Kind, isPublicRepo: boolean): boolean {
+  if (isPublicRepo) return true;
+  if (file.startsWith('plugins/')) return true;
+  if (kind === 'site')
+    return (
+      /^(?:web\/)?(?:src|content|public|pages|app)\//.test(file) ||
+      /^(?:web\/)?index\.html$/.test(file) ||
+      /(^|\/)README[^/]*\.mdx?$/i.test(file)
+    );
+  if (kind === 'app') return /^(?:web\/)?(?:src|content|public|pages|app)\//.test(file);
+  return false;
+}
+
+function isSidecutProfileFile(file: string): boolean {
+  return (
+    file === 'plugins/sidecut-agentskills/server/src/sidecut-profile.ts' ||
+    file === 'plugins/sidecut-agentskills/server/data/profiles/sidecut.md' ||
+    file.startsWith('plugins/sidecut-agentskills/server/data/templates/ci/sidecut/') ||
+    file.startsWith('plugins/sidecut-agentskills/server/data/templates/solo/')
+  );
+}
+
+function isGeneratedBundleOrLock(file: string, generated: Set<string>): boolean {
+  return (
+    generated.has(file) ||
+    file === 'package-lock.json' ||
+    /^plugins\/[^/]+\/server\/(?:index\.mjs|THIRD_PARTY_LICENSES\.txt)$/.test(file) ||
+    /^plugins\/[^/]+\/codex\/agents\//.test(file)
+  );
+}
+
+const HOME_PATH_PATTERNS = [
+  /(?:^|[\s"'`(=:,]|file:\/\/)(\/Users\/(?!<)[A-Za-z0-9._-]+)(?=\/|[\s"'`),;:]|$)/g,
+  /(?:^|[\s"'`(=:,])(~\/(?:Developer|Desktop|Documents|Downloads)\/(?!<)[^\s"'`),;]+)/g,
+  /(?:^|[\s"'`(=:,]|file:\/\/)(\/home\/(?!<|runner\/)[a-z][a-z0-9._-]*\/[^\s"'`),;]*)/g,
+  /(?:^|[\s"'`(=:,])([A-Za-z]:\\{1,2}Users\\{1,2}(?!<)[A-Za-z0-9._-]+\\{1,2}[^\s"'`),;]*)/g,
+];
+
+const LOCAL_HOST_PATTERNS = [
+  /(?:^|[\s"'`(=:@/])([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.(?:ts\.net|home\.arpa))(?![.\w-])/gi,
+  /(?:https?:\/\/|wss?:\/\/|ssh:\/\/|[\w-]+@)([a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9-]+)*\.local)(?=[:/\s"'`),;]|$)/gi,
+  /(?<![.\w-])([a-z0-9]+(?:-[a-z0-9]+)+\.local|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.orb\.local)(?![.\w-])/gi,
+];
+const PROSE_LOCAL_HOST = /(?<![.\w-])([a-z0-9][a-z0-9-]*\.local)(?![.\w-])/gi;
+
+const PRIVATE_SITE_PATTERNS = [
+  ...SIDECUT_PRIVATE_SITE_PATTERNS,
+  /https?:\/\/lovable\.dev\/projects\/[^\s"'`),;]+/gi,
+  /https?:\/\/[a-z0-9-]+-[a-z0-9]{9}-[a-z0-9-]+\.vercel\.app\b[^\s"'`),;]*/gi,
+  /https?:\/\/[a-z0-9.-]+\.internal\b[^\s"'`),;]*/gi,
+  /https?:\/\/(?:10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+)(?::\d+)?[^\s"'`),;]*/g,
+];
+
+function effectiveRepoName(root: string): string {
+  if (repoOwner(root)) return repoName(root);
+  const pluginsDir = join(root, 'plugins');
+  if (existsSync(pluginsDir)) {
+    const ids = readdirSync(pluginsDir).filter((n) => n !== '.DS_Store');
+    if (ids.length === 1 && ids[0]) {
+      try {
+        const manifest = JSON.parse(
+          readFileSync(join(pluginsDir, ids[0], '.claude-plugin', 'plugin.json'), 'utf8'),
+        ) as { repository?: unknown };
+        const fromManifest = /\/([\w.-]+?)(?:\.git)?$/.exec(String(manifest.repository ?? ''))?.[1];
+        if (fromManifest) return fromManifest;
+      } catch {}
+    }
+  }
+  return repoName(root);
+}
+
+function runnerHostnames(fleet: Fleet | null): { owner: string; names: string[] } {
+  const owner = fleet?.owners.get('runners');
+  if (!fleet || !owner || owner.repo === '*') return { owner: '', names: [] };
+  const text = fleet.read(owner.repo, owner.path);
+  if (!text) return { owner: owner.repo, names: [] };
+  try {
+    const data = JSON.parse(text) as {
+      host_runners?: { names?: unknown[] };
+      windows_runner?: { names?: unknown[]; light_runners?: unknown[] };
+      repo_runners?: { name?: unknown }[];
+    };
+    const raw = [
+      ...(data.host_runners?.names ?? []),
+      ...(data.windows_runner?.names ?? []),
+      ...(data.windows_runner?.light_runners ?? []),
+      ...(data.repo_runners ?? []).map((r) => r.name),
+    ];
+    return {
+      owner: owner.repo,
+      names: [...new Set(raw.filter((v): v is string => typeof v === 'string' && v.length > 0))],
+    };
+  } catch {
+    return { owner: owner.repo, names: [] };
+  }
+}
+
+function checkLeaks(
+  root: string,
+  kind: Kind,
+  texts: Text[],
+  fleet: Fleet | null,
+  report: Report,
+): void {
+  const generated = generatedFiles(root);
+  const isPublicRepo = isPublicRepository(root);
+  const me = effectiveRepoName(root);
+  const runners = runnerHostnames(fleet);
+  const checkRunnerHosts = kind !== 'ops' && me !== runners.owner;
+  const fleetRunnerRe =
+    checkRunnerHosts && runners.names.length > 0
+      ? new RegExp(`\\b(${runners.names.map(escapeRegExp).join('|')})\\b`, 'g')
+      : null;
+
+  for (const t of texts) {
+    if (isHistoryOrTest(t.file) || isGeneratedBundleOrLock(t.file, generated)) continue;
+    const profileFile = isSidecutProfileFile(t.file);
+    const shippedOrPublic = isShippedOrPublic(t.file, kind, isPublicRepo);
+    const checkProseLocal = !CODE_FILE.test(t.file);
+
+    t.text.split('\n').forEach((line, i) => {
+      for (const re of HOME_PATH_PATTERNS) {
+        re.lastIndex = 0;
+        for (const m of line.matchAll(re)) {
+          const hit = m[1] ?? m[0];
+          if (kind === 'ops' && /^\/home\/ci-(?:admin|runner)\//.test(hit)) continue;
+          report.add(
+            'LEAK_PATH',
+            t.file,
+            i + 1,
+            `Hard-coded home-directory path "${hit}" only works on one machine.`,
+            'Use a relative path, environment variable or placeholder instead.',
+          );
+          break;
+        }
+      }
+
+      const hostPatterns = [
+        ...LOCAL_HOST_PATTERNS,
+        ...(checkProseLocal ? [PROSE_LOCAL_HOST] : []),
+        ...(checkRunnerHosts && !profileFile ? SIDECUT_RUNNER_HOST_PATTERNS : []),
+        ...(fleetRunnerRe && !profileFile ? [fleetRunnerRe] : []),
+      ];
+      for (const re of hostPatterns) {
+        re.lastIndex = 0;
+        const m = re.exec(line);
+        if (m) {
+          report.add(
+            'LEAK_HOSTNAME',
+            t.file,
+            i + 1,
+            `Names local machine or runner hostname "${m[1] ?? m[0]}".`,
+            'Remove the machine or runner hostname from committed files.',
+          );
+          break;
+        }
+      }
+
+      if (!shippedOrPublic || profileFile) return;
+      SIDECUT_PRIVATE_GITHUB_LINK.lastIndex = 0;
+      for (const m of line.matchAll(SIDECUT_PRIVATE_GITHUB_LINK)) {
+        const repo = (m[2] ?? '').replace(/\.git$/i, '');
+        if (!repo || PUBLIC_SIDECUT_REPOS.has(repo)) continue;
+        if (isPublicRepo && repo === me) continue;
+        if (!isPublicRepo && kind !== 'site' && repo === me) continue;
+        report.add(
+          'LEAK_LINK',
+          t.file,
+          i + 1,
+          `Links to private repository "${m[1]}/${repo}" in a file that ships or is public.`,
+          'Link only to public repositories or move the reference to internal docs.',
+        );
+        break;
+      }
+      for (const re of PRIVATE_SITE_PATTERNS) {
+        re.lastIndex = 0;
+        const m = re.exec(line);
+        if (m) {
+          report.add(
+            'LEAK_LINK',
+            t.file,
+            i + 1,
+            `Links to private or internal site "${m[0]}" in a file that ships or is public.`,
+            'Use a public URL or move the link to internal docs.',
+          );
+          break;
+        }
+      }
     });
   }
 }

@@ -1824,19 +1824,25 @@ describe('text across the repo', () => {
     expect(next.fixes.filter((f) => f.file === 'docs/shipping.md')).toEqual([]);
   });
 
-  test('a dated "as of" note blocks', () => {
+  test('a dated "as of" note is an advisory and never fails the check', () => {
     const repo = appFolder();
     repo.append('docs/shipping.md', '\nAs of 12 Nov 2026, deploys take a minute.\n');
-    expect(found(run(repo.root))).toEqual(['STALE_DATED docs/shipping.md']);
+    const first = run(repo.root);
+    expect(found(first)).toEqual([]);
+    expect(advised(first)).toEqual(['STALE_DATED docs/shipping.md']);
     repo.edit('docs/shipping.md', (t) => t.replace('As of 12 Nov 2026, d', 'D'));
     repo.append('docs/shipping.md', '\nPrices read on 2026-11-02.\n');
-    expect(found(run(repo.root))).toEqual(['STALE_DATED docs/shipping.md']);
+    const second = run(repo.root);
+    expect(found(second)).toEqual([]);
+    expect(advised(second)).toEqual(['STALE_DATED docs/shipping.md']);
   });
 
-  test('a file that only points somewhere else blocks', () => {
+  test('a file that only points somewhere else is an advisory', () => {
     const repo = appFolder({ 'docs/old.md': '# Old\n\nMoved to [shipping](shipping.md).\n' });
     repo.append('docs/architecture.md', '\nSee [old](old.md).\n');
-    expect(found(run(repo.root))).toEqual(['DEAD_POINTER docs/old.md']);
+    const report = run(repo.root);
+    expect(found(report)).toEqual([]);
+    expect(advised(report)).toEqual(['DEAD_POINTER docs/old.md']);
   });
 
   test('Markdown nothing names is an advisory', () => {
@@ -1848,10 +1854,12 @@ describe('text across the repo', () => {
     expect(advised(run(repo.root))).toEqual([]);
   });
 
-  test('AGENTS.md has a line budget that blocks; other docs get an advisory', () => {
+  test('AGENTS.md and doc line budgets are advisories', () => {
     const repo = appFolder();
     repo.append('AGENTS.md', '\n- A rule.\n'.repeat(120));
-    expect(found(run(repo.root))).toEqual(['AGENTS_BUDGET AGENTS.md']);
+    const agentsReport = run(repo.root);
+    expect(found(agentsReport)).toEqual([]);
+    expect(advised(agentsReport)).toEqual(['AGENTS_BUDGET AGENTS.md']);
     const docs = appFolder();
     docs.append('docs/architecture.md', 'A line.\n'.repeat(510));
     expect(advised(run(docs.root))).toEqual(['BLOAT_LINES docs/architecture.md']);
@@ -2102,5 +2110,187 @@ describe('what the review of the whole-repo rules found', () => {
     });
     expect(out.stderr).not.toContain('ERR_PARSE_ARGS');
     expect(out.status).toBe(0);
+  });
+});
+
+describe('trustworthy blocking vs warning checks', () => {
+  test('a wording finding only warns while a hard-coded home path blocks', () => {
+    const wording = appFolder();
+    wording.append(
+      'docs/architecture.md',
+      '\nThis seamless layer leverages cutting-edge caching. As of 2026-11-12 it runs fast.\n',
+    );
+    const warnOnly = spawnSync(process.execPath, ['scripts/check.ts', wording.root, '--fast'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    expect(warnOnly.status).toBe(0);
+    expect(warnOnly.stdout).toContain('Advisory COPY_WEAK');
+    expect(warnOnly.stdout).toContain('Advisory STALE_DATED');
+    expect(warnOnly.stdout).toContain('House style: no problems.');
+
+    const leaked = appFolder();
+    leaked.write(
+      'plugins/demo/skills/demo-run/SKILL.md',
+      '---\nname: demo-run\ndescription: "Runs the thing."\n---\n\n# Demo Run\n\nRead `/Users/alice/projects/app` or `~/Developer/secret-app`.\n',
+    );
+    const blocked = spawnSync(process.execPath, ['scripts/check.ts', leaked.root, '--fast'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    });
+    expect(blocked.status).toBe(1);
+    expect(blocked.stdout).toContain('LEAK_PATH plugins/demo/skills/demo-run/SKILL.md');
+  });
+
+  test('skill description phrasing is advisory and placeholders or bare ~/Developer pass', () => {
+    const repo = copy();
+    repo.edit(skillMd, (t) =>
+      t.replace(
+        /^description: ".*"$/m,
+        'description: "Verify the plugin connection without trigger wording."',
+      ),
+    );
+    const report = run(repo.root);
+    expect(advised(report)).toContain(`SKILL_DESCRIPTION_SHAPE ${skillMd}`);
+    expect(found(report)).not.toContain(`SKILL_DESCRIPTION_SHAPE ${skillMd}`);
+
+    const clean = appFolder({
+      'docs/architecture.md':
+        '# Architecture\n\nUse `/Users/<you>/Documents/repos` and `~/Developer` as the base.\n',
+    });
+    expect(found(run(clean.root))).toEqual([]);
+  });
+
+  test('local machine and runner hostnames block while .env.local and property access pass', () => {
+    const repo = appFolder({
+      'src/app.ts': 'export const flag = state.local;\nexport const envFile = ".env.local";\n',
+    });
+    expect(found(run(repo.root))).toEqual([]);
+
+    const mdns = appFolder({
+      'docs/shipping.md': '# Shipping\n\nConnect to `my-mac.local:3000`.\n',
+    });
+    expect(found(run(mdns.root))).toEqual(['LEAK_HOSTNAME docs/shipping.md']);
+
+    const ts = appFolder({ 'docs/shipping.md': '# Shipping\n\nSSH to `mac.tail1234.ts.net`.\n' });
+    expect(found(run(ts.root))).toEqual(['LEAK_HOSTNAME docs/shipping.md']);
+
+    const runner = appFolder({
+      'docs/shipping.md': '# Shipping\n\nRuns on `sidecut-linux-x64-5` or `after-nine-mac-ci`.\n',
+    });
+    expect(found(run(runner.root))).toEqual(['LEAK_HOSTNAME docs/shipping.md']);
+
+    const ops = appFolder({
+      'package.json': `${JSON.stringify({ name: 'demo-ops', private: true, sidecut: { kind: 'ops' } })}\n`,
+      'AGENTS.md': `${kindTemplate('ops')}\n`,
+      'docs/shipping.md':
+        '# Shipping\n\nHost `sidecut-linux-x64-5` with `/home/ci-admin/.ssh/keys`.\n',
+    });
+    expect(found(run(ops.root))).toEqual([]);
+  });
+
+  test('links to private repos and private sites block in shipped or public files', () => {
+    const site = appFolder({
+      'package.json': `${JSON.stringify({ name: 'demo-site', private: true, sidecut: { kind: 'site' } })}\n`,
+      'AGENTS.md': `${kindTemplate('site')}\n`,
+      'web/src/links.ts':
+        'export const repo = "https://github.com/SidecutStudio/sidecut-agentskills";\nexport const solo = "https://github.com/SidecutStudio/sidecut-solo";\n',
+      'docs/internal.md':
+        '# Internal\n\nTracked in https://github.com/SidecutStudio/pair-board and https://linear.app/sidecutstudio/issue/PAI-1.\n',
+    });
+    expect(found(run(site.root))).toEqual([]);
+
+    site.append(
+      'web/src/links.ts',
+      'export const leaked = "https://github.com/SidecutStudio/pair-board";\n',
+    );
+    expect(found(run(site.root))).toEqual(['LEAK_LINK web/src/links.ts']);
+
+    const preview = appFolder({
+      'src/app.ts': 'export const url = "https://linear.app/sidecutstudio/issue/PAI-74";\n',
+    });
+    expect(found(run(preview.root))).toEqual(['LEAK_LINK src/app.ts']);
+
+    const lovable = appFolder({
+      'plugins/demo/README.md': '# Demo\n\nEdit at https://lovable.dev/projects/abc123.\n',
+    });
+    expect(found(run(lovable.root))).toContain('LEAK_LINK plugins/demo/README.md');
+  });
+
+  test('repo-kind detection handles web/ sites and sitemaps on a clean checkout', () => {
+    const studioLike = appFolder({
+      'package.json': null,
+      'AGENTS.md': `${kindTemplate('site')}\n`,
+      'web/package.json': `${JSON.stringify({ name: 'studio-web', dependencies: { react: '19.0.0' } })}\n`,
+      'web/public/sitemap.xml': '<urlset/>\n',
+    });
+    const studioKind = repoKind(studioLike.root, null, false, new Report());
+    expect(studioKind).toEqual({ kind: 'site', how: 'inferred' });
+    expect(run(studioLike.root).scope).toContain('as a site repo (guessed from its files)');
+
+    const declaredInWeb = appFolder({
+      'package.json': null,
+      'AGENTS.md': `${kindTemplate('site')}\n`,
+      'web/package.json': `${JSON.stringify({ name: 'studio-web', sidecut: { kind: 'site' } })}\n`,
+    });
+    expect(repoKind(declaredInWeb.root, null, false, new Report())).toEqual({
+      kind: 'site',
+      how: 'declared',
+    });
+
+    const sitemapSite = appFolder({
+      'package.json': `${JSON.stringify({ name: 'sidecut-site', devDependencies: { vite: '8.0.0' } })}\n`,
+      'AGENTS.md': `${kindTemplate('site')}\n`,
+      'public/sitemap.xml': '<urlset/>\n',
+    });
+    expect(repoKind(sitemapSite.root, null, false, new Report())).toEqual({
+      kind: 'site',
+      how: 'inferred',
+    });
+  });
+
+  test('nested git repos ignored by .gitignore are skipped by docs and test-git-env checks', () => {
+    const repo = appFolder({
+      '.gitignore': 'nested-review/\n',
+      'tests/setup.ts':
+        "for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete process.env[key];\n",
+      'vitest.config.ts': "export default { test: { setupFiles: ['tests/setup.ts'] } };\n",
+    });
+    const git = (cwd: string, ...args: string[]) =>
+      spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], {
+        cwd,
+        env: process.env,
+        encoding: 'utf8',
+      });
+    git(repo.root, 'init', '-q');
+    git(repo.root, 'add', '.');
+    git(repo.root, 'commit', '-qm', 'base');
+
+    const nested = join(repo.root, 'nested-review');
+    mkdirSync(join(nested, 'tests'), { recursive: true });
+    writeFileSync(
+      join(nested, 'tests', 'git.test.ts'),
+      "import { execSync } from 'node:child_process';\nexecSync('git status');\n",
+    );
+    writeFileSync(
+      join(nested, 'README.md'),
+      '# Nested\n\nSee /Users/alice/secret and [broken](missing.md).\n',
+    );
+    git(nested, 'init', '-q');
+    git(nested, 'add', '.');
+    git(nested, 'commit', '-qm', 'nested');
+
+    expect(found(run(repo.root))).toEqual([]);
+    expect(advised(run(repo.root))).toEqual([]);
+
+    // Non-git fixture also skips directories ignored by .gitignore.
+    const nonGit = appFolder({
+      '.gitignore': 'scratch-repo/\n',
+      'scratch-repo/.git/HEAD': 'ref: refs/heads/main\n',
+      'scratch-repo/tests/git.test.ts':
+        "import { execSync } from 'node:child_process';\nexecSync('git status');\n",
+      'scratch-repo/README.md': '# Scratch\n\nPath `/Users/alice/secret`.\n',
+    });
+    expect(found(run(nonGit.root))).toEqual([]);
   });
 });

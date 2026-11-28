@@ -7,6 +7,73 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { current } from '../settings.ts';
 import { SIDECUT_FLEET } from '../sidecut-profile.ts';
 
+/** Reads non-empty, non-comment patterns from `.gitignore` at `root`. */
+export function readGitignore(root: string): string[] {
+  const path = join(root, '.gitignore');
+  if (!existsSync(path)) return [];
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#') && !line.startsWith('!'));
+}
+
+/** Whether `path` (or its basename) matches any `.gitignore` pattern in `patterns`. */
+export function ignoredBy(patterns: string[], path: string): boolean {
+  const name = basename(path);
+  return patterns.some((p) => {
+    const clean = p.replace(/^\//, '').replace(/\/$/, '');
+    if (!clean) return false;
+    const target = clean.includes('/') ? path : name;
+    if (clean.includes('*'))
+      return new RegExp(
+        `^${clean.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`,
+      ).test(target);
+    return clean === target;
+  });
+}
+
+/**
+ * Each job in a workflow and its `runs-on` value, read from the indentation of the `jobs:` block.
+ * Only a `runs-on` directly under the job counts, so one inside a called workflow's `with:` doesn't.
+ */
+export function jobsOf(
+  workflow: string,
+): { name: string; runsOn: string | undefined; title?: string }[] {
+  const lines = workflow.split('\n').map((line) => line.replace(/(^|\s+)#.*$/, ''));
+  const start = lines.findIndex((line) => /^jobs:\s*$/.test(line));
+  if (start < 0) return [];
+  const jobs: { name: string; runsOn: string | undefined; title?: string }[] = [];
+  let jobIndent = -1;
+  let keyIndent = -1;
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() === '') continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent === 0) break;
+    if (jobIndent < 0) jobIndent = indent;
+    const key = /^\s*(["']?)([A-Za-z0-9_-]+)\1:\s*(.*)$/.exec(line);
+    if (indent === jobIndent) {
+      jobs.push({ name: key?.[2] ?? line.trim(), runsOn: undefined });
+      keyIndent = -1;
+    } else if (indent > jobIndent) {
+      if (keyIndent < 0) keyIndent = indent;
+      const job = jobs.at(-1);
+      if (indent === keyIndent && key?.[2] === 'runs-on' && job) {
+        job.runsOn = key[3]?.trim().replace(/^['"]|['"]$/g, '');
+      }
+      if (indent === keyIndent && key?.[2] === 'name' && job) {
+        job.title = key[3]?.trim().replace(/^['"]|['"]$/g, '');
+      }
+    }
+  }
+  return jobs;
+}
+
+/** Whether every job in a workflow runs on GitHub-hosted Linux, which marks a public repo. */
+export function isHostedOnly(workflow: string): boolean {
+  const jobs = jobsOf(workflow);
+  return jobs.length > 0 && jobs.every((job) => job.runsOn === 'ubuntu-24.04');
+}
+
 /** Runs git in `root` without a hook's GIT_* overrides; undefined when it fails. */
 export function git(root: string, ...args: string[]): string | undefined {
   const env = Object.fromEntries(
