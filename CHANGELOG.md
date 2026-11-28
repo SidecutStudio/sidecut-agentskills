@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.17.0] - 2026-11-27
+
+### Added
+
+- `get_settings` and `save_settings` MCP tools. `get_house_style` puts your own house style guide first when your settings name one.
+
+### Changed
+
+- A stranger's first use now sets Agentskills up for them. Before any skill names or creates anything, it asks, together and once: your GitHub owner, author name and URL, plugin id prefix (none is fine), marketplace, licence, CI mode, and the house style and voice to follow (Agentskills' own, adapted, or your own guide). It saves the answers to `~/.config/agentskills/settings.json`, says in one line where they live and how to change them, and every later skill reads them and says which it's applying. The setup questions no longer offer the `sidecut` profile; Sidecut Studio's values apply only when you name that profile.
+- New repos made with your own settings carry no Sidecut names. Agentskills' marked blocks, `package.json` key and usage log go under `agentskills` (`agentskills:start`, `agentskills.keep`, `AGENTSKILLS_SKILL_LOG`, `~/.agentskills/skill-log.jsonl`). The `sidecut-check`, `sidecut-icon` and `sidecut-sync` commands keep their names. The checker reads both namespaces, and a repo keeps the one it already uses, so repos made before this keep passing unchanged. Your house style and voice guides stay in your own settings file, never in a repo. Repos with the `sidecut` profile come out byte for byte as before.
+- Skills mean your house style when they say "the house style", starting from Agentskills' own, and mention Sidecut only for the Sidecut profile. `agentskills-show-usage` reads both usage logs.
+
 ## [2.16.0] - 2026-11-27
 
 ### Added

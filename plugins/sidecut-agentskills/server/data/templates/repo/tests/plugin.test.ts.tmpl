@@ -45,7 +45,7 @@ function runSkillLog(env: Record<string, string>, call: object): string {
       timeout: 5_000,
     });
     try {
-      return readFileSync(join(home, '.sidecut', 'skill-log.jsonl'), 'utf8');
+      return readFileSync(join(home, '.{{ns}}', 'skill-log.jsonl'), 'utf8');
     } catch {
       return '';
     }
@@ -55,16 +55,16 @@ function runSkillLog(env: Record<string, string>, call: object): string {
 }
 
 const skill = '{{key}}-check-status';
-const on = { SIDECUT_SKILL_LOG: '1' };
+const on = { {{NS}}_SKILL_LOG: '1' };
 // Claude Code runs a skill through its Skill tool; Codex reads the SKILL.md with a shell command.
 const claude = (name: string) => ({ tool_name: 'Skill', tool_input: { skill: name } });
 const codex = (command: string) => ({ tool_name: 'Bash', turn_id: 'turn', tool_input: { command } });
 const skillFile = join(root, 'skills', skill, 'SKILL.md');
 
-test('the usage log is on by default, and SIDECUT_SKILL_LOG=0 turns it off', () => {
+test('the usage log is on by default, and {{NS}}_SKILL_LOG=0 turns it off', () => {
   expect(runSkillLog({}, claude(`${manifest.name}:${skill}`))).not.toBe('');
   for (const value of ['0', 'false', 'off', 'no'])
-    expect(runSkillLog({ SIDECUT_SKILL_LOG: value }, claude(`${manifest.name}:${skill}`))).toBe('');
+    expect(runSkillLog({ {{NS}}_SKILL_LOG: value }, claude(`${manifest.name}:${skill}`))).toBe('');
 });
 
 test("the usage log records this plugin's skill in Claude Code", () => {

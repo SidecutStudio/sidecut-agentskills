@@ -15,7 +15,7 @@ export type MarkdownDoc = {
   inCode: boolean[];
 };
 
-const ALLOWED_HTML = /^<!-- sidecut:(start|end)( [\w-]+)? -->$/;
+const ALLOWED_HTML = /^<!-- (?:agentskills|sidecut):(start|end)( [\w-]+)? -->$/;
 const allowedHtml = (line: string) =>
   ALLOWED_HTML.test(line) || line === SOLO_START || line === SOLO_END;
 
@@ -46,7 +46,7 @@ export function parseMarkdown(path: string, text: string): MarkdownDoc {
       continue;
     }
     // A sidecut-sync marker; the block's own text is checked like any other.
-    if (!fence && /^<!-- sidecut:(start|end) [\w-]+ -->$/.test(line)) {
+    if (!fence && /^<!-- (?:agentskills|sidecut):(start|end) [\w-]+ -->$/.test(line)) {
       inCode[i] = true;
       continue;
     }

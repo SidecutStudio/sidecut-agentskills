@@ -110,7 +110,7 @@ function generated(): string[] {
     outfile: join(output, 'server', 'index.mjs'),
     metafile: true,
     banner: {
-      js: "import { createRequire as __sidecutRequire } from 'node:module'; const require = __sidecutRequire(import.meta.url);",
+      js: "import { createRequire as __{{ns}}Require } from 'node:module'; const require = __{{ns}}Require(import.meta.url);",
     },
   });
   const inputs = Object.keys(built.metafile.inputs);

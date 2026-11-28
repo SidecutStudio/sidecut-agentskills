@@ -20,9 +20,10 @@ import { ownVersion } from '../plugins/sidecut-agentskills/server/src/scaffold.t
 
 const usage = `Usage: sidecut-sync [<repo>] [--check] [--force] [--fix]
 
-Brings a plugin repo up to date with sidecut-agentskills: the files it owns, the blocks marked
-sidecut:start, and the shared tool versions in package.json. Uses the installed, pinned version of Agentskills. Paths and rules listed under sidecut.keep in
-package.json are left alone.
+Brings a plugin repo up to date with Agentskills: the files it owns, the blocks marked
+agentskills:start (sidecut:start in older and Sidecut repos), and the shared tool versions in
+package.json. Uses the installed, pinned version of Agentskills. Paths and rules listed under
+agentskills.keep (or sidecut.keep) in package.json are left alone.
 
   --check    change nothing; list what would change and exit 1 if anything would
   --force    also overwrite files with uncommitted changes
@@ -169,5 +170,5 @@ if (left.length > 0) {
   process.exit(1);
 }
 console.log(
-  `\nSynced with sidecut-agentskills v${ownVersion}. Review the diff: where this repo was ahead, change the template instead and keep the repo's version under sidecut.keep until it lands.`,
+  `\nSynced with sidecut-agentskills v${ownVersion}. Review the diff: where this repo was ahead, change the template instead and keep the repo's version under the keep list in package.json until it lands.`,
 );

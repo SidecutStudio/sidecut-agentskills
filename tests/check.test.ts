@@ -1180,7 +1180,7 @@ test('sidecut.keep is honoured in an app repo, and a stale key still fails', () 
     `${P}/NOTES.md Mine.`,
   ]);
   expect(report.problems.filter((p) => p.code.startsWith('KEEP_')).map((p) => p.message)).toEqual([
-    'sidecut.keep lists "README.md", which no longer differs.',
+    'The keep list in package.json names "README.md", which no longer differs.',
   ]);
 });
 

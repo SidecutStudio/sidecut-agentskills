@@ -3,7 +3,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderFile } from '../scaffold.ts';
-import { current } from '../settings.ts';
+import { current, packageConfig } from '../settings.ts';
 import { SOLO_BLOCK, SOLO_END, SOLO_FILE, SOLO_HEADINGS, SOLO_START } from '../sidecut-profile.ts';
 import type { Fleet } from './fleet.ts';
 import { repoName } from './fleet.ts';
@@ -36,14 +36,14 @@ export function repoKind(
   report: Report,
 ): KindFound {
   const pkg = readJson(join(root, 'package.json'));
-  const declared = (pkg?.sidecut as { kind?: unknown } | undefined)?.kind;
+  const declared = packageConfig(pkg).kind;
   if (declared !== undefined) {
     if (KINDS.includes(declared as Kind)) return { kind: declared as Kind, how: 'declared' };
     report.add(
       'REPO_KIND',
       'package.json',
       undefined,
-      `sidecut.kind is "${String(declared)}", which isn't a repo kind.`,
+      `The kind in package.json is "${String(declared)}", which isn't a repo kind.`,
       `Use one of ${KINDS.join(', ')}.`,
     );
   }

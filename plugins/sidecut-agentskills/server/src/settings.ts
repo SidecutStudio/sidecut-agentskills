@@ -27,6 +27,15 @@ export type Settings = {
   brand: string;
   /** An extra delivery workflow the repo follows: empty for none, or `solo` for the Sidecut profile's. */
   workflow: string;
+  /** The user's own house style guide, as a path or URL, or empty for Agentskills' own. */
+  houseStyle: string;
+  /** The user's own voice guide, as a path or URL, or empty for the template's VOICE.md. */
+  voice: string;
+  /**
+   * The namespace of Agentskills' markers, package.json key and usage log: empty to follow the
+   * profile, or `sidecut` or `agentskills`. A repo keeps the one it already uses.
+   */
+  namespace: string;
 };
 
 /** What a settings file or a tool call gives: any fields, and optionally a profile to start from. */
@@ -45,6 +54,9 @@ export const DEFAULTS: Settings = {
   brandColor: '#3B82F6',
   brand: '',
   workflow: '',
+  houseStyle: '',
+  voice: '',
+  namespace: '',
 };
 
 /** Sidecut Studio's own values, kept as one profile. */
@@ -110,6 +122,8 @@ export function mergeSettings(...layers: (SettingsInput | null | undefined)[]): 
   }
   if (out.ci !== 'hosted' && out.ci !== 'sidecut')
     throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (!['', 'sidecut', 'agentskills'].includes(out.namespace))
+    throw new Error(`Namespace "${out.namespace}" must be empty, sidecut or agentskills.`);
   if (out.workflow !== '' && out.workflow !== 'solo')
     throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
   if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
@@ -141,7 +155,7 @@ export function validateSettings(s: Settings): Settings {
     throw new Error(
       `Owner "${s.org}" must be a GitHub user or organization name: letters, digits and single hyphens.`,
     );
-  for (const key of ['authorName', 'brand'] as const) {
+  for (const key of ['authorName', 'brand', 'houseStyle', 'voice'] as const) {
     if (unsafeText(s[key]))
       throw new Error(
         `${key} can't hold quotes, backslashes, line breaks or other control characters.`,
@@ -279,7 +293,9 @@ export function resolveSettings(
 
 /** The settings a repo is checked and synced with: its answers file, or what its manifests say. */
 export function repoSettings(root: string): Settings {
-  return mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
+  const settings = mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
+  if (!settings.namespace) settings.namespace = namespaceInRepo(root);
+  return settings;
 }
 
 let active: Settings = mergeSettings();
@@ -299,32 +315,53 @@ export type Question = { key: keyof Settings; ask: string; default: string };
 
 export const QUESTIONS: Question[] = [
   {
-    key: 'profile',
-    ask: 'Start from a saved profile? Answer "sidecut" for Sidecut Studio\'s values, or leave it empty and answer the rest.',
+    key: 'org',
+    ask: 'Which GitHub user or organization will hold your plugin repos?',
     default: '',
   },
-  { key: 'org', ask: 'Which GitHub user or organization will hold the repo?', default: '' },
   { key: 'authorName', ask: 'Whose name goes in the manifests and the licence?', default: '' },
   { key: 'authorUrl', ask: "The author's web address, if any?", default: '' },
-  { key: 'homepage', ask: "The plugin's homepage, if any?", default: '' },
+  {
+    key: 'homepage',
+    ask: "Your plugins' homepage, if any? Empty uses each repo's GitHub page.",
+    default: '',
+  },
   {
     key: 'prefix',
-    ask: 'A prefix for every plugin id, such as "acme-", or none?',
+    ask: 'A prefix in front of every plugin id, such as "acme-" for acme-notes, or none (the usual answer)?',
     default: DEFAULTS.prefix,
   },
   {
     key: 'marketplace',
-    ask: 'Which marketplace lists the plugin: its own repo (leave empty), or another repo as owner/repo?',
+    ask: "Where do people install your plugins from: each plugin's own repo (leave empty, the usual answer), or a shared marketplace repo, as owner/repo?",
     default: DEFAULTS.marketplace,
   },
   {
+    key: 'license',
+    ask: 'The template ships the MIT licence. Keep it? For another, keep MIT now and swap the LICENSE file in after scaffolding.',
+    default: DEFAULTS.license,
+  },
+  {
     key: 'ci',
-    ask: 'Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04), or "sidecut" for the sidecut profile\'s own runners?',
+    ask: 'CI runs on GitHub-hosted ubuntu-24.04 runners ("hosted"). Keep that?',
     default: DEFAULTS.ci,
+  },
+  {
+    key: 'houseStyle',
+    ask: "Which house style should your plugins follow: Agentskills' own (leave empty), Agentskills' own with your changes, or your own guide (give its path or URL)?",
+    default: DEFAULTS.houseStyle,
+  },
+  {
+    key: 'voice',
+    ask: "Which voice should their docs and skills be written in: the template's VOICE.md (leave empty), that one adapted, or your own guide (give its path or URL)?",
+    default: DEFAULTS.voice,
   },
 ];
 
-/** Whether `input` says enough to write a repo: a profile, or at least the owner and the author. */
+/**
+ * Whether `input` says enough to write a repo: a profile, or at least the owner and the author. The
+ * Sidecut profile counts only when someone chose it; nothing falls back to it.
+ */
 export function answered(input: SettingsInput): boolean {
   return Boolean(input.profile || (input.org && input.authorName));
 }
@@ -336,6 +373,83 @@ export function escapeRegExp(text: string): string {
 /** The brand the templates put in front of a phrase, with its space, or nothing. */
 export function brandSpace(s: Settings = active): string {
   return s.brand ? `${s.brand} ` : '';
+}
+
+/**
+ * The name Agentskills' own markers, package.json key and usage log go under in a repo: `sidecut` for
+ * the Sidecut profile, whose repos have always used it, and `agentskills` for everyone else. The
+ * checker reads both, so a repo made before this keeps passing until sync moves it over.
+ */
+export function namespaceOf(s: Settings = active): 'sidecut' | 'agentskills' {
+  if (s.namespace === 'sidecut' || s.namespace === 'agentskills') return s.namespace;
+  return s.profile === 'sidecut' ? 'sidecut' : 'agentskills';
+}
+
+/** The files whose markers or usage log say which namespace a repo was made with. */
+const NAMESPACE_FILES = ['.gitignore', 'AGENTS.md', 'SECURITY.md', 'tests/setup.ts'];
+
+/**
+ * The namespace a repo already uses, so a repo made before `agentskills` existed keeps `sidecut`
+ * and its own tests keep working: `sidecut` when its files carry only the older markers or switch,
+ * `agentskills` when they carry the new ones, and empty when neither shows.
+ */
+export function namespaceInRepo(root: string): '' | 'sidecut' | 'agentskills' {
+  const plugins = join(root, 'plugins');
+  const hooks = existsSync(plugins)
+    ? readdirSync(plugins).map((id) => join('plugins', id, 'hooks', 'post-tool-use-skill-log.mjs'))
+    : [];
+  let older = false;
+  for (const file of [...NAMESPACE_FILES, ...hooks]) {
+    const path = join(root, file);
+    if (!existsSync(path)) continue;
+    let text = '';
+    try {
+      text = readFileSync(path, 'utf8');
+    } catch {
+      continue;
+    }
+    // Only a real marker line or the switch in code counts, never prose that mentions them.
+    if (
+      /^(?:<!--|#|\/\/) agentskills:start |\benv\.AGENTSKILLS_SKILL_LOG\b|process\.env\.AGENTSKILLS_SKILL_LOG\b/m.test(
+        text,
+      )
+    )
+      return 'agentskills';
+    if (
+      /^(?:<!--|#|\/\/) sidecut:start |\benv\.SIDECUT_SKILL_LOG\b|process\.env\.SIDECUT_SKILL_LOG\b/m.test(
+        text,
+      )
+    )
+      older = true;
+  }
+  return older ? 'sidecut' : '';
+}
+
+/** Every namespace the checker reads. */
+export const NAMESPACES = ['agentskills', 'sidecut'] as const;
+
+/** A marker line's namespace, as a regular expression source: either one. */
+export const NAMESPACE_RE = '(?:agentskills|sidecut)';
+
+/**
+ * What `package.json` tells Agentskills, such as `keep` and `kind`: its `agentskills` key over its
+ * `sidecut` key, so a repo can use either.
+ */
+export function packageConfig(pkg: unknown): { keep?: Record<string, string>; kind?: unknown } {
+  const read = (key: string) => {
+    const value = (pkg as Record<string, unknown> | null)?.[key];
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  };
+  const old = read('sidecut');
+  const own = read('agentskills');
+  const keep = { ...(old.keep as object), ...(own.keep as object) } as Record<string, string>;
+  const kind = own.kind ?? old.kind;
+  return {
+    ...(Object.keys(keep).length > 0 || 'keep' in old || 'keep' in own ? { keep } : {}),
+    ...(kind !== undefined ? { kind } : {}),
+  };
 }
 
 /** The marketplace's name: its repo part, or the plugin id when the plugin lists itself. */

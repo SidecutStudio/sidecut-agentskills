@@ -77,7 +77,7 @@ export class Report {
           'KEEP_UNUSED',
           'package.json',
           undefined,
-          `sidecut.keep lists "${key}", which no longer differs.`,
+          `The keep list in package.json names "${key}", which no longer differs.`,
           'Remove it.',
         );
       for (const p of hit) this.kept.push({ ...p, reason: String(reason) });

@@ -5,7 +5,20 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import type { buildSync } from 'esbuild';
 import { listFiles, templatesRoot } from '../scaffold.ts';
+import { current, namespaceOf } from '../settings.ts';
 import { type Report, sentences } from './report.ts';
+
+/**
+ * The name the repo's own build script gives `createRequire` in the bundle's banner, so the check
+ * builds the same bytes: `__agentskillsRequire`, or `__sidecutRequire` in Sidecut and older repos.
+ */
+function requireName(root: string): string {
+  const script = join(root, 'scripts', 'build-server.ts');
+  const named = existsSync(script)
+    ? /createRequire as (__[A-Za-z]+Require)\b/.exec(readFileSync(script, 'utf8'))?.[1]
+    : undefined;
+  return named ?? `__${namespaceOf(current())}Require`;
+}
 
 type Tool = {
   name: string;
@@ -135,7 +148,7 @@ export function checkServer(pluginDir: string, root: string, report: Report): Se
         metafile: true,
         logLevel: 'silent',
         banner: {
-          js: "import { createRequire as __sidecutRequire } from 'node:module'; const require = __sidecutRequire(import.meta.url);",
+          js: `import { createRequire as ${requireName(root)} } from 'node:module'; const require = ${requireName(root)}(import.meta.url);`,
         },
       });
       inputs = Object.keys(result.metafile.inputs);

@@ -6,6 +6,7 @@ import {
   current,
   escapeRegExp,
   marketplaceName,
+  packageConfig,
   REPO_FILE,
   repoSettings,
   useSettings,
@@ -709,7 +710,7 @@ function checkSolo(root: string, report: Report): void {
       SOLO_FILE,
       undefined,
       `\`required_checks\` lists "${name}", but no job in .github/workflows/ reports a check by that name, so the merge gate waits for one that never runs.`,
-      'Remove it from required_checks, or add the job. A check another service reports goes under sidecut.keep with its source.',
+      'Remove it from required_checks, or add the job. A check another service reports goes under the keep list in package.json with its source.',
     );
 }
 
@@ -796,8 +797,7 @@ export function identify(root: string): Identity {
     new RegExp(`^https:\\/\\/github\\.com\\/${owner}\\/([\\w.-]+)$`).exec(
       String(manifest.repository ?? ''),
     )?.[1] ?? '';
-  const keep = ((pkg.sidecut as { keep?: Record<string, string> } | undefined)?.keep ??
-    {}) as Record<string, string>;
+  const keep = packageConfig(pkg).keep ?? {};
   const olderName =
     Boolean(settings.prefix) && only === `${settings.prefix}${repo}` && pkg.name === only;
   const renamed = pkg.name === only && Object.hasOwn(keep, 'REPO_PLUGIN_ID');

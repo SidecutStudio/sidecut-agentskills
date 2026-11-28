@@ -3,11 +3,12 @@ name: agentskills
 description: "Routes a request about plugins, skills, MCP servers or plugin repos to the right Agentskills skill. Use when the user wants agent tooling made, fixed, checked or shipped but hasn't said which part. Not for using an installed plugin or configuring someone else's MCP server."
 allowed-tools:
   - mcp__plugin_sidecut-agentskills_agentskills__get_house_style
+  - mcp__plugin_sidecut-agentskills_agentskills__get_settings
 ---
 
 # Sidecut Agentskills
 
-Picks the one skill in this plugin that fits the request and hands over to it. Every skill here follows the house style, which `get_house_style` returns.
+Picks the one skill in this plugin that fits the request and hands over to it. Every skill here follows the user's house style: their own guide when their settings name one, starting from Agentskills' own, which `get_house_style` returns. When `get_settings` returns `needs: settings`, the skill you hand over to asks the setup questions before naming or writing anything.
 
 ## Pick a skill
 

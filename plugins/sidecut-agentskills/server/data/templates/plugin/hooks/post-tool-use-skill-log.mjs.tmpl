@@ -1,5 +1,5 @@
 // {{logTitle}}, on by default: records one line per run of this plugin's own skills to
-// ~/.sidecut/skill-log.jsonl. SIDECUT_SKILL_LOG=0, DO_NOT_TRACK=1 or a CI environment turns it off.
+// ~/.{{ns}}/skill-log.jsonl. {{NS}}_SKILL_LOG=0, DO_NOT_TRACK=1 or a CI environment turns it off.
 // Sends nothing.
 // Claude Code runs a skill through its Skill tool. Codex has no skill tool: it reads the skill's
 // SKILL.md with a shell command, so a Bash call that reads one of this plugin's SKILL.md files counts.
@@ -24,7 +24,7 @@ const OFF = new Set(['0', 'false', 'off', 'no']);
 
 function isOn(env) {
   if (env.DO_NOT_TRACK === '1' || CI_VARIABLES.some((name) => env[name])) return false;
-  return !OFF.has((env.SIDECUT_SKILL_LOG ?? '').toLowerCase());
+  return !OFF.has((env.{{NS}}_SKILL_LOG ?? '').toLowerCase());
 }
 
 // The plugin's folder, then an optional version folder, then skills/<skill>/SKILL.md.
@@ -121,7 +121,7 @@ function record() {
     : input.turn_id === undefined
       ? 'claude-code'
       : 'codex';
-  const file = join(homedir(), '.sidecut', 'skill-log.jsonl');
+  const file = join(homedir(), '.{{ns}}', 'skill-log.jsonl');
   mkdirSync(dirname(file), { recursive: true });
   appendFileSync(
     file,

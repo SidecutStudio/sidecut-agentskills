@@ -30,7 +30,10 @@ var SIDECUT_SETTINGS = {
   license: "MIT",
   brandColor: "#FF6B00",
   brand: "Sidecut",
-  workflow: "solo"
+  workflow: "solo",
+  houseStyle: "",
+  voice: "",
+  namespace: ""
 };
 var SIDECUT_OWNER = SIDECUT_SETTINGS.org;
 
@@ -47,7 +50,10 @@ var DEFAULTS = {
   license: "MIT",
   brandColor: "#3B82F6",
   brand: "",
-  workflow: ""
+  workflow: "",
+  houseStyle: "",
+  voice: "",
+  namespace: ""
 };
 var PROFILES = {
   sidecut: SIDECUT_SETTINGS
@@ -90,6 +96,8 @@ function mergeSettings(...layers) {
   }
   if (out.ci !== "hosted" && out.ci !== "sidecut")
     throw new Error(`CI mode "${out.ci}" must be hosted or sidecut.`);
+  if (!["", "sidecut", "agentskills"].includes(out.namespace))
+    throw new Error(`Namespace "${out.namespace}" must be empty, sidecut or agentskills.`);
   if (out.workflow !== "" && out.workflow !== "solo")
     throw new Error(`Workflow "${out.workflow}" must be empty or solo.`);
   if (out.marketplace && !/^[\w.-]+\/[\w.-]+$/.test(out.marketplace))
@@ -140,35 +148,80 @@ function inferRepoSettings(root) {
   return {};
 }
 function repoSettings(root) {
-  return mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
+  const settings = mergeSettings(readRepoSettings(root) ?? inferRepoSettings(root));
+  if (!settings.namespace) settings.namespace = namespaceInRepo(root);
+  return settings;
 }
 var active = mergeSettings();
 var QUESTIONS = [
   {
-    key: "profile",
-    ask: `Start from a saved profile? Answer "sidecut" for Sidecut Studio's values, or leave it empty and answer the rest.`,
+    key: "org",
+    ask: "Which GitHub user or organization will hold your plugin repos?",
     default: ""
   },
-  { key: "org", ask: "Which GitHub user or organization will hold the repo?", default: "" },
   { key: "authorName", ask: "Whose name goes in the manifests and the licence?", default: "" },
   { key: "authorUrl", ask: "The author's web address, if any?", default: "" },
-  { key: "homepage", ask: "The plugin's homepage, if any?", default: "" },
+  {
+    key: "homepage",
+    ask: "Your plugins' homepage, if any? Empty uses each repo's GitHub page.",
+    default: ""
+  },
   {
     key: "prefix",
-    ask: 'A prefix for every plugin id, such as "acme-", or none?',
+    ask: 'A prefix in front of every plugin id, such as "acme-" for acme-notes, or none (the usual answer)?',
     default: DEFAULTS.prefix
   },
   {
     key: "marketplace",
-    ask: "Which marketplace lists the plugin: its own repo (leave empty), or another repo as owner/repo?",
+    ask: "Where do people install your plugins from: each plugin's own repo (leave empty, the usual answer), or a shared marketplace repo, as owner/repo?",
     default: DEFAULTS.marketplace
   },
   {
+    key: "license",
+    ask: "The template ships the MIT licence. Keep it? For another, keep MIT now and swap the LICENSE file in after scaffolding.",
+    default: DEFAULTS.license
+  },
+  {
     key: "ci",
-    ask: `Where does CI run: "hosted" (GitHub-hosted ubuntu-24.04), or "sidecut" for the sidecut profile's own runners?`,
+    ask: 'CI runs on GitHub-hosted ubuntu-24.04 runners ("hosted"). Keep that?',
     default: DEFAULTS.ci
+  },
+  {
+    key: "houseStyle",
+    ask: "Which house style should your plugins follow: Agentskills' own (leave empty), Agentskills' own with your changes, or your own guide (give its path or URL)?",
+    default: DEFAULTS.houseStyle
+  },
+  {
+    key: "voice",
+    ask: "Which voice should their docs and skills be written in: the template's VOICE.md (leave empty), that one adapted, or your own guide (give its path or URL)?",
+    default: DEFAULTS.voice
   }
 ];
+var NAMESPACE_FILES = [".gitignore", "AGENTS.md", "SECURITY.md", "tests/setup.ts"];
+function namespaceInRepo(root) {
+  const plugins = join(root, "plugins");
+  const hooks = existsSync(plugins) ? readdirSync(plugins).map((id) => join("plugins", id, "hooks", "post-tool-use-skill-log.mjs")) : [];
+  let older = false;
+  for (const file of [...NAMESPACE_FILES, ...hooks]) {
+    const path = join(root, file);
+    if (!existsSync(path)) continue;
+    let text = "";
+    try {
+      text = readFileSync(path, "utf8");
+    } catch {
+      continue;
+    }
+    if (/^(?:<!--|#|\/\/) agentskills:start |\benv\.AGENTSKILLS_SKILL_LOG\b|process\.env\.AGENTSKILLS_SKILL_LOG\b/m.test(
+      text
+    ))
+      return "agentskills";
+    if (/^(?:<!--|#|\/\/) sidecut:start |\benv\.SIDECUT_SKILL_LOG\b|process\.env\.SIDECUT_SKILL_LOG\b/m.test(
+      text
+    ))
+      older = true;
+  }
+  return older ? "sidecut" : "";
+}
 
 // scripts/icon.ts
 var TILE = "#0a0a0a";
